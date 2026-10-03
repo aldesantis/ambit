@@ -31,6 +31,8 @@ predicates = "3.1.4"
 pretty_assertions = "1.4.1"
 # Reads the fixture catalog in tests independently of ambit's own YAML reader.
 saphyr = "0.1.0"
+# The self-update suites build cargo-dist-shaped `.tar.xz` archives to serve from a fake GitHub.
+lzma-rust2 = { version = "0.21.0", default-features = false, features = ["std", "xz", "encoder"] }
 
 [lints.rust]
 unsafe_code = "forbid"
