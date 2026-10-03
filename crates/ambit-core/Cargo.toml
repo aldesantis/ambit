@@ -1,0 +1,44 @@
+[package]
+name = "ambit-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+description = "The ambit engine: catalogs, resolution, installation and the CLI handlers."
+
+[features]
+default = ["cli"]
+# The command-line surface and self-update. The CLI binary and the in-crate tests need it; the
+# FFI library builds without it, so it links no HTTP client or archive readers.
+cli = ["dep:ureq", "dep:tar", "dep:lzma-rust2", "dep:zip", "dep:terminal_size"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+indexmap.workspace = true
+ryu-js.workspace = true
+jsonc-parser.workspace = true
+saphyr-parser.workspace = true
+regex.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+ureq = { workspace = true, optional = true }
+tar = { workspace = true, optional = true }
+lzma-rust2 = { workspace = true, optional = true }
+zip = { workspace = true, optional = true }
+terminal_size = { workspace = true, optional = true }
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+# Reads the fixture catalog in tests independently of ambit's own YAML reader.
+saphyr.workspace = true
+# The self-update suites build cargo-dist-shaped `.tar.xz` archives to serve from a fake GitHub.
+lzma-rust2 = { workspace = true, features = ["encoder"] }
+
+[lints]
+workspace = true
+
+[package.metadata.dist]
+dist = false

@@ -12,7 +12,7 @@ installers = ["shell", "powershell"]
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 # Archive names, formats and per-asset `.sha256` files are left at dist's defaults on purpose:
-# `ambit self-update` (src/self_update/platform.rs) downloads `ambit-<triple>.tar.xz` (`.zip` on
+# `ambit self-update` (crates/ambit-core/src/self_update/platform.rs) downloads `ambit-<triple>.tar.xz` (`.zip` on
 # Windows) and verifies it against `<asset>.sha256`, so changing any of them breaks self-update.
 checksum = "sha256"
 # Where the installers put the binary. The pre-dist install.sh used the same directory.
