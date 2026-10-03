@@ -70,7 +70,8 @@ protocol SetupSessionService: Sendable {
     func ruleMatches(draftText: String?, entry: SelectionEntry) async throws -> [ItemRef]
 
     /// The `requires` entries of `draftText`, or of the saved config, that match nothing in the
-    /// catalogs as loaded. Offline: reads what `loadCatalogs` cached.
+    /// catalogs as loaded. Entries for catalogs that did not load are left out. Offline: reads
+    /// what `loadCatalogs` cached.
     func unmatchedEntries(draftText: String?) async throws -> [UnmatchedEntry]
 
     func removalImpact(draftText: String?, item: ItemRef) async throws -> RemovalImpact
@@ -80,10 +81,6 @@ protocol SetupSessionService: Sendable {
     /// Throws `EngineError.config` when the pattern breaks the grammar, `EngineError.resolution`
     /// when it matches nothing, and the catalog's load error when the catalog did not load.
     func previewRule(draftText: String?, catalog: String, kind: ItemKind, pattern: String) async throws -> [ItemRef]
-
-    /// The entries of `draftText` (or the saved config) that match nothing in the loaded
-    /// catalogs. Entries for catalogs that did not load are left out.
-    func unmatchedEntries(draftText: String?) async throws -> [UnmatchedEntry]
 
     /// Plans `draftText`, or the saved config when it is `nil`. Never writes.
     func review(draftText: String?, progress: ProgressHandler?) async throws -> ReviewHandle
