@@ -7,6 +7,8 @@
 //!
 //! Nothing here runs catalog content: hook commands and MCP launch lines are returned as data.
 
+use std::sync::Arc;
+
 use ambit_core::errors::AmbitError;
 use ambit_core::harness::adapter::{HookSkipReason, SkippedHook};
 use ambit_core::model::config::{
@@ -22,9 +24,12 @@ use ambit_core::resolution::resolve::{
     BundleItem, ReasonedItem, SelectionReason as CoreReason, entry_catalog,
 };
 use ambit_core::resolution::routes::{self, Route, bundle_catalog, bundle_items, resolve_matched};
+use ambit_core::util::control::Control;
 
+use crate::control::{CancelToken, ProgressListener, control_of};
 use crate::engine::SetupSession;
 use crate::errors::{EngineError, guard};
+use crate::git::git_env;
 use crate::records::{ItemKind, ItemRef, SelectionEntry, SourceKind, source_kind};
 
 /// The session's cached load.
@@ -257,20 +262,26 @@ pub struct UnmatchedEntry {
 #[uniffi::export]
 impl SetupSession {
     /// Loads every catalog the draft (or the saved config) declares, one at a time, and caches
-    /// the result for the other browse exports.
+    /// the result for the other browse exports. Fetches authenticate with the engine's GitHub
+    /// token. `listener` hears a [`Stage::LoadingCatalogs`](crate::records::Stage) report per
+    /// catalog.
     ///
     /// # Errors
     ///
     /// [`EngineError::Config`] when the config is missing or does not parse, or `ambit.lock`
-    /// cannot be read. A catalog that fails to load is reported in the result, not thrown.
+    /// cannot be read; [`EngineError::Canceled`] when `cancel` is set, which keeps the previous
+    /// cache. A catalog that fails to load for any other reason is reported in the result.
+    #[uniffi::method(default(cancel = None, listener = None))]
     pub fn load_catalogs(
         &self,
         draft_text: Option<String>,
         policy: FetchPolicy,
+        cancel: Option<Arc<CancelToken>>,
+        listener: Option<Arc<dyn ProgressListener>>,
     ) -> Result<CatalogsState, EngineError> {
         guard(|| {
             let config = self.browse_config(draft_text.as_deref())?;
-            let loaded = self.load(config, policy)?;
+            let loaded = self.load(config, policy, &control_of(cancel.as_ref(), listener))?;
 
             Ok(CatalogsState {
                 catalogs: self.availability(&loaded),
@@ -473,13 +484,19 @@ impl SetupSession {
     }
 
     /// Loads `config`'s catalogs and replaces the cache with the result.
-    fn load(&self, config: ProjectConfig, policy: FetchPolicy) -> Result<LoadedSetup, EngineError> {
+    fn load(
+        &self,
+        config: ProjectConfig,
+        policy: FetchPolicy,
+        control: &Control,
+    ) -> Result<LoadedSetup, EngineError> {
         let policy = match policy {
             FetchPolicy::CacheOnly => core::FetchPolicy::CacheOnly,
             FetchPolicy::FetchMissing => core::FetchPolicy::FetchMissing,
         };
         // Loading runs outside the state lock; see `with_state`.
-        let loaded = core::load_setup(self.root_path(), self.engine().env(), config, policy)
+        let env = git_env(self.engine());
+        let loaded = core::load_setup(self.root_path(), &env, config, policy, control)
             .map_err(|error| self.error(&error))?;
 
         self.with_state(|state: &mut BrowseState| state.loaded = Some(loaded.clone()));
@@ -500,7 +517,7 @@ impl SetupSession {
                 self.with_state(|state: &mut BrowseState| state.loaded = Some(loaded.clone()));
                 Ok(loaded)
             }
-            None => self.load(config, FetchPolicy::CacheOnly),
+            None => self.load(config, FetchPolicy::CacheOnly, &Control::default()),
         }
     }
 
@@ -508,7 +525,11 @@ impl SetupSession {
     fn current(&self) -> Result<LoadedSetup, EngineError> {
         match self.with_state(|state: &mut BrowseState| state.loaded.clone()) {
             Some(loaded) => Ok(loaded),
-            None => self.load(self.browse_config(None)?, FetchPolicy::CacheOnly),
+            None => self.load(
+                self.browse_config(None)?,
+                FetchPolicy::CacheOnly,
+                &Control::default(),
+            ),
         }
     }
 

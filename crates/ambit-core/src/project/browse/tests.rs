@@ -70,7 +70,14 @@ impl Setup {
     }
 
     fn load(&self, config: ProjectConfig, policy: FetchPolicy) -> LoadedSetup {
-        load_setup(&self.project, &self.env, config, policy).unwrap()
+        load_setup(
+            &self.project,
+            &self.env,
+            config,
+            policy,
+            &Control::default(),
+        )
+        .unwrap()
     }
 
     /// The local catalog alone, selecting `requires`.
@@ -150,6 +157,24 @@ mod loading {
         let again = t.load(config, FetchPolicy::CacheOnly);
 
         assert!(matches!(&again.catalogs[0], CatalogLoad::Loaded(_)));
+    }
+
+    #[test]
+    fn stops_once_canceled_instead_of_reporting_a_failure() {
+        let t = Setup::new();
+        let flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let control = Control::new(Some(flag), None);
+
+        let error = load_setup(
+            &t.project,
+            &t.env,
+            Setup::config(&[t.remote()], "claude", &[]),
+            FetchPolicy::FetchMissing,
+            &control,
+        )
+        .expect_err("canceled");
+
+        assert_eq!(error.code, ExitCode::Canceled);
     }
 
     #[test]

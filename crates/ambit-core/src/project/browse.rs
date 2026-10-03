@@ -32,6 +32,7 @@ use crate::resolution::resolve::{
 use crate::resolution::routes::{
     Route, bundle_catalog, resolve_matched, selection_routes, unmatched_entries,
 };
+use crate::util::control::{Control, Progress, Stage};
 use crate::util::env::Env;
 use crate::util::fs::read_text;
 use crate::util::path::join;
@@ -85,26 +86,40 @@ pub struct LoadedSetup {
 /// Loads every catalog `config` declares, one at a time, each at the commit `ambit.lock` pins when
 /// the lock still names the same source and ref.
 ///
+/// Reports [`Stage::LoadingCatalogs`] before each catalog, and stops between catalogs or inside a
+/// fetch once `control` is canceled.
+///
 /// # Errors
 ///
-/// Exit 2 when `ambit.lock` exists and cannot be read. A catalog that fails to load is reported in
+/// Exit 2 when `ambit.lock` exists and cannot be read; [`ExitCode::Canceled`] when `control` is
+/// canceled. A catalog that fails to load for any other reason is reported in
 /// [`LoadedSetup::catalogs`], never as an error.
 pub fn load_setup(
     root: &Path,
     env: &Env,
     config: ProjectConfig,
     policy: FetchPolicy,
+    control: &Control,
 ) -> Result<LoadedSetup> {
     let pins = read_catalog_pins(root, &config)?;
     let context = SourceContext {
         project_dir: root.to_path_buf(),
         env: env.clone(),
         offline: policy == FetchPolicy::CacheOnly,
-        ..SourceContext::default()
+        control: control.clone(),
     };
+    let total = u32::try_from(config.catalogs.len()).unwrap_or(u32::MAX);
     let mut catalogs = Vec::new();
 
-    for entry in &config.catalogs {
+    for (index, entry) in config.catalogs.iter().enumerate() {
+        control.check()?;
+        control.report(&Progress {
+            stage: Stage::LoadingCatalogs,
+            subject: entry.name.clone(),
+            current: u32::try_from(index).unwrap_or(u32::MAX),
+            total,
+        });
+
         // `load_catalogs` stops at the first failure, so each catalog gets a load of its own.
         let single = ProjectConfig {
             catalogs: vec![entry.clone()],
@@ -119,6 +134,7 @@ pub fn load_setup(
 
         catalogs.push(match load_catalogs(&single, &context, &mut options) {
             Ok(mut loaded) => CatalogLoad::Loaded(loaded.remove(0)),
+            Err(error) if error.code == ExitCode::Canceled => return Err(error),
             Err(error) if policy == FetchPolicy::CacheOnly && error.code == ExitCode::Network => {
                 CatalogLoad::NotCached { name, error }
             }

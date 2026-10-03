@@ -95,6 +95,32 @@ struct BrowseTests {
         }
     }
 
+    private final class Recorder: ProgressListener, @unchecked Sendable {
+        private let lock = NSLock()
+        private var recorded: [ProgressEvent] = []
+
+        var events: [ProgressEvent] { lock.withLock { recorded } }
+
+        func onProgress(event: ProgressEvent) {
+            lock.withLock { recorded.append(event) }
+        }
+    }
+
+    @Test func reportsProgressAndHonorsCancel() throws {
+        let fixture = try Fixture(requires: [])
+        defer { fixture.remove() }
+        let recorder = Recorder()
+
+        _ = try fixture.session.loadCatalogs(draftText: nil, policy: .cacheOnly, listener: recorder)
+        #expect(recorder.events.map(\.subject) == ["company"])
+
+        let token = CancelToken()
+        token.cancel()
+        #expect(throws: EngineError.Canceled) {
+            _ = try fixture.session.loadCatalogs(draftText: nil, policy: .fetchMissing, cancel: token)
+        }
+    }
+
     @Test func explainsWhatAnUninstallTakes() throws {
         let fixture = try Fixture(requires: [])
         defer { fixture.remove() }

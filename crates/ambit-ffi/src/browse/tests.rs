@@ -7,14 +7,17 @@ mod fixture_catalog;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tempfile::TempDir;
 
 use self::fixture_catalog::{FixtureGitCatalog, build_fixture_catalog, build_fixture_git_catalog};
 use super::*;
+use crate::control::{CancelToken, ProgressListener};
 use crate::engine::{Engine, EngineConfig};
 use crate::errors::NetworkKind;
+use crate::records::{ProgressEvent, Stage};
+use ambit_core::model::git::GIT_PROGRAM_VAR;
 
 /// A project folder beside the fixture catalog and its git twin, with an empty cache.
 struct Setup {
@@ -146,7 +149,7 @@ mod loading {
         let session = t.open();
 
         let state = session
-            .load_catalogs(Some(draft), FetchPolicy::CacheOnly)
+            .load_catalogs(Some(draft), FetchPolicy::CacheOnly, None, None)
             .unwrap();
 
         assert_eq!(
@@ -183,7 +186,7 @@ mod loading {
         let session = t.open();
 
         let state = session
-            .load_catalogs(Some(draft.clone()), FetchPolicy::FetchMissing)
+            .load_catalogs(Some(draft.clone()), FetchPolicy::FetchMissing, None, None)
             .unwrap();
 
         assert_eq!(
@@ -195,6 +198,92 @@ mod loading {
         );
         let result = session.browse(Some(draft)).unwrap();
         assert!(find(&result, ItemKind::Skill, "code-review").selected);
+    }
+
+    #[derive(Default)]
+    struct Recorder(Mutex<Vec<ProgressEvent>>);
+
+    impl ProgressListener for Recorder {
+        fn on_progress(&self, event: ProgressEvent) {
+            self.0.lock().unwrap().push(event);
+        }
+    }
+
+    #[test]
+    fn reports_each_catalog_it_loads() {
+        let t = Setup::new();
+        let draft = config(&[LOCAL, &t.remote()], &[]);
+        let recorder = Arc::new(Recorder::default());
+
+        t.open()
+            .load_catalogs(
+                Some(draft),
+                FetchPolicy::CacheOnly,
+                None,
+                Some(Arc::clone(&recorder) as Arc<dyn ProgressListener>),
+            )
+            .unwrap();
+
+        let events = recorder.0.lock().unwrap().clone();
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| event.stage == Stage::LoadingCatalogs)
+                .map(|event| (event.subject.as_str(), event.current, event.total))
+                .collect::<Vec<_>>(),
+            vec![("company", 0, 2), ("remote", 1, 2)]
+        );
+    }
+
+    #[test]
+    fn a_cancel_up_front_keeps_the_previous_load() {
+        let t = Setup::new();
+        let session = t.session(&["pack: \"company/core\""]);
+        let draft = config(&[&t.remote()], &[]);
+        let token = CancelToken::new();
+
+        session.browse(None).unwrap();
+        token.cancel();
+
+        assert_eq!(
+            session.load_catalogs(Some(draft), FetchPolicy::FetchMissing, Some(token), None),
+            Err(EngineError::Canceled)
+        );
+        assert!(find(&session.browse(None).unwrap(), ItemKind::Pack, "core").selected);
+    }
+
+    /// A git that hangs, standing in for a slow clone.
+    #[cfg(unix)]
+    #[test]
+    fn a_cancel_stops_a_fetch_in_progress() {
+        use std::os::unix::fs::PermissionsExt as _;
+        use std::time::{Duration, Instant};
+
+        let mut t = Setup::new();
+        let program = t.project.join("slow-git");
+        fs::write(&program, "#!/bin/sh\nexec sleep 30\n").unwrap();
+        fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
+        t.env
+            .insert(GIT_PROGRAM_VAR.to_owned(), program.display().to_string());
+        let draft = config(&[&t.remote()], &[]);
+        let session = t.open();
+        let token = CancelToken::new();
+        let canceler = {
+            let token = Arc::clone(&token);
+
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(200));
+                token.cancel();
+            })
+        };
+        let started = Instant::now();
+
+        let result =
+            session.load_catalogs(Some(draft), FetchPolicy::FetchMissing, Some(token), None);
+
+        canceler.join().unwrap();
+        assert_eq!(result, Err(EngineError::Canceled));
+        assert!(started.elapsed() < Duration::from_secs(10));
     }
 
     #[test]
