@@ -13,10 +13,12 @@
 //! Writing goes through [`emit_yaml`] (`emit.rs`), kept in this module so the emit rules match the
 //! parse rules: what ambit writes is guaranteed readable by what ambit reads.
 //!
-//! Nothing here edits a document ambit did not write. A future command that needs to rewrite one
-//! key of a hand-maintained file, keeping its comments and formatting, needs a lossless editor and
-//! a test for it.
+//! Editing a document someone else wrote goes through `edit.rs` instead, which splices the original
+//! text so comments and formatting outside the edited nodes survive.
 
+// Reached only through `config_edit`, which the CLI binary does not call.
+#[allow(dead_code)]
+pub(crate) mod edit;
 mod emit;
 mod frontmatter;
 mod schema;
