@@ -9,9 +9,7 @@ use std::sync::Arc;
 
 use ambit_core::errors::AmbitError;
 use ambit_core::harness::adapter::{HookSkipReason, SkippedHook};
-use ambit_core::model::config::CatalogRef;
 use ambit_core::model::config::find_config_file;
-use ambit_core::model::config_edit::ConfigChanges;
 use ambit_core::project::bundle_diff::{BundleChange, BundleChangeKind, all_changes};
 use ambit_core::project::operation_lock::is_operation_in_progress;
 use ambit_core::project::ownership::OWNERSHIP_CONFLICT;
@@ -25,10 +23,11 @@ use ambit_core::util::control::Control;
 use indexmap::IndexMap;
 
 use crate::control::{CancelToken, ProgressListener, control_of};
+use crate::edit::ConfigChanges;
 use crate::engine::{Engine, SetupSession};
 use crate::errors::{EngineError, guard};
 use crate::git::git_env;
-use crate::records::{CatalogEntry, ItemKind, SelectionEntry, Stage, source_kind};
+use crate::records::{ItemKind, SelectionEntry, Stage};
 use crate::status::{HealthFinding, InstallState, ManagedKind};
 
 /// A reviewed set of changes. Apply it with [`SetupSession::apply`], or drop it to discard.
@@ -51,32 +50,6 @@ impl Review {
     pub fn config_text(&self) -> String {
         self.0.config_text.clone()
     }
-}
-
-/// What a draft changes in the config itself.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
-pub struct ConfigChangeSummary {
-    pub tools_added: Vec<String>,
-    pub tools_removed: Vec<String>,
-    pub catalogs_added: Vec<CatalogEntry>,
-    pub catalogs_removed: Vec<CatalogEntry>,
-    pub catalogs_changed: Vec<CatalogSourceChange>,
-    pub catalogs_renamed: Vec<CatalogRename>,
-    pub selections_added: Vec<SelectionEntry>,
-    pub selections_removed: Vec<SelectionEntry>,
-}
-
-/// A catalog whose source or revision changed.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
-pub struct CatalogSourceChange {
-    pub before: CatalogEntry,
-    pub after: CatalogEntry,
-}
-
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
-pub struct CatalogRename {
-    pub from: String,
-    pub to: String,
 }
 
 /// A catalog whose installed commit applying moves.
@@ -178,7 +151,7 @@ pub struct ReviewSummary {
     pub can_apply: bool,
     /// Whether applying saves the configuration file.
     pub config_changed: bool,
-    pub config: ConfigChangeSummary,
+    pub config: ConfigChanges,
     pub revisions: Vec<RevisionChange>,
     pub capabilities: Vec<CapabilityChange>,
     pub paths: Vec<ManagedPathChange>,
@@ -186,50 +159,6 @@ pub struct ReviewSummary {
     pub limitations: Vec<HealthFinding>,
     pub lock_changed: bool,
     pub blockers: Vec<ReviewBlocker>,
-}
-
-fn catalog_entry(catalog: &CatalogRef) -> CatalogEntry {
-    CatalogEntry {
-        name: catalog.name.clone(),
-        source: catalog.source.clone(),
-        git_ref: catalog.r#ref.clone(),
-        source_kind: source_kind(&catalog.source, catalog.r#ref.as_deref()),
-    }
-}
-
-fn config_summary(changes: &ConfigChanges) -> ConfigChangeSummary {
-    ConfigChangeSummary {
-        tools_added: changes.harnesses_added.clone(),
-        tools_removed: changes.harnesses_removed.clone(),
-        catalogs_added: changes.catalogs_added.iter().map(catalog_entry).collect(),
-        catalogs_removed: changes.catalogs_removed.iter().map(catalog_entry).collect(),
-        catalogs_changed: changes
-            .catalogs_changed
-            .iter()
-            .map(|(before, after)| CatalogSourceChange {
-                before: catalog_entry(before),
-                after: catalog_entry(after),
-            })
-            .collect(),
-        catalogs_renamed: changes
-            .catalogs_renamed
-            .iter()
-            .map(|(from, to)| CatalogRename {
-                from: from.clone(),
-                to: to.clone(),
-            })
-            .collect(),
-        selections_added: changes
-            .entries_added
-            .iter()
-            .map(SelectionEntry::from)
-            .collect(),
-        selections_removed: changes
-            .entries_removed
-            .iter()
-            .map(SelectionEntry::from)
-            .collect(),
-    }
 }
 
 fn capability(change: &BundleChange) -> CapabilityChange {
@@ -317,7 +246,7 @@ fn summary_of(review: &SetupReview) -> ReviewSummary {
     ReviewSummary {
         can_apply: review.can_apply(),
         config_changed: summary.config_changed,
-        config: config_summary(&summary.config),
+        config: ConfigChanges::from(summary.config.clone()),
         revisions: summary
             .revisions
             .iter()
