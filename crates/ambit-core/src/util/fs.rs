@@ -131,6 +131,57 @@ pub fn write_text(p: &Path, text: &str) -> io::Result<()> {
     fs::write(p, text)
 }
 
+/// `fs.writeFile(p, text, { flag: "wx" })`: writes a file that must not exist yet.
+///
+/// # Errors
+///
+/// `AlreadyExists` when something is already at `p`; any other I/O error.
+pub fn write_new(p: &Path, text: &str) -> io::Result<()> {
+    use std::io::Write as _;
+
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(p)?;
+
+    file.write_all(text.as_bytes())
+}
+
+/// `fs.rename(from, to)`: replaces `to` atomically when both are on one filesystem.
+///
+/// # Errors
+///
+/// Any I/O error.
+pub fn rename(from: &Path, to: &Path) -> io::Result<()> {
+    fs::rename(from, to)
+}
+
+/// Opens `p` (creating the file, but not its directory) and takes an exclusive OS lock on it
+/// without waiting.
+///
+/// `Ok(None)` means another open file holds the lock: another process, or another handle in this
+/// one. The lock lasts as long as the returned file and is released by the OS if the process
+/// dies. The file is never truncated or deleted here: deleting a lock file while another process
+/// waits on it would let two holders each lock a different inode.
+///
+/// # Errors
+///
+/// Any I/O error opening or locking the file.
+pub fn try_lock_file(p: &Path) -> io::Result<Option<fs::File>> {
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(p)?;
+
+    match file.try_lock() {
+        Ok(()) => Ok(Some(file)),
+        Err(fs::TryLockError::WouldBlock) => Ok(None),
+        Err(fs::TryLockError::Error(error)) => Err(error),
+    }
+}
+
 /// `fs.cp(src, dst, { recursive: true })`.
 ///
 /// Files keep their permissions. A symlink is recreated rather than followed, and a relative target
@@ -451,5 +502,36 @@ mod tests {
             io_message(&error, "open", Path::new("/x/y")),
             "ENOENT: no such file or directory, open '/x/y'"
         );
+    }
+
+    #[test]
+    fn writes_a_new_file_and_refuses_an_existing_one() {
+        let dir = tempdir();
+        let file = dir.path().join("f");
+
+        write_new(&file, "one").unwrap();
+        let error = write_new(&file, "two").unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(read_text(&file).unwrap(), "one");
+    }
+
+    #[test]
+    fn a_held_lock_refuses_a_second_locker_until_dropped() {
+        let dir = tempdir();
+        let file = dir.path().join("lock");
+        let first = try_lock_file(&file).unwrap().expect("the first lock");
+
+        let contender = file.clone();
+        let refused = std::thread::spawn(move || try_lock_file(&contender).unwrap().is_none())
+            .join()
+            .unwrap();
+
+        assert!(refused);
+
+        drop(first);
+
+        assert!(try_lock_file(&file).unwrap().is_some());
+        assert!(file.exists(), "the lock file is never deleted");
     }
 }

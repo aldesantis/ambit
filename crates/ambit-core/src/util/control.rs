@@ -59,6 +59,17 @@ impl Control {
         }
     }
 
+    /// Whether the caller can cancel at all. Without a flag, a child process is simply waited on
+    /// instead of polled.
+    pub fn is_cancelable(&self) -> bool {
+        self.cancel.is_some()
+    }
+
+    /// Whether anything receives reports, so work that only exists to produce them can be skipped.
+    pub fn is_reporting(&self) -> bool {
+        self.sink.is_some()
+    }
+
     /// Whether the caller has asked the operation to stop.
     pub fn is_canceled(&self) -> bool {
         self.cancel
@@ -128,5 +139,32 @@ mod tests {
         flag.store(true, Ordering::Relaxed);
 
         assert_eq!(control.check().unwrap_err().code, ExitCode::Canceled);
+    }
+
+    struct Collect(std::sync::Mutex<Vec<Progress>>);
+
+    impl ProgressSink for Collect {
+        fn report(&self, progress: &Progress) {
+            self.0.lock().unwrap().push(progress.clone());
+        }
+    }
+
+    #[test]
+    fn reports_reach_the_sink_and_the_default_reports_nowhere() {
+        let sink = Arc::new(Collect(std::sync::Mutex::default()));
+        let control = Control::new(None, Some(Arc::clone(&sink) as Arc<dyn ProgressSink>));
+        let progress = Progress {
+            stage: Stage::Fetching,
+            subject: "catalog \"company\"".to_owned(),
+            current: 1,
+            total: 2,
+        };
+
+        control.report(&progress);
+        Control::default().report(&progress);
+
+        assert!(control.is_reporting());
+        assert!(!control.is_cancelable());
+        assert_eq!(*sink.0.lock().unwrap(), [progress]);
     }
 }
