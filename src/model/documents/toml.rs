@@ -15,7 +15,7 @@ use indexmap::{IndexMap, IndexSet};
 use regex::Regex;
 
 use crate::errors::{Result, config_error};
-use crate::model::documents::format::{ConfigEntry, DocumentDriver, DocumentFormat};
+use crate::model::documents::format::{ConfigEntry, DocumentDriver};
 use crate::util::json::{JsonObject, JsonValue, format_number, js_key_order};
 use crate::util::text::{js_trim, js_trim_start};
 
@@ -401,10 +401,6 @@ fn is_blank(line: Option<&String>) -> bool {
 pub struct TomlDriver;
 
 impl DocumentDriver for TomlDriver {
-    fn format(&self) -> DocumentFormat {
-        DocumentFormat::Toml
-    }
-
     fn section_keys(
         &self,
         text: Option<&str>,

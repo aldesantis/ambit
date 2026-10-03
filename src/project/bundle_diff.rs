@@ -51,9 +51,6 @@ string_enum! {
     }
 }
 
-/// Every change kind, in declaration order.
-pub const BUNDLE_CHANGE_KINDS: &[BundleChangeKind] = BundleChangeKind::ALL;
-
 /// One item that entered, left, or changed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BundleChange {
@@ -97,7 +94,7 @@ pub fn all_changes(diff: &BundleDiff) -> Vec<BundleChange> {
 
 /// Whether the two bundles are the same bundle: the answer a report leads with.
 pub fn is_unchanged(diff: &BundleDiff) -> bool {
-    diff.packs.is_empty() && diff.skills.is_empty() && diff.mcps.is_empty() && diff.hooks.is_empty()
+    all_changes(diff).is_empty()
 }
 
 pub fn count_changes(changes: &[BundleChange]) -> BundleChangeCounts {

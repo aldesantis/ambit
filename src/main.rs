@@ -3,9 +3,6 @@
 //! `main` is the only place that touches process state: it snapshots the environment and the cwd,
 //! hands them to [`cli::run`], and turns the returned code into the exit status. Everything below
 //! takes them as arguments.
-// Temporary while modules are skeletons; removed in Wave 3.
-#![allow(dead_code, unused_imports)]
-#![allow(clippy::todo, clippy::unimplemented)]
 
 mod cli;
 mod errors;

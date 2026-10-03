@@ -204,7 +204,6 @@ mod ambit_init {
     use super::*;
 
     #[test]
-    #[ignore = "needs B1"]
     fn writes_an_ambit_yml_the_config_loader_accepts() {
         let f = fixture();
         let result = f.cli(&["init"]);
@@ -230,7 +229,6 @@ mod ambit_init {
     }
 
     #[test]
-    #[ignore = "needs B1"]
     fn writes_the_config_and_every_item_directory_and_nothing_else() {
         let f = fixture();
         f.cli(&["init"]);
@@ -243,7 +241,6 @@ mod ambit_init {
     }
 
     #[test]
-    #[ignore = "needs B1"]
     fn scaffolds_a_catalog_the_parser_accepts_holding_nothing() {
         let f = fixture();
         f.cli(&["init"]);
@@ -265,7 +262,6 @@ mod ambit_init {
     }
 
     #[test]
-    #[ignore = "needs B1, B2"]
     fn scaffolds_a_project_ambit_validate_passes_against_with_no_edits() {
         let f = fixture();
         f.cli(&["init"]);
@@ -277,7 +273,6 @@ mod ambit_init {
     }
 
     #[test]
-    #[ignore = "needs B1, B2"]
     fn is_read_by_the_commands_that_load_a_project_not_merely_by_the_parser() {
         let f = fixture();
         f.cli(&["init"]);
@@ -291,7 +286,6 @@ mod ambit_init {
     }
 
     #[test]
-    #[ignore = "needs B1"]
     fn holds_exactly_what_ambit_would_emit_from_those_values_plus_comments() {
         let f = fixture();
         f.cli(&["init"]);
@@ -300,7 +294,6 @@ mod ambit_init {
     }
 
     #[test]
-    #[ignore = "needs B1"]
     fn stays_sorted_and_parses_when_the_commented_out_example_is_uncommented() {
         let f = fixture();
         f.cli(&["init"]);
@@ -330,7 +323,6 @@ mod ambit_init {
     }
 
     #[test]
-    #[ignore = "needs B1"]
     fn scaffolds_byte_identical_trees_into_two_fresh_directories() {
         let f = fixture();
         f.cli(&["init"]);
@@ -349,7 +341,6 @@ mod ambit_init {
     }
 
     #[test]
-    #[ignore = "needs B1"]
     fn explains_the_entry_grammar_above_the_commented_out_requires_block() {
         let f = fixture();
         f.cli(&["init"]);
@@ -370,7 +361,6 @@ mod ambit_init {
     }
 
     #[test]
-    #[ignore = "needs B1"]
     fn prints_what_it_created_what_it_kept_and_the_two_things_left_to_do() {
         let f = fixture();
         let result = f.cli(&["init"]);
@@ -392,7 +382,6 @@ mod ambit_init {
     }
 
     #[test]
-    #[ignore = "needs B1"]
     fn carries_every_files_bytes_in_json_so_a_consuming_tool_can_write_them_itself() {
         let f = fixture();
         let result = f.cli(&["init", "--json"]);
@@ -421,7 +410,6 @@ mod on_a_directory_that_already_holds_a_config {
     use super::*;
 
     #[test]
-    #[ignore = "needs B1"]
     fn refuses_ambit_yml_leaving_it_byte_identical_and_writing_no_directories() {
         let f = fixture();
         fs::write(f.project_dir.join(INIT_FILENAME), "version: 1\n").unwrap();
@@ -442,7 +430,6 @@ mod on_a_directory_that_already_holds_a_config {
     }
 
     #[test]
-    #[ignore = "needs B1"]
     fn refuses_ambit_yaml_too_and_writes_no_ambit_yml_beside_it() {
         // Both names are accepted config, so scaffolding the other one would leave a project whose
         // two configs are an error in every other command.
@@ -461,7 +448,6 @@ mod on_a_directory_that_already_holds_a_config {
     }
 
     #[test]
-    #[ignore = "needs B1"]
     fn refuses_under_dry_run_as_well_since_the_preview_of_a_refusal_is_a_refusal() {
         let f = fixture();
         fs::write(f.project_dir.join(INIT_FILENAME), "version: 1\n").unwrap();
@@ -477,7 +463,6 @@ mod on_a_directory_that_already_holds_a_config {
     }
 
     #[test]
-    #[ignore = "needs B1"]
     fn refuses_a_second_run_which_is_what_makes_the_config_the_refused_half() {
         let f = fixture();
         f.cli(&["init"]);
@@ -494,7 +479,6 @@ mod on_a_directory_that_already_holds_a_gitkeep {
     use super::*;
 
     #[test]
-    #[ignore = "needs B1"]
     fn keeps_it_byte_identical_and_reports_it_rather_than_refusing() {
         // A `.gitkeep` carries no bytes to lose and is exactly what a project with its own
         // `skills/` already has, so it is kept where a config would be refused.
@@ -512,7 +496,6 @@ mod on_a_directory_that_already_holds_a_gitkeep {
     }
 
     #[test]
-    #[ignore = "needs B1"]
     fn leaves_an_occupied_item_directorys_other_contents_alone() {
         let f = fixture();
         fs::create_dir_all(f.project_dir.join("skills/mine")).unwrap();
@@ -530,7 +513,6 @@ mod dry_run {
     use super::*;
 
     #[test]
-    #[ignore = "needs B1"]
     fn prints_the_bytes_it_would_write_and_writes_none_of_them() {
         let f = fixture();
         let result = f.cli(&["init", "--dry-run"]);
@@ -547,7 +529,6 @@ mod dry_run {
     }
 
     #[test]
-    #[ignore = "needs B1"]
     fn reports_written_false_in_json_with_the_same_bytes_a_real_run_would_write() {
         let f = fixture();
         let preview = f.cli(&["init", "--dry-run", "--json"]);
@@ -569,7 +550,6 @@ mod on_a_missing_directory {
     use super::*;
 
     #[test]
-    #[ignore = "needs B1"]
     fn refuses_it_rather_than_creating_one_and_names_it() {
         // `--project` naming the wrong path should not leave a project (directories and a config)
         // where nobody meant.
@@ -601,7 +581,6 @@ mod the_scaffold_as_a_value {
     use super::*;
 
     #[test]
-    #[ignore = "needs B1"]
     fn is_a_function_of_nothing_in_path_order() {
         // Two runs into two differently named directories must produce identical trees, so nothing
         // about the target (a directory name, an absolute path, a timestamp) may reach the bytes.

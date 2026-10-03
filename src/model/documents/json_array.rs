@@ -20,7 +20,7 @@
 use indexmap::{IndexMap, IndexSet};
 
 use crate::errors::{AmbitError, ExitCode, Result, config_error};
-use crate::model::documents::format::{ConfigEntry, DocumentDriver, DocumentFormat};
+use crate::model::documents::format::{ConfigEntry, DocumentDriver};
 use crate::model::documents::json::{parse_json_document, section_of, serialize_json_document};
 use crate::util::hash::sha256_hex;
 use crate::util::json::{self, JsonObject, JsonValue};
@@ -121,10 +121,6 @@ pub fn array_section_driver(root_defaults: Option<&JsonObject>) -> ArraySectionD
 }
 
 impl DocumentDriver for ArraySectionDriver {
-    fn format(&self) -> DocumentFormat {
-        DocumentFormat::Json
-    }
-
     fn section_keys(
         &self,
         text: Option<&str>,

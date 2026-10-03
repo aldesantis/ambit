@@ -418,9 +418,13 @@ fn says_a_plan_is_outdated_only_when_some_pin_is() {
         diff: BundleDiff::default(),
     };
 
-    assert!(has_outdated(&plan(CatalogFreshness::Outdated)));
-    assert!(!has_outdated(&plan(CatalogFreshness::Pinned)));
-    assert!(!has_outdated(&plan(CatalogFreshness::Unversioned)));
+    assert!(catalogs_outdated(
+        &plan(CatalogFreshness::Outdated).catalogs
+    ));
+    assert!(!catalogs_outdated(&plan(CatalogFreshness::Pinned).catalogs));
+    assert!(!catalogs_outdated(
+        &plan(CatalogFreshness::Unversioned).catalogs
+    ));
 }
 
 #[test]
@@ -484,7 +488,6 @@ fn refuses_any_catalog_name_in_a_project_that_configures_none() {
 // ambit outdated leaves the cache exactly where it found it
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn does_not_move_the_clones_own_branch_so_a_later_install_pins_the_same_commit() {
     let t = Setup::new();
     t.installs(&t.project);
@@ -514,7 +517,6 @@ fn does_not_move_the_clones_own_branch_so_a_later_install_pins_the_same_commit()
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn writes_nothing_into_the_project() {
     let t = Setup::new();
     t.installs(&t.project);
@@ -530,7 +532,6 @@ fn writes_nothing_into_the_project() {
 // what ambit outdated reports about a pin
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn reports_a_branch_whose_commit_moved_naming_both_ends() {
     let t = Setup::new();
     t.cli(&t.project, &["install"]);
@@ -552,7 +553,6 @@ fn reports_a_branch_whose_commit_moved_naming_both_ends() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn reports_a_branch_that_has_not_moved_as_current() {
     let t = Setup::new();
     t.cli(&t.project, &["install"]);
@@ -572,7 +572,6 @@ fn reports_a_branch_that_has_not_moved_as_current() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn reports_a_commit_pinned_catalog_as_pinned_since_there_is_nothing_for_it_to_be_behind() {
     let t = Setup::new();
     Setup::write_project(&t.project, &t.fixture.url, Some(&t.fixture.commit));
@@ -589,7 +588,6 @@ fn reports_a_commit_pinned_catalog_as_pinned_since_there_is_nothing_for_it_to_be
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn reports_a_tag_as_a_moving_ref_since_a_tag_can_be_force_pushed() {
     let t = Setup::new();
     Setup::write_project(&t.project, &t.fixture.url, Some(&t.fixture.tag));
@@ -606,7 +604,6 @@ fn reports_a_tag_as_a_moving_ref_since_a_tag_can_be_force_pushed() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn reports_a_path_catalog_as_unversioned_rather_than_current() {
     let t = Setup::new();
     build_fixture_catalog(&t.root.join("catalog")).unwrap();
@@ -636,7 +633,6 @@ fn change(change: &str, detail: &str, name: &str) -> JsonValue {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn reports_a_moved_commit_that_changes_nothing_this_project_selects_as_no_change_at_all() {
     let t = Setup::new();
     let report = changes_after(
@@ -653,7 +649,6 @@ fn reports_a_moved_commit_that_changes_nothing_this_project_selects_as_no_change
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn names_an_arriving_skill_and_why_it_would_be_selected() {
     let t = Setup::new();
     let (pack, text) = engineering_pack(&["skill: deploy-runbook"]);
@@ -686,7 +681,6 @@ fn names_an_arriving_skill_and_why_it_would_be_selected() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn names_a_departing_skill_and_why_it_used_to_be_selected() {
     let t = Setup::new();
     let (pack, text) =
@@ -707,7 +701,6 @@ fn names_a_departing_skill_and_why_it_used_to_be_selected() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn names_the_field_a_skill_changed_in_preference_to_naming_the_file() {
     let t = Setup::new();
     let changed = "---
@@ -726,7 +719,6 @@ description: A different description entirely.
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn falls_back_to_the_bytes_when_a_skills_declarations_are_untouched() {
     let t = Setup::new();
     let edited = "---
@@ -747,7 +739,6 @@ An entirely rewritten body, with no frontmatter moved.
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn names_a_servers_changed_field_by_the_path_its_own_document_has() {
     let t = Setup::new();
     let moved = "name: linter
@@ -769,7 +760,6 @@ expects:
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn says_what_an_arriving_hook_will_actually_run_not_why_it_was_selected() {
     let t = Setup::new();
     let hook = "name: block-force-push
@@ -799,7 +789,6 @@ command: ./bin/block-force-push
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn names_the_installed_path_a_shipped_script_will_run_from() {
     let t = Setup::new();
     let hook = "name: audit-trail
@@ -829,7 +818,6 @@ command: audit.sh --strict
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn reports_a_changed_hook_script_as_a_script_change() {
     let t = Setup::new();
     let report = changes_after(
@@ -849,7 +837,6 @@ fn reports_a_changed_hook_script_as_a_script_change() {
 // ambit update
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn moves_the_pin_rewrites_the_lock_and_materializes_what_arrived() {
     let t = Setup::new();
     t.cli(&t.project, &["install"]);
@@ -870,7 +857,6 @@ fn moves_the_pin_rewrites_the_lock_and_materializes_what_arrived() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn leaves_nothing_outdated_behind_it() {
     let t = Setup::new();
     t.cli(&t.project, &["install"]);
@@ -884,7 +870,6 @@ fn leaves_nothing_outdated_behind_it() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn installs_into_an_uninstalled_project_as_install_would() {
     let t = Setup::new();
     let result = t.cli(&t.project, &["update"]);
@@ -895,7 +880,6 @@ fn installs_into_an_uninstalled_project_as_install_would() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn dry_run_reports_the_same_plan_and_touches_neither_the_project_nor_the_pin() {
     let t = Setup::new();
     t.cli(&t.project, &["install"]);
@@ -911,7 +895,6 @@ fn dry_run_reports_the_same_plan_and_touches_neither_the_project_nor_the_pin() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn refuses_a_catalog_name_the_project_does_not_configure_naming_the_ones_it_does() {
     let t = Setup::new();
     let result = t.cli(&t.project, &["update", "compnay"]);
@@ -928,7 +911,6 @@ fn refuses_a_catalog_name_the_project_does_not_configure_naming_the_ones_it_does
 // Two catalogs on two *different* sources, which is the case the plan can narrow. Two refs of one
 // repository share a clone and cannot be separated; `refresh_plan` says so at length.
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn moves_only_the_catalog_it_was_told_to() {
     let t = Setup::new();
     build_fixture_catalog(&t.root.join("catalog")).unwrap();
@@ -979,19 +961,16 @@ fn refuses_offline(command: &[&str]) {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn refuses_ambit_outdated_rather_than_answering_from_the_cache() {
     refuses_offline(&["outdated"]);
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn refuses_ambit_update_rather_than_answering_from_the_cache() {
     refuses_offline(&["update"]);
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn refuses_ambit_update_dry_run_rather_than_answering_from_the_cache() {
     refuses_offline(&["update", "--dry-run"]);
 }
@@ -1026,7 +1005,6 @@ fn rewrite_locked_commit(t: &Setup, commit: &str) {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn installs_the_commit_the_lock_names_not_the_one_the_shared_clone_was_moved_to() {
     let t = Setup::new();
     assert_eq!(t.cli(&t.project, &["install"]).code, ExitCode::Success);
@@ -1055,7 +1033,6 @@ fn installs_the_commit_the_lock_names_not_the_one_the_shared_clone_was_moved_to(
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn satisfies_frozen_on_a_cold_cache_whatever_the_branch_points_at_now() {
     let t = Setup::new();
     assert_eq!(t.cli(&t.project, &["install"]).code, ExitCode::Success);
@@ -1082,7 +1059,6 @@ fn satisfies_frozen_on_a_cold_cache_whatever_the_branch_points_at_now() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn reports_the_recorded_commit_as_what_the_project_resolves_to_not_the_moved_clones() {
     let t = Setup::new();
     assert_eq!(t.cli(&t.project, &["install"]).code, ExitCode::Success);
@@ -1099,7 +1075,6 @@ fn reports_the_recorded_commit_as_what_the_project_resolves_to_not_the_moved_clo
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn moves_past_the_recorded_commit_for_ambit_update_which_is_the_command_that_exists_to() {
     let t = Setup::new();
     assert_eq!(t.cli(&t.project, &["install"]).code, ExitCode::Success);
@@ -1118,7 +1093,6 @@ fn moves_past_the_recorded_commit_for_ambit_update_which_is_the_command_that_exi
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn drops_the_pin_when_ref_is_edited_since_it_answers_a_question_that_changed() {
     let t = Setup::new();
     Setup::write_project(&t.project, &t.fixture.url, Some(&t.fixture.tag));
@@ -1138,7 +1112,6 @@ fn drops_the_pin_when_ref_is_edited_since_it_answers_a_question_that_changed() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn resolves_a_catalog_the_lock_has_no_entry_for_against_its_remote() {
     let t = Setup::new();
     assert_eq!(t.cli(&t.project, &["install"]).code, ExitCode::Success);
@@ -1169,7 +1142,6 @@ fn resolves_a_catalog_the_lock_has_no_entry_for_against_its_remote() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn exits_2_for_a_recorded_commit_the_repository_does_not_have_naming_the_way_out() {
     let t = Setup::new();
     assert_eq!(t.cli(&t.project, &["install"]).code, ExitCode::Success);
@@ -1191,7 +1163,6 @@ fn exits_2_for_a_recorded_commit_the_repository_does_not_have_naming_the_way_out
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn exits_4_under_offline_for_a_recorded_commit_the_cache_does_not_hold() {
     let t = Setup::new();
     assert_eq!(t.cli(&t.project, &["install"]).code, ExitCode::Success);
@@ -1211,7 +1182,6 @@ fn exits_4_under_offline_for_a_recorded_commit_the_cache_does_not_hold() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn exits_2_for_a_lock_recording_something_that_is_not_a_commit() {
     let t = Setup::new();
     assert_eq!(t.cli(&t.project, &["install"]).code, ExitCode::Success);
@@ -1229,7 +1199,6 @@ fn exits_2_for_a_lock_recording_something_that_is_not_a_commit() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn exits_2_for_a_lock_it_cannot_read_rather_than_resolving_as_though_there_were_none() {
     let t = Setup::new();
     assert_eq!(t.cli(&t.project, &["install"]).code, ExitCode::Success);
@@ -1243,7 +1212,6 @@ fn exits_2_for_a_lock_it_cannot_read_rather_than_resolving_as_though_there_were_
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn exits_2_for_a_lock_version_it_does_not_know_since_it_cannot_find_the_pins_in_it() {
     let t = Setup::new();
     assert_eq!(t.cli(&t.project, &["install"]).code, ExitCode::Success);
@@ -1262,7 +1230,6 @@ fn exits_2_for_a_lock_version_it_does_not_know_since_it_cannot_find_the_pins_in_
 // a first install, which has no earlier resolution to reproduce
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn takes_the_commit_the_ref_names_now_not_the_one_the_shared_cache_happens_to_hold() {
     let t = Setup::new();
     // Some other project on this machine warmed the clone, and the branch moved afterwards.
@@ -1286,7 +1253,6 @@ fn takes_the_commit_the_ref_names_now_not_the_one_the_shared_cache_happens_to_ho
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn leaves_the_cache_alone_once_a_lock_exists_which_is_what_makes_a_reinstall_reproducible() {
     let t = Setup::new();
     assert_eq!(t.cli(&t.project, &["install"]).code, ExitCode::Success);
@@ -1303,7 +1269,6 @@ fn leaves_the_cache_alone_once_a_lock_exists_which_is_what_makes_a_reinstall_rep
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn does_not_reach_the_remote_under_offline_which_outranks_it() {
     let t = Setup::new();
     crate::util::fs::rm_rf(&t.fixture.repo).unwrap();
@@ -1336,7 +1301,6 @@ fn break_the_cache(t: &Setup) -> String {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn replaces_it_instead_of_dying_on_it_which_is_the_whole_reason_to_run_update() {
     let t = Setup::new();
     let fixed = break_the_cache(&t);
@@ -1352,7 +1316,6 @@ fn replaces_it_instead_of_dying_on_it_which_is_the_whole_reason_to_run_update() 
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B4"]
 fn reports_the_pin_as_outdated_with_no_commit_it_claims_to_resolve_to() {
     let t = Setup::new();
     let fixed = break_the_cache(&t);

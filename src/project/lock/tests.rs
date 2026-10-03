@@ -76,7 +76,6 @@ fn bundle_from(project: &Project, catalogs: &[Catalog]) -> Bundle {
 // ambit.lock
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn records_every_configured_catalog_and_every_selected_item_keys_sorted_throughout() {
     let project = project();
     let result = project.cli(&["install"]);
@@ -135,7 +134,6 @@ fn records_every_configured_catalog_and_every_selected_item_keys_sorted_througho
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn is_byte_identical_on_a_second_install_so_nothing_in_it_is_a_timestamp() {
     let project = project();
 
@@ -148,7 +146,6 @@ fn is_byte_identical_on_a_second_install_so_nothing_in_it_is_a_timestamp() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn carries_no_absolute_path_so_a_team_can_commit_one_file_between_them() {
     let project = project();
 
@@ -158,7 +155,6 @@ fn carries_no_absolute_path_so_a_team_can_commit_one_file_between_them() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn keeps_every_section_even_when_a_project_selects_nothing() {
     let project = project();
 
@@ -186,7 +182,6 @@ fn keeps_every_section_even_when_a_project_selects_nothing() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn records_the_reason_each_item_was_selected_in_explains_form() {
     let project = project();
 
@@ -232,7 +227,6 @@ fn records_the_reason_each_item_was_selected_in_explains_form() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn records_a_command_line_hook_as_config_values_with_no_bytes_to_pin() {
     let project = project();
 
@@ -267,7 +261,6 @@ fn records_a_command_line_hook_as_config_values_with_no_bytes_to_pin() {
 }
 
 #[test]
-#[ignore = "needs B1, B2"]
 fn pins_where_a_hooks_bytes_came_from_only_when_it_ships_a_script() {
     let project = project();
 
@@ -332,7 +325,6 @@ fn pins_where_a_hooks_bytes_came_from_only_when_it_ships_a_script() {
 }
 
 #[test]
-#[ignore = "needs B1, B2"]
 fn quotes_a_commit_and_a_ref_a_yaml_parser_would_otherwise_read_as_numbers() {
     // `1234567` unquoted parses as an integer and `1e5` as a float, so an unquoted lock would pin
     // a different commit than the one installed.
@@ -429,7 +421,6 @@ fn emits_every_section_and_quotes_what_would_read_as_a_number() {
 // ambit install --frozen
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn succeeds_when_the_lock_on_disk_is_what_resolution_produces() {
     let project = project();
 
@@ -443,7 +434,6 @@ fn succeeds_when_the_lock_on_disk_is_what_resolution_produces() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn exits_5_when_the_project_has_no_lock_and_writes_nothing() {
     let project = project();
     let result = project.cli(&["install", "--frozen"]);
@@ -460,7 +450,6 @@ fn exits_5_when_the_project_has_no_lock_and_writes_nothing() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn exits_5_when_resolution_would_change_the_lock_leaving_the_project_as_it_was() {
     let project = project();
 
@@ -482,7 +471,6 @@ fn exits_5_when_resolution_would_change_the_lock_leaving_the_project_as_it_was()
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn exits_5_for_a_lock_that_says_the_same_thing_in_different_bytes() {
     let project = project();
 
@@ -497,7 +485,6 @@ fn exits_5_for_a_lock_that_says_the_same_thing_in_different_bytes() {
 // assert_lock_current, against a lock on disk
 
 #[test]
-#[ignore = "needs B1: read_lock_text"]
 fn refuses_a_missing_lock_naming_the_project() {
     let project = Project::new();
     let error = assert_lock_current(&project.dir, "version: 1\n").expect_err("a refusal");

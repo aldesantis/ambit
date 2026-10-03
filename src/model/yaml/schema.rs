@@ -11,8 +11,6 @@ use regex::Regex;
 /// The prefix the `!!` handle expands to.
 pub(super) const CORE_PREFIX: &str = "tag:yaml.org,2002:";
 
-pub(super) const STR_TAG: &str = "tag:yaml.org,2002:str";
-
 /// The tags the YAML 1.2 core schema resolves. A node carrying anything else is using a custom
 /// tag, and the document is rejected: arbitrary type resolution is how `!!python/object`
 /// constructs get in.
@@ -223,7 +221,7 @@ mod tests {
     #[test]
     fn lets_an_explicit_tag_pick_among_its_own_tests() {
         assert_eq!(
-            resolve_scalar("1234567", true, Some(STR_TAG)),
+            resolve_scalar("1234567", true, Some("tag:yaml.org,2002:str")),
             Scalar::String("1234567".into())
         );
         assert_eq!(

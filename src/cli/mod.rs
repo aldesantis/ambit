@@ -82,12 +82,14 @@ impl Io for StdIo {
 }
 
 /// Output captured line by line, for tests.
+#[cfg(test)]
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CaptureIo {
     pub out: Vec<String>,
     pub err: Vec<String>,
 }
 
+#[cfg(test)]
 impl Io for CaptureIo {
     fn stdout(&mut self, line: &str) {
         self.out.push(line.to_owned());

@@ -624,7 +624,6 @@ fn accepts_one_copy_per_name_in_each_namespace() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn closes_hand_built_requirers_and_names_the_edge_of_a_cycle() {
     let mut a = merged_skill(CATALOG_NAME, "a");
     let mut b = merged_skill(CATALOG_NAME, "b");
@@ -656,7 +655,6 @@ fn closes_hand_built_requirers_and_names_the_edge_of_a_cycle() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn says_when_a_project_configures_no_catalogs_at_all() {
     let entry = PatternEntry {
         kind: ItemKind::Skill,
@@ -696,7 +694,6 @@ fn with_prefix_skills() -> Fixture {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn glob_reaches_every_depth_beneath_a_prefix_since_star_spans_the_dot() {
     let fixture = with_prefix_skills();
     let selected = fixture.bundle(&[entry("skill", "prefix.*")]);
@@ -708,7 +705,6 @@ fn glob_reaches_every_depth_beneath_a_prefix_since_star_spans_the_dot() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn glob_excludes_the_item_named_exactly_the_prefix_which_takes_a_second_entry() {
     let fixture = with_prefix_skills();
     let one = fixture.bundle(&[entry("skill", "prefix.*")]);
@@ -721,7 +717,6 @@ fn glob_excludes_the_item_named_exactly_the_prefix_which_takes_a_second_entry() 
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn glob_does_not_reach_a_sibling_whose_name_merely_starts_with_the_patterns() {
     // `prefix-sibling` reads as a hierarchy to a bare prefix check and to nobody else; the dot in
     // `prefix.*` is a literal character the sibling does not have.
@@ -732,7 +727,6 @@ fn glob_does_not_reach_a_sibling_whose_name_merely_starts_with_the_patterns() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn glob_takes_a_whole_namespace_for_a_bare_star_one_entry_per_namespace() {
     // A key names one namespace, so `*` is as wide as an entry gets: taking the whole catalog is
     // four entries, which is the grammar declining to guess how much of it somebody meant.
@@ -746,7 +740,6 @@ fn glob_takes_a_whole_namespace_for_a_bare_star_one_entry_per_namespace() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn glob_matches_an_exact_name_and_nothing_else_when_the_pattern_holds_no_wildcard() {
     let fixture = with_prefix_skills();
     let selected = fixture.bundle(&[entry("skill", "prefix.child")]);
@@ -758,7 +751,6 @@ fn glob_matches_an_exact_name_and_nothing_else_when_the_pattern_holds_no_wildcar
 // to reach.
 
 #[test]
-#[ignore = "needs B1"]
 fn never_reaches_a_pack_from_a_skill_entry_or_the_reverse() {
     // The reason the key is written out at all: a catalog's namespaces are flat and independent,
     // so one name can legitimately belong to a pack and to a skill, and an entry says which it
@@ -779,7 +771,6 @@ fn never_reaches_a_pack_from_a_skill_entry_or_the_reverse() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn takes_a_pack_whole_which_is_the_grouping_a_project_asked_for() {
     // A pack is not a filter a consumer narrows, it is a set the catalog decided on, so taking
     // `core` takes the hook in it as well as the skill.
@@ -791,7 +782,6 @@ fn takes_a_pack_whole_which_is_the_grouping_a_project_asked_for() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn confines_an_entry_to_the_catalog_it_qualified() {
     let fixture = Fixture::new();
 
@@ -824,7 +814,6 @@ fn core_and_engineering() -> Vec<String> {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn selects_only_what_an_entry_reaches_nothing_is_implicit() {
     let fixture = Fixture::new();
     let wide = fixture.bundle(&engineering());
@@ -839,7 +828,6 @@ fn selects_only_what_an_entry_reaches_nothing_is_implicit() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn selects_the_union_of_every_entry_in_the_list() {
     let fixture = Fixture::new();
     let both = fixture.bundle(&core_and_engineering());
@@ -851,7 +839,6 @@ fn selects_the_union_of_every_entry_in_the_list() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn does_not_reach_a_pack_no_entry_names() {
     let fixture = Fixture::new();
 
@@ -863,7 +850,6 @@ fn does_not_reach_a_pack_no_entry_names() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn reaches_exactly_the_pack_a_narrow_entry_names_and_what_that_pack_requires() {
     let fixture = Fixture::new();
     let frontend = fixture.bundle(&[entry("pack", "function.engineering.frontend")]);
@@ -878,7 +864,6 @@ fn reaches_exactly_the_pack_a_narrow_entry_names_and_what_that_pack_requires() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn yields_an_empty_bundle_for_an_empty_requires_list() {
     let fixture = Fixture::new();
 
@@ -886,7 +871,6 @@ fn yields_an_empty_bundle_for_an_empty_requires_list() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn selects_an_mcp_server_through_the_pack_that_names_it() {
     let fixture = Fixture::new();
 
@@ -895,7 +879,6 @@ fn selects_an_mcp_server_through_the_pack_that_names_it() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn unions_expects_across_everything_the_list_selected() {
     // ACME_FIGMA_TOKEN comes from the nested frontend skill, LINTER_API_KEY from the server the
     // broader entry selects, so one list must produce both.
@@ -908,7 +891,6 @@ fn unions_expects_across_everything_the_list_selected() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn selects_an_item_once_when_two_entries_both_reach_it() {
     // The pack and the exact name both reach `company-context`, and it is one item either way: a
     // bundle holds one entry per name, and which entry is reported is the reason's business.
@@ -924,7 +906,6 @@ fn selects_an_item_once_when_two_entries_both_reach_it() {
 // are written into the catalog per test.
 
 #[test]
-#[ignore = "needs B1"]
 fn closure_pulls_in_a_required_skill_and_mcp_server_no_entry_matches() {
     let fixture = Fixture::new();
     let project = fixture.bundle(&[entry("pack", "project.acme")]);
@@ -934,7 +915,6 @@ fn closure_pulls_in_a_required_skill_and_mcp_server_no_entry_matches() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn closure_unions_expects_over_what_it_added() {
     // FIXTURE_API_KEY belongs to the server only `requires` can reach, so a bundle that lists the
     // server without its credential would send `doctor` looking at the wrong thing.
@@ -947,7 +927,6 @@ fn closure_unions_expects_over_what_it_added() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn closure_follows_a_requirement_of_a_requirement_to_fixpoint() {
     let fixture = Fixture::new();
 
@@ -963,7 +942,6 @@ fn closure_follows_a_requirement_of_a_requirement_to_fixpoint() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn closure_treats_a_shared_requirement_as_a_diamond_not_a_cycle() {
     let fixture = Fixture::new();
 
@@ -993,7 +971,6 @@ fn closure_treats_a_shared_requirement_as_a_diamond_not_a_cycle() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn closure_selects_a_required_item_exactly_once_however_many_require_it() {
     let fixture = Fixture::new();
 
@@ -1008,7 +985,6 @@ fn closure_selects_a_required_item_exactly_once_however_many_require_it() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn closure_takes_the_requiring_catalogs_copy_of_a_name_two_catalogs_ship() {
     // A name two catalogs ship is not ambiguous to a requirer, because the entry never leaves its
     // own catalog: `company`'s skill gets `company`'s copy and `personal`'s is not selected at all.
@@ -1038,7 +1014,6 @@ fn closure_takes_the_requiring_catalogs_copy_of_a_name_two_catalogs_ship() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn closure_refuses_a_collision_two_project_entries_reach() {
     // Collision is a project's ask, not a catalog's: both catalogs ship `house-style`, both entries
     // select a copy, and the two would materialize to one harness path.
@@ -1070,7 +1045,6 @@ fn closure_refuses_a_collision_two_project_entries_reach() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn closure_leaves_a_broken_skill_nobody_selected_alone() {
     // Spec §4's validation split: `resolve` hard-validates the selected closure only. No entry
     // names this skill, so nothing reaches it and its dangling requirement is `validate`'s
@@ -1091,7 +1065,6 @@ fn closure_leaves_a_broken_skill_nobody_selected_alone() {
 // list earns at either altitude: the same finding a project's own entry earns, named the same way.
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_entry_exits_3_naming_the_entry_the_catalog_and_the_file() {
     let fixture = Fixture::new();
 
@@ -1113,7 +1086,6 @@ fn catalog_entry_exits_3_naming_the_entry_the_catalog_and_the_file() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_entry_names_the_mcp_namespace_and_only_it() {
     let fixture = Fixture::new();
 
@@ -1139,7 +1111,6 @@ fn catalog_entry_names_the_mcp_namespace_and_only_it() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_entry_names_the_hook_namespace_and_only_it() {
     let fixture = Fixture::new();
 
@@ -1163,7 +1134,6 @@ fn catalog_entry_names_the_hook_namespace_and_only_it() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_entry_naming_hooks_does_not_accept_a_skill_of_that_name() {
     // A `hook:` entry names the hook namespace, and a skill called `absent` is not in it, or the
     // key would be decoration.
@@ -1190,7 +1160,6 @@ fn catalog_entry_naming_hooks_does_not_accept_a_skill_of_that_name() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_entry_is_not_satisfied_by_another_catalogs_copy() {
     // The merged view plainly holds `remote-only`, and `company`'s skill still cannot require it. A
     // catalog author cannot write a consumer's alias, so a bare pattern means this catalog.
@@ -1221,7 +1190,6 @@ fn catalog_entry_is_not_satisfied_by_another_catalogs_copy() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_entry_takes_a_wildcard_reaching_every_sibling_under_a_prefix() {
     // The point of one grammar at both altitudes: a skill can say *everything under `dep.`* exactly
     // as a project can, and it is one entry rather than one per sibling.
@@ -1239,7 +1207,6 @@ fn catalog_entry_takes_a_wildcard_reaching_every_sibling_under_a_prefix() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_entry_wildcard_is_bounded_by_its_namespace() {
     let fixture = Fixture::new();
 
@@ -1267,7 +1234,6 @@ fn catalog_entry_wildcard_is_bounded_by_its_namespace() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_entry_written_as_a_bare_string_is_refused() {
     // A plain list of names is the shape a reader reaches for, and it says nothing about which of
     // the four namespaces it means: the one declaration this grammar is made of.
@@ -1293,7 +1259,6 @@ fn catalog_entry_written_as_a_bare_string_is_refused() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_entry_reads_a_one_key_entry_naming_a_namespace() {
     let fixture = Fixture::new();
 
@@ -1307,7 +1272,6 @@ fn catalog_entry_reads_a_one_key_entry_naming_a_namespace() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_entry_that_writes_a_qualifier_is_refused() {
     // A catalog author cannot write the alias, so an address that carries one is exit 2 rather than
     // a pattern quietly resolved against a guess.
@@ -1330,7 +1294,6 @@ fn catalog_entry_that_writes_a_qualifier_is_refused() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_entry_whose_key_names_no_namespace_is_refused() {
     let fixture = Fixture::new();
 
@@ -1360,7 +1323,6 @@ fn catalog_entry_whose_key_names_no_namespace_is_refused() {
 // close. That is `doctor`'s question.
 
 #[test]
-#[ignore = "needs B1"]
 fn expects_entry_written_as_a_bare_string_is_refused() {
     let fixture = Fixture::new();
 
@@ -1379,7 +1341,6 @@ fn expects_entry_written_as_a_bare_string_is_refused() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn expects_entry_naming_two_preconditions_is_refused() {
     let fixture = Fixture::new();
 
@@ -1397,7 +1358,6 @@ fn expects_entry_naming_two_preconditions_is_refused() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn expects_kind_this_version_does_not_know_is_refused() {
     // `bin:` is the obvious second kind and is deliberately not one yet, so this doubles as the
     // claim that a catalog written against a later ambit fails loudly here rather than silently
@@ -1418,7 +1378,6 @@ fn expects_kind_this_version_does_not_know_is_refused() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn expects_is_taken_on_all_three_kinds() {
     let fixture = Fixture::new();
 
@@ -1449,7 +1408,6 @@ fn expects_is_taken_on_all_three_kinds() {
 // Requirement cycles.
 
 #[test]
-#[ignore = "needs B1"]
 fn cycle_exits_3_printing_the_whole_path() {
     let fixture = Fixture::new();
 
@@ -1481,7 +1439,6 @@ fn cycle_exits_3_printing_the_whole_path() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn cycle_of_one_skill_requiring_itself_is_reported() {
     let fixture = Fixture::new();
 
@@ -1499,7 +1456,6 @@ fn cycle_of_one_skill_requiring_itself_is_reported() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn cycle_reached_only_through_a_requirement_is_reported() {
     let fixture = Fixture::new();
 
@@ -1519,7 +1475,6 @@ fn cycle_reached_only_through_a_requirement_is_reported() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn cycle_is_named_the_same_whatever_order_a_requires_list_is_written_in() {
     let fixture = Fixture::new();
 
@@ -1558,7 +1513,6 @@ fn cycle_is_named_the_same_whatever_order_a_requires_list_is_written_in() {
 // end to end here because the exit code is what a user meets; their wording is `config`'s.
 
 #[test]
-#[ignore = "needs B1"]
 fn exact_name_selects_a_name_from_a_catalog() {
     let fixture = Fixture::new();
     let named = fixture.bundle(&[entry("skill", ENGINEERING_SKILL)]);
@@ -1571,7 +1525,6 @@ fn exact_name_selects_a_name_from_a_catalog() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn exact_name_closes_a_named_skill_over_its_own_requires() {
     let fixture = Fixture::new();
     let named = fixture.bundle(&[entry("skill", PROJECT_SKILL)]);
@@ -1582,7 +1535,6 @@ fn exact_name_closes_a_named_skill_over_its_own_requires() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn exact_name_reaches_an_mcp_server_and_a_hook() {
     let fixture = Fixture::new();
     let named = fixture.bundle(&[entry("mcp", "fixture"), entry("hook", "acme-standup")]);
@@ -1593,7 +1545,6 @@ fn exact_name_reaches_an_mcp_server_and_a_hook() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn exact_name_no_catalog_provides_exits_3_naming_the_entry_and_its_line() {
     let fixture = Fixture::new();
 
@@ -1616,7 +1567,6 @@ fn exact_name_no_catalog_provides_exits_3_naming_the_entry_and_its_line() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn exits_2_for_a_top_level_scopes() {
     let fixture = Fixture::new();
 
@@ -1634,7 +1584,6 @@ fn exits_2_for_a_top_level_scopes() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn exits_2_for_a_top_level_skills() {
     let fixture = Fixture::new();
 
@@ -1650,7 +1599,6 @@ fn exits_2_for_a_top_level_skills() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn exits_2_for_a_top_level_mcps() {
     let fixture = Fixture::new();
 
@@ -1682,7 +1630,6 @@ fn exits_2_for_a_top_level_mcps() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn exits_2_for_a_top_level_hooks() {
     let fixture = Fixture::new();
 
@@ -1730,7 +1677,6 @@ fn with_block_hook() -> Fixture {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_hook_is_selected_through_a_pack_naming_the_entry_that_reached_it() {
     let fixture = with_block_hook();
 
@@ -1753,7 +1699,6 @@ fn catalog_hook_is_selected_through_a_pack_naming_the_entry_that_reached_it() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_hook_names_the_projects_own_entry_when_one_reaches_it_directly() {
     let fixture = with_block_hook();
     let named = fixture.bundle(&[entry("hook", BLOCK_HOOK)]);
@@ -1771,7 +1716,6 @@ fn catalog_hook_names_the_projects_own_entry_when_one_reaches_it_directly() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_hook_is_reached_through_a_wildcard_entry() {
     let fixture = with_block_hook();
     let wide = fixture.bundle(&[entry("hook", "block-*")]);
@@ -1787,7 +1731,6 @@ fn catalog_hook_is_reached_through_a_wildcard_entry() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_hook_no_pack_names_is_left_out_of_every_pack_selected_bundle() {
     let fixture = with_block_hook();
     let everything = fixture.bundle(&[
@@ -1801,7 +1744,6 @@ fn catalog_hook_no_pack_names_is_left_out_of_every_pack_selected_bundle() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn catalog_hook_names_the_catalog_it_came_from_in_resolve() {
     let fixture = with_block_hook();
 
@@ -1845,7 +1787,6 @@ fn with_guard_hook() -> Fixture {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn required_hook_is_pulled_in_behind_the_skill_naming_the_requirer() {
     let fixture = with_guard_hook();
 
@@ -1862,7 +1803,6 @@ fn required_hook_is_pulled_in_behind_the_skill_naming_the_requirer() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn required_hook_expects_feed_the_credential_list() {
     let fixture = with_guard_hook();
 
@@ -1879,7 +1819,6 @@ fn required_hook_expects_feed_the_credential_list() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn required_hook_is_reached_down_a_chain() {
     let fixture = with_guard_hook();
 
@@ -1897,7 +1836,6 @@ fn required_hook_is_reached_down_a_chain() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn required_hook_is_left_out_when_nothing_selected_requires_it() {
     // The same catalog, the same hook: what differs is that the requiring skill is not selected,
     // so the edge exists and reaches nothing.
@@ -1916,7 +1854,6 @@ fn required_hook_is_left_out_when_nothing_selected_requires_it() {
 // because the lock records it too and both surfaces have to agree by construction.
 
 #[test]
-#[ignore = "needs B1"]
 fn reason_names_the_entry_that_selected_an_item_not_the_value_it_matched() {
     let fixture = Fixture::new();
     let wide = fixture.bundle(&engineering());
@@ -1949,7 +1886,6 @@ fn reason_names_the_entry_that_selected_an_item_not_the_value_it_matched() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn reason_names_the_requirer_of_a_skill_and_a_server_no_entry_selected() {
     let fixture = Fixture::new();
     let project = fixture.bundle(&[entry("pack", "project.acme")]);
@@ -1965,7 +1901,6 @@ fn reason_names_the_requirer_of_a_skill_and_a_server_no_entry_selected() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn reason_names_the_first_requirer_by_name_not_by_walk_order() {
     let fixture = Fixture::new();
 
@@ -1984,7 +1919,6 @@ fn reason_names_the_first_requirer_by_name_not_by_walk_order() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn reason_tie_breaks_two_entries_on_sorted_order() {
     // Both routes are true, and an entry beats an edge: the entry ends the chain where the pack's
     // membership continues one.
@@ -2000,7 +1934,6 @@ fn reason_tie_breaks_two_entries_on_sorted_order() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn reason_prefers_an_entry_over_a_requires_edge() {
     // `company-context` is both required by the project skill and named outright; the entry is
     // the shorter true answer, and the one the reader can act on.
@@ -2014,7 +1947,6 @@ fn reason_prefers_an_entry_over_a_requires_edge() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn reason_accounts_for_every_item_it_selected() {
     let fixture = Fixture::new();
     let wide = fixture.bundle(&[
@@ -2037,7 +1969,6 @@ fn reason_accounts_for_every_item_it_selected() {
 // `ambit resolve --explain`.
 
 #[test]
-#[ignore = "needs B1"]
 fn explain_adds_a_reason_column_to_every_section_but_expects() {
     let fixture = Fixture::new();
 
@@ -2094,7 +2025,6 @@ fn explain_adds_a_reason_column_to_every_section_but_expects() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn explain_adds_a_reason_to_every_json_record_which_plain_json_omits() {
     let fixture = Fixture::new();
 
@@ -2128,7 +2058,6 @@ fn explain_adds_a_reason_to_every_json_record_which_plain_json_omits() {
 // assertions are on the whole path, not on the last link.
 
 #[test]
-#[ignore = "needs B1"]
 fn why_prints_the_chain_of_something_a_pack_selected() {
     let fixture = Fixture::new();
 
@@ -2154,7 +2083,6 @@ fn why_prints_the_chain_of_something_a_pack_selected() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_walks_back_through_requires_to_the_entry_that_started_it() {
     let fixture = Fixture::new();
 
@@ -2184,7 +2112,6 @@ fn why_walks_back_through_requires_to_the_entry_that_started_it() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_names_the_entry_as_written_wildcard_included() {
     // The whole reason a reason carries the entry rather than the matched name: the wildcard is
     // what the reader can go and change, and the chain ends on it.
@@ -2202,7 +2129,6 @@ fn why_names_the_entry_as_written_wildcard_included() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_finds_a_server_by_the_mcp_reference_requires_uses() {
     let fixture = Fixture::new();
 
@@ -2219,7 +2145,6 @@ fn why_finds_a_server_by_the_mcp_reference_requires_uses() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_refuses_a_bare_name() {
     // Refused rather than looked up, even though this command *could* look it up: one grammar
     // everywhere a name is taken from a person beats a rule that holds only while a name is unique.
@@ -2243,7 +2168,6 @@ fn why_refuses_a_bare_name() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_names_either_namespace_for_a_name_both_hold() {
     // Two namespaces answering to one name is a legitimate catalog, and neither reading is
     // preferred over the other: both are simply asked for.
@@ -2268,7 +2192,6 @@ fn why_names_either_namespace_for_a_name_both_hold() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_reaches_a_skill_whose_name_reads_like_another_namespaces_prefix() {
     // `skills/mcp/sentry/SKILL.md` is the skill `mcp.sentry`, and under a prefix convention no
     // string could name it.
@@ -2287,7 +2210,6 @@ fn why_reaches_a_skill_whose_name_reads_like_another_namespaces_prefix() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_lets_a_skill_named_for_a_namespace_and_an_entity_of_that_name_coexist() {
     // Two different things, and both reachable: the kind decides, and the name never does.
     let fixture = Fixture::new();
@@ -2312,7 +2234,6 @@ fn why_lets_a_skill_named_for_a_namespace_and_an_entity_of_that_name_coexist() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_prints_the_chain_to_a_hook_a_skill_required() {
     let fixture = Fixture::new();
 
@@ -2347,7 +2268,6 @@ fn why_prints_the_chain_to_a_hook_a_skill_required() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_insists_on_the_hook_for_a_hook_reference_a_skill_also_answers_to() {
     let fixture = Fixture::new();
 
@@ -2373,7 +2293,6 @@ fn why_insists_on_the_hook_for_a_hook_reference_a_skill_also_answers_to() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_names_the_entry_that_would_select_an_unselected_hook() {
     let fixture = Fixture::new();
 
@@ -2403,7 +2322,6 @@ fn why_names_the_entry_that_would_select_an_unselected_hook() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_reports_a_name_entry_as_the_whole_chain() {
     let fixture = Fixture::new();
 
@@ -2418,7 +2336,6 @@ fn why_reports_a_name_entry_as_the_whole_chain() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_emits_the_chain_the_item_and_its_reason_as_json() {
     let fixture = Fixture::new();
 
@@ -2447,7 +2364,6 @@ fn why_emits_the_chain_the_item_and_its_reason_as_json() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_exits_3_for_a_skill_a_catalog_provides_but_nothing_selects() {
     let fixture = Fixture::new();
 
@@ -2472,7 +2388,6 @@ fn why_exits_3_for_a_skill_a_catalog_provides_but_nothing_selects() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_names_an_entry_for_an_unselected_server_too() {
     let fixture = Fixture::new();
 
@@ -2493,7 +2408,6 @@ fn why_names_an_entry_for_an_unselected_server_too() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_exits_3_for_a_name_nothing_provides_naming_the_namespace() {
     // The namespace is named rather than hedged over all four: the subject said which it meant.
     let fixture = Fixture::new();
@@ -2508,7 +2422,6 @@ fn why_exits_3_for_a_name_nothing_provides_naming_the_namespace() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_does_not_fall_back_to_another_namespace() {
     // `company-context` is a skill this catalog does have. A reference is taken at its word, so
     // naming the wrong namespace is a miss rather than a lookup that wanders into the right one.
@@ -2527,7 +2440,6 @@ fn why_does_not_fall_back_to_another_namespace() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn why_refuses_a_subject_whose_kind_is_not_a_namespace() {
     // `server:` is no kind, so this is a bare name, and the refusal explains the grammar rather
     // than complaining about a namespace nobody claimed to be naming.
@@ -2551,7 +2463,6 @@ fn why_refuses_a_subject_whose_kind_is_not_a_namespace() {
 // offending line of their own config.
 
 #[test]
-#[ignore = "needs B1"]
 fn unmatched_entry_exits_3_naming_the_entry_its_line_and_what_it_looked_in() {
     let fixture = Fixture::new();
 
@@ -2578,7 +2489,6 @@ fn unmatched_entry_exits_3_naming_the_entry_its_line_and_what_it_looked_in() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn unmatched_wildcard_is_refused_exactly_as_a_misspelled_name() {
     // A stale glob and a typo'd exact name are the same mistake.
     let fixture = Fixture::new();
@@ -2594,7 +2504,6 @@ fn unmatched_wildcard_is_refused_exactly_as_a_misspelled_name() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn unmatched_qualifier_says_it_names_no_catalog() {
     // A qualifier is an alias, not a pattern, so `*` in that half asks for a catalog literally
     // named `*`, and a message about what that catalog holds would answer the wrong question.
@@ -2619,7 +2528,6 @@ fn unmatched_qualifier_says_it_names_no_catalog() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn unmatched_alias_is_named_without_the_wildcard_aside() {
     let fixture = Fixture::new();
 
@@ -2642,7 +2550,6 @@ fn unmatched_alias_is_named_without_the_wildcard_aside() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn unmatched_namespace_is_refused_however_live_the_name_is_elsewhere() {
     // `core` is a pack, and there is no *skill* of that name.
     let fixture = Fixture::new();
@@ -2658,7 +2565,6 @@ fn unmatched_namespace_is_refused_however_live_the_name_is_elsewhere() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn unmatched_reports_the_same_offender_however_the_config_orders_the_list() {
     let fixture = Fixture::new();
 
@@ -2687,7 +2593,6 @@ fn unmatched_reports_the_same_offender_however_the_config_orders_the_list() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn unmatched_selects_nothing_before_failing_so_install_cannot_half_run() {
     let fixture = Fixture::new();
     let error = fixture
@@ -2700,7 +2605,6 @@ fn unmatched_selects_nothing_before_failing_so_install_cannot_half_run() {
 // `ambit resolve`.
 
 #[test]
-#[ignore = "needs B1"]
 fn resolve_lists_the_bundle_as_text() {
     let fixture = Fixture::new();
 
@@ -2745,7 +2649,6 @@ fn resolve_lists_the_bundle_as_text() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn resolve_says_so_for_an_empty_bundle_rather_than_printing_nothing() {
     let fixture = Fixture::new();
 
@@ -2777,7 +2680,6 @@ fn resolve_says_so_for_an_empty_bundle_rather_than_printing_nothing() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn resolve_emits_byte_identical_json_on_a_second_run() {
     let fixture = Fixture::new();
 
@@ -2790,7 +2692,6 @@ fn resolve_emits_byte_identical_json_on_a_second_run() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn resolve_carries_no_machine_specific_paths_into_json_output() {
     let fixture = Fixture::new();
     let result = fixture.cli(&["resolve", "--json"]);
@@ -2799,7 +2700,6 @@ fn resolve_carries_no_machine_specific_paths_into_json_output() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn resolve_emits_byte_identical_json_on_a_second_run_under_explain_too() {
     let fixture = Fixture::new();
     let mut requires = core_and_engineering();
@@ -2814,7 +2714,6 @@ fn resolve_emits_byte_identical_json_on_a_second_run_under_explain_too() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn resolve_exits_2_when_the_project_has_no_config() {
     let fixture = Fixture::new();
 
@@ -2827,7 +2726,6 @@ fn resolve_exits_2_when_the_project_has_no_config() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn resolve_exits_2_on_a_malformed_catalog() {
     let fixture = Fixture::new();
 

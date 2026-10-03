@@ -262,7 +262,6 @@ fn a_status_with_nothing_drifted_is_clean() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn an_empty_plan_against_empty_state_reports_nothing() {
     let status = status_of_plan(&[], &State::empty()).unwrap();
 
@@ -272,7 +271,6 @@ fn an_empty_plan_against_empty_state_reports_nothing() {
 // ambit status on an installed project
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_every_artifact_as_matching_and_says_so_rather_than_printing_nothing() {
     let fixture = installed(&["install"]);
     let result = fixture.cli(&["status"]);
@@ -317,7 +315,6 @@ fn reports_every_artifact_as_matching_and_says_so_rather_than_printing_nothing()
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn exits_0_under_check_when_nothing_has_drifted() {
     let fixture = installed(&["install"]);
     let result = fixture.cli(&["status", "--check"]);
@@ -326,7 +323,6 @@ fn exits_0_under_check_when_nothing_has_drifted() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn touches_nothing_so_it_can_be_run_on_a_project_it_would_report_drift_on() {
     let fixture = installed(&["install"]);
     let before = fixture.snapshot();
@@ -338,7 +334,6 @@ fn touches_nothing_so_it_can_be_run_on_a_project_it_would_report_drift_on() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn emits_machine_readable_output_carrying_no_absolute_paths() {
     let fixture = installed(&["install"]);
     let result = fixture.cli(&["status", "--json"]);
@@ -368,7 +363,6 @@ fn emits_machine_readable_output_carrying_no_absolute_paths() {
 // below pins that as the non-drift it is.
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_an_edited_skill_file_as_modified_naming_the_file() {
     let fixture = installed(&["install", "--copy"]);
     fs::write(
@@ -392,7 +386,6 @@ fn reports_an_edited_skill_file_as_modified_naming_the_file() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn exits_5_under_check_once_a_skill_has_been_edited() {
     let fixture = installed(&["install", "--copy"]);
     fs::write(
@@ -410,7 +403,6 @@ fn exits_5_under_check_once_a_skill_has_been_edited() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_a_file_added_into_an_installed_skill_which_install_would_remove() {
     let fixture = installed(&["install", "--copy"]);
     fs::write(
@@ -426,7 +418,6 @@ fn reports_a_file_added_into_an_installed_skill_which_install_would_remove() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_a_deleted_skill_directory_as_missing() {
     let fixture = installed(&["install", "--copy"]);
     fs::remove_dir_all(fixture.project_dir.join(engineering_target())).unwrap();
@@ -442,7 +433,6 @@ fn reports_a_deleted_skill_directory_as_missing() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_an_edited_server_as_modified_naming_the_key() {
     let fixture = installed(&["install", "--copy"]);
     fixture.write_mcp_file(&json!({ "mcpServers": { PACKED_MCP: { "command": "my-own-thing" } } }));
@@ -457,7 +447,6 @@ fn reports_an_edited_server_as_modified_naming_the_key() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_a_deleted_server_as_absent_rather_than_as_modified() {
     let fixture = installed(&["install", "--copy"]);
     fixture.write_mcp_file(&json!({ "mcpServers": {} }));
@@ -470,7 +459,6 @@ fn reports_a_deleted_server_as_absent_rather_than_as_modified() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_a_mcp_json_deleted_outright_since_install_would_write_it_again() {
     let fixture = installed(&["install", "--copy"]);
     fs::remove_file(fixture.project_dir.join(MCP_FILE)).unwrap();
@@ -479,7 +467,6 @@ fn reports_a_mcp_json_deleted_outright_since_install_would_write_it_again() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn does_not_read_a_reordered_server_as_drift_ambit_owns_the_key_not_the_layout() {
     let fixture = installed(&["install", "--copy"]);
     let document = fixture.read_mcp_config();
@@ -495,7 +482,6 @@ fn does_not_read_a_reordered_server_as_drift_ambit_owns_the_key_not_the_layout()
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn says_nothing_about_a_hand_added_server_or_any_other_key_in_the_file() {
     let fixture = installed(&["install", "--copy"]);
     let mut document = fixture.read_mcp_config();
@@ -511,7 +497,6 @@ fn says_nothing_about_a_hand_added_server_or_any_other_key_in_the_file() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn says_nothing_about_a_skill_directory_no_state_claims() {
     let fixture = installed(&["install", "--copy"]);
     let target = fixture.project_dir.join(SKILLS_DIR).join("hand-written");
@@ -523,7 +508,6 @@ fn says_nothing_about_a_skill_directory_no_state_claims() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_a_change_in_the_catalog_not_only_one_in_the_project() {
     let fixture = installed(&["install", "--copy"]);
     fs::write(
@@ -546,7 +530,6 @@ fn reports_a_change_in_the_catalog_not_only_one_in_the_project() {
 const CORE_SOURCE: &str = "skills/company-context";
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn says_nothing_when_the_source_is_edited_through_the_link_which_is_what_linking_is_for() {
     let fixture = installed(&["install"]);
 
@@ -568,7 +551,6 @@ fn says_nothing_when_the_source_is_edited_through_the_link_which_is_what_linking
 
 #[cfg(unix)]
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_a_link_pointing_elsewhere_as_modified_naming_where_it_points() {
     let fixture = installed(&["install"]);
     let target = fixture.project_dir.join(core_target());
@@ -590,7 +572,6 @@ fn reports_a_link_pointing_elsewhere_as_modified_naming_where_it_points() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_a_file_sitting_where_a_linked_skill_belongs_as_modified() {
     let fixture = installed(&["install"]);
     let target = fixture.project_dir.join(core_target());
@@ -605,7 +586,6 @@ fn reports_a_file_sitting_where_a_linked_skill_belongs_as_modified() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reads_an_intact_copy_as_clean_even_though_a_plain_install_would_relink_it() {
     let fixture = installed(&["install", "--copy"]);
 
@@ -621,7 +601,6 @@ fn reads_an_intact_copy_as_clean_even_though_a_plain_install_would_relink_it() {
 // ambit status before an install
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_every_artifact_resolution_wants_as_missing() {
     let fixture = Fixture::new();
     let result = fixture.cli(&["status"]);
@@ -637,7 +616,6 @@ fn reports_every_artifact_resolution_wants_as_missing() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_a_target_install_would_refuse_as_unowned_rather_than_as_modified() {
     let fixture = Fixture::new();
     let target = fixture.project_dir.join(core_target());
@@ -668,7 +646,6 @@ fn reports_a_target_install_would_refuse_as_unowned_rather_than_as_modified() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_nothing_at_all_for_a_project_that_resolves_to_nothing() {
     let fixture = Fixture::new();
     fixture.write_profile(&[]);
@@ -683,7 +660,6 @@ fn reports_nothing_at_all_for_a_project_that_resolves_to_nothing() {
 // ambit status after the profile narrows: what install would prune, before it prunes it.
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_what_ambit_owns_and_nothing_selects_as_stale() {
     let fixture = installed(&["install"]);
     fixture.write_profile(&["core"]);
@@ -702,7 +678,6 @@ fn reports_what_ambit_owns_and_nothing_selects_as_stale() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn reports_a_single_stale_server_key_in_a_file_whose_other_keys_still_match() {
     let fixture = Fixture::new();
     // Both servers: `tagged` by tag, `fixture` through the project skill's `requires`.
@@ -724,7 +699,6 @@ fn reports_a_single_stale_server_key_in_a_file_whose_other_keys_still_match() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B4"]
 fn goes_quiet_again_once_the_install_that_prunes_them_has_run() {
     let fixture = installed(&["install"]);
     fixture.write_profile(&["core"]);

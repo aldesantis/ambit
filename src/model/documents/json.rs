@@ -7,7 +7,7 @@
 use indexmap::IndexSet;
 
 use crate::errors::{Result, config_error};
-use crate::model::documents::format::{ConfigEntry, DocumentDriver, DocumentFormat};
+use crate::model::documents::format::{ConfigEntry, DocumentDriver};
 use crate::util::json::{self, JsonObject, JsonValue, structurally_equal};
 
 /// Parses a JSON document, treating an absent file as an empty one.
@@ -67,10 +67,6 @@ pub fn serialize_json_document(document: &JsonObject) -> String {
 pub struct JsonDriver;
 
 impl DocumentDriver for JsonDriver {
-    fn format(&self) -> DocumentFormat {
-        DocumentFormat::Json
-    }
-
     fn section_keys(
         &self,
         text: Option<&str>,

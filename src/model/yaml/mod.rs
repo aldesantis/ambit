@@ -37,10 +37,10 @@ use crate::util::json::format_f64;
 use crate::util::text::js_trim;
 
 pub use emit::emit_yaml;
-pub use frontmatter::{FrontmatterSplit, split_frontmatter};
+pub use frontmatter::split_frontmatter;
 
 use schema::Scalar;
-use tree::{Document, NodeId, NodeKind, is_integer};
+use tree::{NodeId, NodeKind, is_integer};
 
 /// One string from a sequence, with where it was written.
 #[derive(Clone, Debug, PartialEq, Eq)]

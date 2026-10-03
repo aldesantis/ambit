@@ -337,7 +337,6 @@ fn cases() -> Vec<Case> {
 }
 
 #[test]
-#[ignore = "needs B1: expected_env"]
 fn writes_a_stdio_server_with_its_arguments_and_its_environment() {
     for case in cases() {
         let emitted = (case.profile.server_config)(&stdio_server(
@@ -351,7 +350,6 @@ fn writes_a_stdio_server_with_its_arguments_and_its_environment() {
 }
 
 #[test]
-#[ignore = "needs B1: expected_env"]
 fn omits_args_and_env_a_stdio_server_does_not_declare() {
     // A server with nothing to say about either gets neither key, rather than an empty array and
     // an empty map nobody wrote.
@@ -401,7 +399,6 @@ fn sorts_the_headers_it_writes_so_the_file_does_not_churn_on_the_catalogs_key_or
 }
 
 #[test]
-#[ignore = "needs B1: expected_env"]
 fn resolves_no_variable_whatever_the_environment_holds() {
     // No profile takes an environment, so there is nothing a value could be resolved from; the TS
     // test stubbed `TOKEN` to prove the same.
@@ -458,7 +455,6 @@ fn env_of(profile: &HarnessProfile) -> JsonValue {
 }
 
 #[test]
-#[ignore = "needs B1: expected_env"]
 fn writes_the_declared_name_against_the_variable_that_supplies_it_in_every_spelling() {
     same(
         &env_of(&CLAUDE),
@@ -483,7 +479,6 @@ fn writes_the_declared_name_against_the_variable_that_supplies_it_in_every_spell
 }
 
 #[test]
-#[ignore = "needs B1: expected_env"]
 fn passes_an_expected_variable_no_entry_references_through_beside_it() {
     let emitted = (CLAUDE.server_config)(&stdio_server(
         &[],
@@ -503,7 +498,6 @@ fn passes_an_expected_variable_no_entry_references_through_beside_it() {
 // a credential in a stdio server's arguments
 
 #[test]
-#[ignore = "needs B1: expected_env"]
 fn reaches_every_harness_in_that_harnesss_own_spelling() {
     let args = ["mcp-remote", "--header", "Authorization: Bearer ${TOKEN}"];
     let last_arg = |profile: &HarnessProfile| {
@@ -698,7 +692,6 @@ fn pairs_a_layout_with_a_renderer_so_a_profile_carries_both_or_neither() {
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn writes_the_entry_claude_codes_own_documentation_describes_in_that_key_order() {
     same(
         &render(&CLAUDE, &hook(), &plain_project()),
@@ -710,7 +703,6 @@ fn writes_the_entry_claude_codes_own_documentation_describes_in_that_key_order()
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn omits_a_matcher_and_a_timeout_the_hook_does_not_declare() {
     same(
         &render(&CLAUDE, &bare(), &plain_project()),
@@ -719,7 +711,6 @@ fn omits_a_matcher_and_a_timeout_the_hook_does_not_declare() {
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn renders_one_entry_for_the_three_harnesses_that_read_claudes_shape() {
     // Byte equality, not structural: the digest that identifies the entry is taken over exactly
     // these bytes, so two renderings that differ only in key order would be two entries in one
@@ -737,7 +728,6 @@ fn renders_one_entry_for_the_three_harnesses_that_read_claudes_shape() {
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn writes_cursors_flat_entry_which_nests_nothing_and_carries_no_matcher() {
     // Cursor has no field for a tool `matcher`, so `Bash` is dropped rather than written through
     // into a key the harness would ignore, and no inner `hooks` array, because one entry is one
@@ -749,7 +739,6 @@ fn writes_cursors_flat_entry_which_nests_nothing_and_carries_no_matcher() {
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn omits_a_timeout_a_cursor_hook_does_not_declare() {
     same(
         &render(&CURSOR, &bare(), &plain_project()),
@@ -758,7 +747,6 @@ fn omits_a_timeout_a_cursor_hook_does_not_declare() {
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn renders_cursors_entry_differently_from_claudes_which_is_why_the_files_stay_separate() {
     // Not a detail: the two renderings have different digests, so `plan_for` cannot collapse them
     // and a project on both harnesses gets two artifacts rather than one written twice.
@@ -806,7 +794,6 @@ fn command_of(profile: &HarnessProfile, hook: &MergedHook, paths: &ProjectPaths)
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn points_claude_and_vscode_at_the_project_root_through_claudes_own_placeholder() {
     // `${CLAUDE_PROJECT_DIR}` is documented by Claude as interpolated in `command` and as holding
     // the project root. VS Code reads this same file and gets the same string, documented or not.
@@ -821,7 +808,6 @@ fn points_claude_and_vscode_at_the_project_root_through_claudes_own_placeholder(
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn writes_cursor_and_codex_a_project_relative_path_and_no_subshell() {
     // Neither interpolates anything in a `command`, so the path as written is all there is.
     assert_eq!(
@@ -840,7 +826,6 @@ fn writes_cursor_and_codex_a_project_relative_path_and_no_subshell() {
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn gives_codex_a_different_command_from_claudes_sharing_the_entry_shape_and_not_the_path() {
     // Which is why `root` is a parameter of the Claude renderer rather than a constant inside it.
     assert_ne!(
@@ -861,7 +846,6 @@ fn gives_codex_a_different_command_from_claudes_sharing_the_entry_shape_and_not_
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn rewrites_the_program_and_keeps_every_argument() {
     // `command` is a shell fragment ambit does not parse, so only the first token is rewritten.
     let with_args = MergedHook {
@@ -880,7 +864,6 @@ fn rewrites_the_program_and_keeps_every_argument() {
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn leaves_a_hook_that_ships_nothing_exactly_as_declared() {
     // The command line case, which is most hooks: prefixing `npx --yes prettier` with a directory
     // would break it, and there are no bytes at that directory to point at anyway.
@@ -918,7 +901,6 @@ fn home() -> ProjectPaths {
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn names_the_install_root_outright_for_every_harness_that_expresses_hooks() {
     for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*VSCODE] {
         assert_eq!(
@@ -931,7 +913,6 @@ fn names_the_install_root_outright_for_every_harness_that_expresses_hooks() {
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn leaves_nothing_for_a_harness_or_a_project_to_resolve() {
     for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*VSCODE] {
         let command = command_of(profile, &script(), &home());
@@ -944,7 +925,6 @@ fn leaves_nothing_for_a_harness_or_a_project_to_resolve() {
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn still_rewrites_only_the_program_keeping_every_argument() {
     let with_args = MergedHook {
         command: "./hook.sh --strict bin/other".to_owned(),
@@ -958,7 +938,6 @@ fn still_rewrites_only_the_program_keeping_every_argument() {
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn leaves_a_hook_that_ships_nothing_exactly_as_declared_at_a_user_level_install() {
     // Scope decides where a shipped script is, and a command line has no script to find.
     let inline = MergedHook {
@@ -977,7 +956,6 @@ fn leaves_a_hook_that_ships_nothing_exactly_as_declared_at_a_user_level_install(
 }
 
 #[test]
-#[ignore = "needs B1: hook_command"]
 fn resolves_no_variable_in_a_command_and_rewrites_no_reference_either() {
     // Unlike an MCP transport: a hook's command is run by a shell the harness spawns, so `${TOKEN}`
     // already means the right thing and translating it would be rewriting a shell fragment.

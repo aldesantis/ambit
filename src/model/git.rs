@@ -93,9 +93,6 @@ string_enum! {
     }
 }
 
-/// Every refresh mode, in declaration order.
-pub const REFRESH_MODES: &[RefreshMode] = RefreshMode::ALL;
-
 /// Env vars that would point git at the caller's repository instead of the cache. Set when ambit
 /// runs from inside a git hook or alias.
 const REDIRECTING_GIT_VARS: &[&str] = &["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"];

@@ -66,9 +66,6 @@ string_enum! {
     }
 }
 
-/// Every artifact state, in declaration order.
-pub const ARTIFACT_STATES: &[ArtifactState] = ArtifactState::ALL;
-
 /// One artifact's verdict.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StatusArtifact {
@@ -135,10 +132,7 @@ pub fn status_drift(status: &ProjectStatus) -> Vec<StatusArtifact> {
 
 /// Whether install would leave the project exactly as it is: the answer `--check` reports.
 pub fn is_clean(status: &ProjectStatus) -> bool {
-    status
-        .artifacts
-        .iter()
-        .all(|artifact| artifact.state == ArtifactState::Ok)
+    status_drift(status).is_empty()
 }
 
 /// The error for a target that cannot be inspected.

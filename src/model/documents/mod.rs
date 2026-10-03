@@ -8,16 +8,14 @@ mod toml;
 
 pub use format::{
     ConfigEntry, DOCUMENT_FORMATS, DOCUMENT_SHAPES, DocumentDriver, DocumentFormat, DocumentShape,
-    is_record, managed_key, read_document_text,
+    managed_key, read_document_text,
 };
-pub use json::{JsonDriver, parse_json_document, serialize_json_document};
-pub use json_array::{
-    ArraySectionDriver, DIGEST_LENGTH, array_entry_key, array_section_driver, entry_digest,
-};
+pub use json::JsonDriver;
+pub use json_array::{array_entry_key, array_section_driver};
 pub use jsonc::JsoncDriver;
 pub use toml::TomlDriver;
 
-pub use crate::util::json::{JsonObject, structurally_equal};
+pub use crate::util::json::JsonObject;
 
 use crate::errors::{AmbitError, ExitCode, Result};
 

@@ -108,7 +108,6 @@ fn expect_golden(name: &str, actual: &str) {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn matches_the_golden_bundle_for_every_profile() {
     for (name, requires) in profiles() {
         let root = tempfile::tempdir().expect("a tempdir");

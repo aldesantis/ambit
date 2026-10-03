@@ -85,7 +85,6 @@ fn server_names(project: &Project, relative: &str) -> Vec<String> {
 // what the first had just created.
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn plans_the_shared_link_and_the_shared_skill_directories_once_each() {
     let project = with_harnesses(&["claude", "cursor"]);
     let result = install_project(&project.dir, &project.env, InstallOptions::default(), &[])
@@ -115,7 +114,6 @@ fn plans_the_shared_link_and_the_shared_skill_directories_once_each() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn writes_both_config_files_and_one_skills_tree() {
     let project = with_harnesses(&["claude", "cursor"]);
     let result = project.cli(&["install"]);
@@ -129,7 +127,6 @@ fn writes_both_config_files_and_one_skills_tree() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn records_each_shared_artifact_once() {
     let project = with_harnesses(&["claude", "cursor"]);
 
@@ -146,7 +143,6 @@ fn records_each_shared_artifact_once() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn lists_the_link_once_in_the_managed_gitignore_block() {
     let project = with_harnesses(&["claude", "cursor"]);
 
@@ -156,7 +152,6 @@ fn lists_the_link_once_in_the_managed_gitignore_block() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn changes_no_bytes_on_a_second_install() {
     let project = with_harnesses(&["claude", "cursor"]);
 
@@ -183,7 +178,6 @@ fn changes_no_bytes_on_a_second_install() {
 // `.codex/config.toml` through the TOML one.
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn writes_each_harnesss_config_in_that_harnesss_own_file_and_format() {
     let project = with_harnesses(&["claude", "codex"]);
     let result = project.cli(&["install"]);
@@ -210,7 +204,6 @@ fn writes_each_harnesss_config_in_that_harnesss_own_file_and_format() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn materializes_the_skills_once_and_links_only_for_the_harness_that_needs_it() {
     let project = with_harnesses(&["claude", "codex"]);
 
@@ -223,7 +216,6 @@ fn materializes_the_skills_once_and_links_only_for_the_harness_that_needs_it() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn records_the_format_of_each_config_file_so_pruning_knows_how_to_edit_it() {
     let project = with_harnesses(&["claude", "codex"]);
 
@@ -268,7 +260,6 @@ fn records_the_format_of_each_config_file_so_pruning_knows_how_to_edit_it() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn prunes_the_stale_server_from_both_files_in_both_formats() {
     let project = with_harnesses(&["claude", "codex"]);
 
@@ -291,7 +282,6 @@ fn prunes_the_stale_server_from_both_files_in_both_formats() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn leaves_a_codex_configs_own_settings_and_comments_exactly_as_they_were() {
     let project = with_harnesses(&["claude", "codex"]);
     let handwritten =
@@ -310,7 +300,6 @@ fn leaves_a_codex_configs_own_settings_and_comments_exactly_as_they_were() {
 const ALL_HARNESSES: &[&str] = &["claude", "codex", "cursor", "opencode", "vscode"];
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn writes_one_skills_tree_one_link_and_five_config_files() {
     let project = with_harnesses(ALL_HARNESSES);
     let result = project.cli(&["install"]);
@@ -341,7 +330,6 @@ fn writes_one_skills_tree_one_link_and_five_config_files() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3, B5"]
 fn reports_no_drift_afterwards_in_all_three_document_formats_at_once() {
     let project = with_harnesses(ALL_HARNESSES);
 
@@ -355,7 +343,6 @@ fn reports_no_drift_afterwards_in_all_three_document_formats_at_once() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn passes_doctor_with_every_referenced_variable_set() {
     let mut project = with_harnesses(ALL_HARNESSES);
 
@@ -382,7 +369,6 @@ fn passes_doctor_with_every_referenced_variable_set() {
 // Code and quietly stop working for the rest.
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn is_reported_for_every_harness() {
     for harness in ALL_HARNESSES {
         let project = Project::new();
@@ -467,7 +453,6 @@ fn symlink(target: &str, at: &std::path::Path) {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn replaces_a_directory_of_ambits_own_skills_with_the_link_without_adopt() {
     let project = claude_project();
 
@@ -492,7 +477,6 @@ fn replaces_a_directory_of_ambits_own_skills_with_the_link_without_adopt() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn refuses_when_one_hand_written_skill_sits_in_there_and_names_adopt() {
     let project = claude_project();
 
@@ -519,7 +503,6 @@ fn refuses_when_one_hand_written_skill_sits_in_there_and_names_adopt() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn takes_it_over_under_adopt_which_is_what_the_refusal_offered() {
     let project = claude_project();
 
@@ -532,7 +515,6 @@ fn takes_it_over_under_adopt_which_is_what_the_refusal_offered() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn reports_a_dangling_symlink_as_unowned_rather_than_crashing() {
     // What dotagents leaves behind, and the shape that used to surface as "this is a bug in ambit":
     // `mkdir` on a path whose ancestor is a dangling link fails with ENOENT.
@@ -551,7 +533,6 @@ fn reports_a_dangling_symlink_as_unowned_rather_than_crashing() {
 /// A dangling link an artifact has to be created *under* is different from one *at* a planned
 /// path: `mkdir -p` cannot descend through it, so adopting the artifact would still fail.
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn refuses_a_dangling_symlink_standing_where_a_parent_directory_belongs_and_says_what_to_move() {
     let project = claude_project();
 
@@ -582,7 +563,6 @@ fn refuses_a_dangling_symlink_standing_where_a_parent_directory_belongs_and_says
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn refuses_a_plain_file_standing_where_a_parent_directory_belongs() {
     let project = claude_project();
 
@@ -600,7 +580,6 @@ fn refuses_a_plain_file_standing_where_a_parent_directory_belongs() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn writes_through_a_parent_directory_that_is_a_link_to_a_real_directory() {
     // A symlinked ancestor is only a problem when it dangles: one pointing at a directory is a
     // directory as far as writing into it goes.
@@ -624,7 +603,6 @@ fn writes_through_a_parent_directory_that_is_a_link_to_a_real_directory() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn adopts_a_dangling_symlink_and_points_it_at_the_shared_directory() {
     let project = claude_project();
 

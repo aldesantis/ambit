@@ -60,9 +60,6 @@ string_enum! {
     }
 }
 
-/// Every freshness, in declaration order.
-pub const CATALOG_FRESHNESS: &[CatalogFreshness] = CatalogFreshness::ALL;
-
 /// One catalog, and where its pin stands.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CatalogPin {
@@ -112,12 +109,8 @@ pub struct UpdateInstallOptions {
     pub mode: Option<ArtifactMode>,
 }
 
-/// Whether any pin has somewhere to move.
-pub fn has_outdated(plan: &UpdatePlan) -> bool {
-    catalogs_outdated(&plan.catalogs)
-}
-
-/// [`has_outdated`] over a bare list of pins, for [`UpdateResult`], which carries the same list.
+/// Whether any pin has somewhere to move: over a bare list of pins, since [`UpdatePlan`] and
+/// [`UpdateResult`] carry the same list.
 pub fn catalogs_outdated(catalogs: &[CatalogPin]) -> bool {
     catalogs
         .iter()

@@ -273,7 +273,6 @@ mod claude_settings {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn writes_one_entry_per_hook_and_records_each_entrys_digest_as_owned() {
         let f = fixture();
         let result = f.cli(&["install"]);
@@ -293,7 +292,6 @@ mod claude_settings {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn changes_no_bytes_on_a_second_install_and_reports_no_drift() {
         let f = fixture();
         f.cli(&["install"]);
@@ -308,7 +306,6 @@ mod claude_settings {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn prunes_the_entry_a_narrowed_config_no_longer_declares_leaving_the_array_behind() {
         let f = fixture();
         f.cli(&["install"]);
@@ -330,7 +327,6 @@ mod claude_settings {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn writes_no_settings_file_at_all_for_a_project_that_declares_no_hooks() {
         let f = fixture();
         f.write_profile(&[], &["claude"]);
@@ -358,7 +354,6 @@ mod claude_and_vscode {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn writes_the_shared_file_once_and_records_it_once() {
         let f = fixture();
         let result = f.cli(&["install"]);
@@ -379,7 +374,6 @@ mod claude_and_vscode {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn leaves_vs_codes_own_config_alone_having_nothing_to_put_in_it() {
         let f = fixture();
         f.cli(&["install"]);
@@ -456,7 +450,6 @@ mod handwritten_settings {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn survives_install_a_second_install_prune_and_clean_byte_identically() {
         let f = fixture();
 
@@ -506,7 +499,6 @@ mod handwritten_settings {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn never_claims_a_foreign_entry_whatever_event_it_sits_on() {
         let f = fixture();
         f.cli(&["install"]);
@@ -543,7 +535,6 @@ mod identical_handwritten_entry {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn refuses_it_by_name_leaving_the_project_untouched() {
         let f = fixture();
         let result = f.cli(&["install"]);
@@ -560,7 +551,6 @@ mod identical_handwritten_entry {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn takes_it_over_under_adopt_without_writing_a_second_copy_of_it() {
         let f = fixture();
         let result = f.cli(&["install", "--adopt"]);
@@ -576,7 +566,6 @@ mod identical_handwritten_entry {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn prunes_what_it_adopted_once_the_declaration_is_gone() {
         let f = fixture();
         f.cli(&["install", "--adopt"]);
@@ -669,7 +658,6 @@ mod digest_mismatch {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn reports_the_hand_edited_entry_as_drift_naming_the_digest_state_claims() {
         let f = fixture();
         edit_installed_entry(&f);
@@ -688,7 +676,6 @@ mod digest_mismatch {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn puts_its_own_entry_back_on_the_next_install_and_leaves_the_edit_as_the_persons() {
         let f = fixture();
         edit_installed_entry(&f);
@@ -718,7 +705,6 @@ mod digest_mismatch {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn reports_the_digest_a_changed_declaration_now_wants_as_missing() {
         let f = fixture();
         f.write_profile(&[retimed_hook()], &["claude"]);
@@ -738,7 +724,6 @@ mod digest_mismatch {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn prunes_the_stale_digest_and_writes_the_current_one_leaving_no_duplicate() {
         let f = fixture();
         f.write_profile(&[retimed_hook()], &["claude"]);
@@ -808,7 +793,6 @@ mod cursor_hooks {
     ];
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn puts_each_event_in_cursors_own_array() {
         for &(event, spelling) in EVENTS {
             let f = Fixture::new();
@@ -845,7 +829,6 @@ mod cursor_hooks {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn changes_no_bytes_on_a_second_install_and_reports_no_drift() {
         let f = Fixture::new();
         write_watch_profile(&f, "PreCompact", &["cursor"]);
@@ -859,7 +842,6 @@ mod cursor_hooks {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn drops_a_matcher_which_cursor_has_no_field_for() {
         let f = Fixture::new();
         f.write_profile(
@@ -890,7 +872,6 @@ mod cursor_hooks {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn leaves_the_whole_document_alone_but_for_the_array_it_appends_to() {
         let f = Fixture::new();
         // A `version` a person raised themselves, and a hook of their own on the event ambit writes
@@ -941,7 +922,6 @@ mod codex_hooks {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn writes_claudes_own_entries_under_claudes_own_event_names() {
         let f = fixture();
         let result = f.cli(&["install"]);
@@ -967,7 +947,6 @@ mod codex_hooks {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn touches_no_config_toml_which_is_the_file_this_layout_exists_to_avoid() {
         let f = fixture();
         f.cli(&["install"]);
@@ -976,7 +955,6 @@ mod codex_hooks {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn changes_no_bytes_on_a_second_install_and_reports_no_drift() {
         let f = fixture();
         f.cli(&["install"]);
@@ -989,7 +967,6 @@ mod codex_hooks {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn leaves_a_hook_of_someone_elses_where_it_is_and_gives_it_back_on_clean() {
         let f = fixture();
         let mine = json!({ "hooks": [{ "type": "command", "command": "./bin/mine" }] });
@@ -1020,7 +997,6 @@ mod codex_hooks {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn writes_each_of_claude_and_codex_its_own_file_from_one_rendering() {
         let f = fixture();
         f.write_profile(&[notify_hook()], &["claude", "codex"]);
@@ -1061,7 +1037,6 @@ mod opencode_skip {
     use super::*;
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn warns_exits_0_and_writes_opencode_nothing() {
         let f = Fixture::new();
         f.write_profile(&[notify_hook()], &["opencode"]);
@@ -1081,7 +1056,6 @@ mod opencode_skip {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn installs_the_hook_everywhere_else_and_warns_only_for_opencode() {
         let f = Fixture::new();
         f.write_profile(&[notify_hook()], &["claude", "opencode"]);
@@ -1106,7 +1080,6 @@ mod opencode_skip {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn says_the_same_thing_on_a_dry_run_having_written_nothing() {
         let f = Fixture::new();
         f.write_profile(&[notify_hook()], &["opencode"]);
@@ -1123,7 +1096,6 @@ mod opencode_skip {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn carries_the_skip_in_json_as_the_reason_rather_than_the_sentence() {
         let f = Fixture::new();
         f.write_profile(&[notify_hook()], &["opencode"]);
@@ -1151,7 +1123,6 @@ mod claude_and_cursor {
     use super::*;
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn writes_each_harness_its_own_file_in_that_harnesss_own_shape() {
         let f = Fixture::new();
         f.write_profile(&[notify_hook()], &["claude", "cursor"]);
@@ -1336,7 +1307,6 @@ mod script_hook {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn materializes_the_hooks_directory_and_records_it_as_a_hook_dir() {
         let f = fixture();
         let result = f.cli(&["install"]);
@@ -1371,7 +1341,6 @@ mod script_hook {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn plans_no_directory_for_the_command_line_hook_beside_it() {
         let f = fixture();
         f.cli(&["install"]);
@@ -1396,7 +1365,6 @@ mod script_hook {
     /// the way to it, and exact strings, because a placeholder a harness does not interpolate is not
     /// a near miss.
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn writes_the_materialized_path_the_way_each_harness_resolves_one() {
         let f = fixture();
         write_catalog(&f, &["claude", "codex", "cursor", "vscode"]);
@@ -1458,7 +1426,6 @@ mod script_hook {
     /// after `apply`, so ambit would delete the script it just wrote, recreate it next run, and
     /// leave the settings entry pointing at nothing in between.
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn keeps_the_directory_on_a_second_install_rather_than_deleting_and_rewriting_it() {
         let f = fixture();
         f.cli(&["install"]);
@@ -1484,7 +1451,6 @@ mod script_hook {
     /// Without a branch of its own a `hook-dir` falls past both path branches into the config arm,
     /// where `config_verdict` reads the directory as a document.
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn reports_the_directory_as_a_hook_dir_compared_as_a_directory() {
         let f = fixture();
         f.cli(&["install"]);
@@ -1501,7 +1467,6 @@ mod script_hook {
     /// A row that reads `ok` whatever the directory holds would satisfy the test above while
     /// reporting nothing, so the comparison is also asked about a script someone edited.
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn reports_an_edited_script_as_modified_naming_the_file() {
         let f = fixture();
         f.cli(&["install", "--copy"]);
@@ -1526,7 +1491,6 @@ mod script_hook {
     /// The fallback there is the harness-config writer, so a `hook-dir` without a branch of its own
     /// would have a `hooks` section merged into it as though the directory were a JSON file.
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn writes_the_scripts_bytes_in_both_materialization_modes() {
         let f = fixture();
         f.cli(&["install"]);
@@ -1545,7 +1509,6 @@ mod script_hook {
 
     #[cfg(unix)]
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn keeps_the_script_executable_through_a_copy_install() {
         use std::os::unix::fs::PermissionsExt;
 
@@ -1569,7 +1532,6 @@ mod script_hook {
     /// script shows up as untracked in `git status`. The path is under `.agents/`, so it lands in the
     /// volatile nested block for free once the kind is admitted.
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn lists_the_directory_in_the_volatile_agents_gitignore_block() {
         let f = fixture();
         assert_eq!(f.cli(&["install"]).code, ExitCode::Success);
@@ -1596,7 +1558,6 @@ mod script_hook {
     /// can report it. Counting only `skill-dir` means a hook's script installed with `--copy` out of
     /// a working copy is never mentioned anywhere.
     #[test]
-    #[ignore = "needs B1, B2 and B4"]
     fn reports_the_directorys_mode_divergence_in_doctor() {
         let f = fixture();
         f.cli(&["install", "--copy"]);
@@ -1624,7 +1585,6 @@ mod script_hook {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn takes_the_directory_back_on_clean_and_leaves_the_catalogs_copy_alone() {
         let f = fixture();
         f.cli(&["install", "--copy"]);
@@ -1644,7 +1604,6 @@ mod script_hook {
     }
 
     #[test]
-    #[ignore = "needs B1 and B4"]
     fn stops_materializing_the_directory_once_the_hook_leaves_the_bundle() {
         let f = fixture();
         f.cli(&["install"]);
@@ -1686,7 +1645,6 @@ mod script_hook {
         }
 
         #[test]
-        #[ignore = "needs B1 and B4"]
         fn writes_every_harness_the_expanded_install_root() {
             let f = home_fixture();
             write_catalog(&f, &["claude", "cursor"]);
@@ -1727,7 +1685,6 @@ mod script_hook {
         }
 
         #[test]
-        #[ignore = "needs B1 and B4"]
         fn replaces_a_project_relative_entry_an_earlier_install_left_rather_than_leaving_both() {
             let mut f = home_fixture();
             write_catalog(&f, &["claude"]);
@@ -1764,7 +1721,6 @@ mod script_hook {
         }
 
         #[test]
-        #[ignore = "needs B1 and B4"]
         fn agrees_with_status_which_reads_the_scope_off_the_same_root() {
             let f = home_fixture();
             write_catalog(&f, &["claude", "cursor"]);

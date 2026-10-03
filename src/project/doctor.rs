@@ -75,9 +75,6 @@ string_enum! {
     }
 }
 
-/// Every severity, in declaration order.
-pub const DOCTOR_SEVERITIES: &[DoctorSeverity] = DoctorSeverity::ALL;
-
 /// One finding, shaped like an error, since that is what it would have been.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DoctorFinding {
@@ -401,24 +398,6 @@ fn drift_step(state: ArtifactState) -> &'static str {
     }
 }
 
-/// A planned artifact in the shape state records it, which is what the `.gitignore` renderer
-/// reads.
-fn owned_of(artifact: &PlannedArtifact) -> OwnedArtifact {
-    let config = match artifact {
-        PlannedArtifact::HarnessConfig(config) => Some(config),
-        _ => None,
-    };
-
-    OwnedArtifact {
-        path: artifact.path().to_owned(),
-        kind: artifact.kind(),
-        mode: artifact.mode(),
-        managed_keys: config.map(|config| config.managed_keys.clone()),
-        format: config.map(|config| config.format),
-        shape: config.and_then(|config| config.shape),
-    }
-}
-
 /// Everything install would change about the project: `status`'s findings, plus the managed
 /// `.gitignore` blocks, which `status` has no row for.
 ///
@@ -452,7 +431,7 @@ fn drift_findings(
     // Same question install's `--dry-run` asks, of the same renderer that writes. Checked per file
     // because the two blocks go stale for different reasons: the nested one whenever the bundle
     // changes, the root one almost never.
-    let owned: Vec<OwnedArtifact> = artifacts.iter().map(owned_of).collect();
+    let owned: Vec<OwnedArtifact> = artifacts.iter().map(OwnedArtifact::from).collect();
     let gitignore = gitignore_status(project_dir, &owned)?;
 
     findings.extend(gitignore.into_iter().filter(|block| block.changed).map(|block| {

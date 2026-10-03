@@ -357,7 +357,7 @@ fn a_report_with_no_problems_is_valid() {
 #[test]
 fn spells_problem_kinds_as_the_json_reports_them() {
     assert_eq!(
-        VALIDATION_PROBLEM_KINDS
+        ValidationProblemKind::ALL
             .iter()
             .map(|kind| kind.as_str())
             .collect::<Vec<_>>(),
@@ -371,7 +371,6 @@ fn spells_problem_kinds_as_the_json_reports_them() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn lists_parsed_problems_first_and_counts_every_copy() {
     let merged = MergedCatalog {
         catalogs: vec![s(CATALOG_NAME), s("personal")],
@@ -416,7 +415,6 @@ fn lists_parsed_problems_first_and_counts_every_copy() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_exits_0_against_the_fixture_catalog_saying_what_it_checked() {
     let fixture = Fixture::new();
     let result = fixture.cli(&["validate"]);
@@ -426,7 +424,6 @@ fn validate_exits_0_against_the_fixture_catalog_saying_what_it_checked() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_checks_a_catalog_repo_which_lists_itself_and_selects_nothing() {
     // A catalog repo is a project that lists its own `skills/`, `mcps/` and `hooks/` as
     // `source: path:.`, and every item in the merged catalog is checked whether anything selects
@@ -444,7 +441,6 @@ fn validate_checks_a_catalog_repo_which_lists_itself_and_selects_nothing() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_reports_a_catalog_repos_own_broken_skill_which_nothing_selects() {
     // The report is about items no `requires` entry reaches, which is every item in a catalog
     // repo.
@@ -465,7 +461,6 @@ fn validate_reports_a_catalog_repos_own_broken_skill_which_nothing_selects() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_exits_2_on_a_catalog_that_does_not_parse() {
     // The deliberate boundary: there is no semantic report to build about a document ambit cannot
     // read, so parsing failures stay the exit-2 errors they are everywhere else.
@@ -484,7 +479,6 @@ fn validate_exits_2_on_a_catalog_that_does_not_parse() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_refuses_a_catalog_that_still_holds_a_scopes_yml() {
     // The registry is gone, and a file that still parses as one would otherwise sit there looking
     // like it labels something.
@@ -511,7 +505,6 @@ fn validate_refuses_a_catalog_that_still_holds_a_scopes_yml() {
 // let that sit in the catalog.
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_reports_a_dangling_requirement_resolve_deliberately_ignores() {
     let fixture = Fixture::new();
 
@@ -534,7 +527,6 @@ fn validate_reports_a_dangling_requirement_resolve_deliberately_ignores() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_reports_an_entry_reaching_no_mcp_entity_naming_the_namespace() {
     let fixture = Fixture::new();
 
@@ -548,7 +540,6 @@ fn validate_reports_an_entry_reaching_no_mcp_entity_naming_the_namespace() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_reports_a_missing_hook_by_its_bare_name() {
     let fixture = Fixture::new();
 
@@ -565,7 +556,6 @@ fn validate_reports_a_missing_hook_by_its_bare_name() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_resolves_a_hook_requirement_against_the_hooks_a_catalog_provides() {
     let fixture = Fixture::new();
 
@@ -579,7 +569,6 @@ fn validate_resolves_a_hook_requirement_against_the_hooks_a_catalog_provides() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_follows_no_edge_out_of_a_hook_when_hunting_cycles() {
     // A hook named like a skill in the cycle would send a one-step walk round it twice; the entry
     // declares its namespace, so the edge reaches the hook and stops there.
@@ -595,7 +584,6 @@ fn validate_follows_no_edge_out_of_a_hook_when_hunting_cycles() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_reports_a_cycle_among_skills_nothing_selects() {
     let fixture = Fixture::new();
 
@@ -627,7 +615,6 @@ fn validate_reports_a_cycle_among_skills_nothing_selects() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_reports_two_independent_cycles_as_two_problems() {
     let fixture = Fixture::new();
 
@@ -652,7 +639,6 @@ fn validate_reports_two_independent_cycles_as_two_problems() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_reports_one_loop_once_however_many_skills_lead_into_it() {
     let fixture = Fixture::new();
 
@@ -671,7 +657,6 @@ fn validate_reports_one_loop_once_however_many_skills_lead_into_it() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_reports_a_dangling_requirement_and_a_cycle_from_one_run() {
     let fixture = Fixture::new();
 
@@ -688,7 +673,6 @@ fn validate_reports_a_dangling_requirement_and_a_cycle_from_one_run() {
 // Name↔path agreement.
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_lists_a_mismatch_as_a_problem_instead_of_stopping_the_run_at_it() {
     let fixture = Fixture::new();
 
@@ -720,7 +704,6 @@ fn validate_lists_a_mismatch_as_a_problem_instead_of_stopping_the_run_at_it() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_goes_on_to_check_the_misnamed_skill_under_the_name_its_path_derives() {
     // Continuing past the mismatch is only worth anything if the rest of the skill is still
     // checked, and the path is the name every other tool would have installed it under.
@@ -733,7 +716,6 @@ fn validate_goes_on_to_check_the_misnamed_skill_under_the_name_its_path_derives(
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn a_mismatch_still_exits_2_outside_validation() {
     let fixture = Fixture::new();
 
@@ -777,7 +759,6 @@ fn with_two_copies() -> Fixture {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn two_copies_exit_0_counting_every_copy_checked() {
     let fixture = with_two_copies();
     let found = fixture.report();
@@ -797,7 +778,6 @@ fn two_copies_exit_0_counting_every_copy_checked() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn two_copies_leave_the_collision_to_resolve_which_refuses_the_same_project() {
     // `validate` passes a catalog pair that is perfectly well-formed, and the project selecting
     // both copies is what fails.
@@ -816,7 +796,6 @@ fn two_copies_leave_the_collision_to_resolve_which_refuses_the_same_project() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn two_copies_of_a_broken_skill_are_reported_once_each() {
     let fixture = with_two_copies();
     let dangling = [requires(&[needs("skill", "absent")])];
@@ -842,7 +821,6 @@ fn two_copies_of_a_broken_skill_are_reported_once_each() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn two_copies_do_not_let_one_catalogs_copy_satisfy_the_others_requires() {
     // `personal` ships `needed`, `company` does not, and `company`'s skill asking for it is
     // unsatisfied however plainly the merged view holds a match. A catalog can only require what
@@ -878,7 +856,6 @@ fn two_copies_do_not_let_one_catalogs_copy_satisfy_the_others_requires() {
 // error builders, so the assertion is that `validate` lists what `resolve` stops at.
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_lists_every_entry_that_matches_nothing_in_document_order() {
     let fixture = Fixture::new();
 
@@ -917,7 +894,6 @@ fn validate_lists_every_entry_that_matches_nothing_in_document_order() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_checks_the_projects_own_skills_when_it_lists_itself_as_a_catalog() {
     // A project that publishes something is a catalog, so `validate` reads it with no special
     // case, and a broken skill it ships is a finding like any other, whether the project selects it
@@ -958,7 +934,6 @@ fn validate_checks_the_projects_own_skills_when_it_lists_itself_as_a_catalog() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_reports_nothing_about_an_entry_some_configured_catalogs_items_satisfy() {
     let fixture = Fixture::new();
 
@@ -999,7 +974,6 @@ fn write_two_catalogs(fixture: &Fixture, name: &str, source: &str) {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn unselected_catalog_with_items_no_entry_is_qualified_with_is_reported() {
     let fixture = Fixture::new();
 
@@ -1025,7 +999,6 @@ fn unselected_catalog_with_items_no_entry_is_qualified_with_is_reported() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn unselected_catalog_is_reported_as_the_unmatched_pattern_when_an_entry_names_it() {
     // Qualified with, not matched by. An entry spelled `personal/nope` mentions the catalog, so
     // the pattern is the offender and one mistake is reported once.
@@ -1053,7 +1026,6 @@ fn unselected_catalog_is_reported_as_the_unmatched_pattern_when_an_entry_names_i
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn unselected_catalog_with_no_items_is_just_empty() {
     // `ambit init` scaffolds a live `local` entry against three empty directories and comments out
     // the entry that would select it, so a finding here would fail `validate` on every fresh
@@ -1069,7 +1041,6 @@ fn unselected_catalog_with_no_items_is_just_empty() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn unselected_catalog_the_project_itself_is_is_never_reported() {
     // Publishing is not consuming: a repo that ships items and selects none of them is the normal
     // state of a catalog repo, and `ambit init` scaffolded the entry that says so.
@@ -1090,7 +1061,6 @@ fn unselected_catalog_the_project_itself_is_is_never_reported() {
 // `ambit validate` output.
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_emits_the_problem_list_as_json_with_the_verdict_and_what_was_checked() {
     let fixture = Fixture::new();
 
@@ -1128,7 +1098,6 @@ fn validate_emits_the_problem_list_as_json_with_the_verdict_and_what_was_checked
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_emits_valid_true_for_a_clean_catalog_rather_than_an_empty_document() {
     let fixture = Fixture::new();
     let result = fixture.cli(&["validate", "--json"]);
@@ -1149,7 +1118,6 @@ fn validate_emits_valid_true_for_a_clean_catalog_rather_than_an_empty_document()
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_counts_the_hooks_it_checked() {
     let fixture = Fixture::new();
 
@@ -1177,7 +1145,6 @@ fn validate_counts_the_hooks_it_checked() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_prints_each_problems_detail_indented_under_its_summary() {
     let fixture = Fixture::new();
 
@@ -1207,7 +1174,6 @@ fn validate_prints_each_problems_detail_indented_under_its_summary() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_emits_byte_identical_json_and_carries_no_machine_paths() {
     let fixture = Fixture::new();
 
@@ -1224,7 +1190,6 @@ fn validate_emits_byte_identical_json_and_carries_no_machine_paths() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn validate_carries_no_machine_paths_in_a_catalog_repo_either() {
     let fixture = Fixture::new();
 

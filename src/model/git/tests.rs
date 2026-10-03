@@ -208,7 +208,6 @@ fn remove(target: &Path) {
 // A catalog fetched from git.
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn installs_exactly_what_the_same_catalog_installs_from_a_directory() {
     let w = world();
     // `--copy` on the directory side, because that is the one thing the two sources legitimately
@@ -223,7 +222,6 @@ fn installs_exactly_what_the_same_catalog_installs_from_a_directory() {
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn copies_its_skills_since_a_commit_is_not_a_working_tree_anyone_edits() {
     let w = world();
     assert_success(&w.cli(&w.git_project, &["install"]));
@@ -245,7 +243,6 @@ fn copies_its_skills_since_a_commit_is_not_a_working_tree_anyone_edits() {
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn clones_into_the_cache_keyed_by_host_and_path_and_checks_the_commit_out_there() {
     let w = world();
     assert_success(&w.cli(&w.git_project, &["install"]));
@@ -263,7 +260,6 @@ fn clones_into_the_cache_keyed_by_host_and_path_and_checks_the_commit_out_there(
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn reports_the_commit_the_catalog_is_pinned_to() {
     let w = world();
     let (root, commit) = w.git_catalog();
@@ -273,7 +269,6 @@ fn reports_the_commit_the_catalog_is_pinned_to() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn resolves_every_spelling_of_the_ref_to_the_same_commit() {
     let w = world();
     let abbreviated = &w.fixture.commit[..8];
@@ -296,7 +291,6 @@ fn resolves_every_spelling_of_the_ref_to_the_same_commit() {
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn resolves_from_the_cache_on_a_second_run_with_the_remote_gone() {
     let w = world();
     assert_success(&w.cli(&w.git_project, &["install"]));
@@ -310,7 +304,6 @@ fn resolves_from_the_cache_on_a_second_run_with_the_remote_gone() {
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn checks_a_commit_out_once_and_reuses_the_checkout() {
     let w = world();
     w.cli(&w.git_project, &["install"]);
@@ -329,7 +322,6 @@ fn checks_a_commit_out_once_and_reuses_the_checkout() {
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn shares_one_clone_between_the_url_and_its_git_spelling() {
     let w = world();
     w.cli(&w.git_project, &["install"]);
@@ -356,7 +348,6 @@ fn lock(dir: &Path) -> YamlMapping {
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn pins_the_catalog_to_the_commit_its_ref_resolved_to_keeping_the_ref_it_was_asked_for() {
     let w = world();
     write_project(&w.git_project, &w.fixture.url, Some(&w.fixture.tag), &[]);
@@ -373,7 +364,6 @@ fn pins_the_catalog_to_the_commit_its_ref_resolved_to_keeping_the_ref_it_was_ask
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn pins_every_skill_it_installed_to_that_same_commit() {
     let w = world();
     w.cli(&w.git_project, &["install"]);
@@ -388,7 +378,6 @@ fn pins_every_skill_it_installed_to_that_same_commit() {
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn leaves_the_commit_out_for_a_catalog_read_from_a_directory() {
     let w = world();
     w.cli(&w.path_project, &["install"]);
@@ -405,7 +394,6 @@ fn leaves_the_commit_out_for_a_catalog_read_from_a_directory() {
 // Git source failures.
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn exits_2_for_a_ref_the_repository_does_not_have() {
     let w = world();
     write_project(&w.git_project, &w.fixture.url, Some("nope"), &[]);
@@ -421,7 +409,6 @@ fn exits_2_for_a_ref_the_repository_does_not_have() {
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn exits_2_for_a_ref_git_would_read_as_an_option() {
     let w = world();
     write_project(
@@ -442,7 +429,6 @@ fn exits_2_for_a_ref_git_would_read_as_an_option() {
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn exits_4_for_a_repository_that_is_not_there() {
     let w = world();
     write_project(
@@ -471,7 +457,6 @@ fn warm_the_cache(w: &World) {
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn offline_resolves_entirely_from_the_cache_with_the_remote_gone() {
     let w = world();
     warm_the_cache(&w);
@@ -484,7 +469,6 @@ fn offline_resolves_entirely_from_the_cache_with_the_remote_gone() {
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn offline_installs_a_project_that_never_fetched_from_the_cache_another_project_filled() {
     let w = world();
     warm_the_cache(&w);
@@ -498,7 +482,6 @@ fn offline_installs_a_project_that_never_fetched_from_the_cache_another_project_
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn offline_checks_a_commit_out_from_a_clone_it_already_has() {
     let w = world();
     warm_the_cache(&w);
@@ -520,7 +503,6 @@ fn offline_checks_a_commit_out_from_a_clone_it_already_has() {
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn offline_exits_4_naming_the_catalog_it_would_have_had_to_clone_and_clones_nothing() {
     let w = world();
     // The remote is right there and reachable, so a run that succeeds fetched something it was
@@ -540,7 +522,6 @@ fn offline_exits_4_naming_the_catalog_it_would_have_had_to_clone_and_clones_noth
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn offline_exits_4_for_a_ref_the_cached_clone_was_never_told_about_without_fetching() {
     let w = world();
     warm_the_cache(&w);
@@ -558,7 +539,6 @@ fn offline_exits_4_for_a_ref_the_cached_clone_was_never_told_about_without_fetch
 }
 
 #[test]
-#[ignore = "needs B1 and B4"]
 fn offline_has_nothing_to_say_about_a_catalog_read_from_a_directory() {
     let w = world();
 

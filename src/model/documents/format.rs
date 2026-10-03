@@ -62,8 +62,6 @@ pub struct ConfigEntry {
 
 /// Reads and writes one file format, preserving everything ambit does not own.
 pub trait DocumentDriver {
-    fn format(&self) -> DocumentFormat;
-
     /// The keys currently in the managed section: what ownership enforcement compares a plan
     /// against.
     ///
@@ -131,11 +129,6 @@ pub trait DocumentDriver {
         keys: &[String],
         file: &str,
     ) -> Result<Option<String>>;
-}
-
-/// Anything with keys: a JSON object, not an array or a scalar.
-pub fn is_record(value: &JsonValue) -> bool {
-    value.is_object()
 }
 
 /// Reads a config file, treating an absent one as no document at all.

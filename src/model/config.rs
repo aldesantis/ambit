@@ -13,7 +13,7 @@ use crate::model::pattern::{
     Addressing, PatternEntry, REQUIRES_KEY, entry_yaml, parse_entries, unique_entries,
 };
 use crate::model::requirement::{CATALOG_SEPARATOR, ItemKind};
-use crate::model::yaml::{YamlEntry, YamlMapping, parse_yaml_mapping, read_yaml_mapping};
+use crate::model::yaml::{YamlEntry, YamlMapping, read_yaml_mapping};
 use crate::util::path::join;
 
 /// The only config version this build understands.
@@ -444,8 +444,9 @@ fn from_mapping(root: &YamlMapping) -> Result<ProjectConfig> {
 /// # Errors
 ///
 /// Exit 2 for anything malformed.
+#[cfg(test)]
 pub fn parse_project_config(text: &str, file: &str) -> Result<ProjectConfig> {
-    from_mapping(&parse_yaml_mapping(text, file)?)
+    from_mapping(&crate::model::yaml::parse_yaml_mapping(text, file)?)
 }
 
 /// Whether `target` is a regular file (following symlinks). Any failure to stat it counts as no.

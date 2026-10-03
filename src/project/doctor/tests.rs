@@ -405,7 +405,6 @@ fn keeps_a_mode_finding_quiet_when_nothing_is_installed() {
 // `ambit doctor` on a healthy project.
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn healthy_passes_every_check_and_names_them_rather_than_printing_nothing() {
     let fixture = installed();
     let result = fixture.cli(&["doctor"]);
@@ -415,7 +414,6 @@ fn healthy_passes_every_check_and_names_them_rather_than_printing_nothing() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn healthy_touches_nothing_so_it_can_run_on_a_project_it_reports_failures_on() {
     let fixture = installed();
     let before = fixture.snapshot();
@@ -439,7 +437,6 @@ fn healthy_touches_nothing_so_it_can_run_on_a_project_it_reports_failures_on() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn healthy_emits_machine_readable_output_carrying_no_absolute_paths() {
     let fixture = installed();
     let result = fixture.cli(&["doctor", "--json"]);
@@ -476,7 +473,6 @@ fn incomplete() -> Fixture {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn incomplete_exits_6_reporting_one_failure_per_unset_variable_in_variable_order() {
     let fixture = incomplete();
     let result = fixture.cli(&["doctor"]);
@@ -505,7 +501,6 @@ fn incomplete_exits_6_reporting_one_failure_per_unset_variable_in_variable_order
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn incomplete_names_the_skill_that_wants_the_variable_and_how_to_satisfy_it() {
     let fixture = incomplete();
 
@@ -519,7 +514,6 @@ fn incomplete_names_the_skill_that_wants_the_variable_and_how_to_satisfy_it() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn incomplete_names_the_server_and_the_reference_install_left_for_the_harness() {
     let fixture = incomplete();
 
@@ -538,7 +532,6 @@ fn incomplete_names_the_server_and_the_reference_install_left_for_the_harness() 
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn incomplete_says_nothing_about_a_variable_set_to_the_empty_string() {
     let fixture = incomplete();
 
@@ -553,7 +546,6 @@ fn incomplete_says_nothing_about_a_variable_set_to_the_empty_string() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn incomplete_goes_quiet_once_the_variables_are_set_and_installed() {
     let fixture = incomplete();
 
@@ -603,7 +595,6 @@ fn renaming() -> Fixture {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn renaming_asks_for_the_variable_the_file_references_not_the_name_the_process_reads() {
     let fixture = renaming();
 
@@ -625,7 +616,6 @@ fn renaming_asks_for_the_variable_the_file_references_not_the_name_the_process_r
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn renaming_goes_quiet_once_that_variable_is_set() {
     let fixture = renaming();
 
@@ -637,7 +627,6 @@ fn renaming_goes_quiet_once_that_variable_is_set() {
 // The lock is a record of a resolution, and `status` never reads it.
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn lock_resolution_would_rewrite_is_reported_naming_the_file() {
     let fixture = installed();
 
@@ -651,7 +640,6 @@ fn lock_resolution_would_rewrite_is_reported_naming_the_file() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn lock_never_written_is_distinguished_from_one_that_is_stale() {
     let fixture = installed();
 
@@ -669,7 +657,6 @@ fn lock_never_written_is_distinguished_from_one_that_is_stale() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn lock_is_quiet_after_a_prune_which_rewrites_it_along_with_state() {
     let fixture = installed();
 
@@ -683,7 +670,6 @@ fn lock_is_quiet_after_a_prune_which_rewrites_it_along_with_state() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn lock_names_the_two_commands_that_write_it() {
     let fixture = installed();
 
@@ -699,7 +685,6 @@ fn lock_names_the_two_commands_that_write_it() {
 // that.
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn ownership_reports_every_artifact_ambit_no_longer_owns_and_never_as_drift() {
     let fixture = installed();
 
@@ -726,7 +711,6 @@ fn ownership_reports_every_artifact_ambit_no_longer_owns_and_never_as_drift() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn ownership_explains_the_crash_and_names_adopt() {
     let fixture = installed();
 
@@ -743,7 +727,6 @@ fn ownership_explains_the_crash_and_names_adopt() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn ownership_reports_a_co_owned_config_key_by_key() {
     let fixture = installed();
 
@@ -757,7 +740,6 @@ fn ownership_reports_a_co_owned_config_key_by_key() {
 // `ambit doctor` against the project.
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn drift_reports_a_deleted_skill_directory_with_statuss_own_detail() {
     let fixture = installed();
 
@@ -777,7 +759,6 @@ fn drift_reports_a_deleted_skill_directory_with_statuss_own_detail() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn drift_reports_the_managed_gitignore_block_which_status_has_no_row_for() {
     let fixture = installed();
 
@@ -793,7 +774,6 @@ fn drift_reports_the_managed_gitignore_block_which_status_has_no_row_for() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn reports_every_failure_at_once_rather_than_stopping_at_the_first() {
     let fixture = installed();
 
@@ -826,7 +806,6 @@ fn copied() -> Fixture {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn copy_warns_that_a_plain_install_would_symlink_each_skill_and_still_exits_0() {
     let fixture = copied();
     let result = fixture.cli(&["doctor"]);
@@ -856,7 +835,6 @@ fn copy_warns_that_a_plain_install_would_symlink_each_skill_and_still_exits_0() 
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn copy_says_why_and_how_to_keep_it() {
     let fixture = copied();
 
@@ -870,7 +848,6 @@ fn copy_says_why_and_how_to_keep_it() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn copy_stays_silent_about_the_mode_of_a_skill_it_reports_as_modified() {
     let fixture = copied();
 
@@ -910,7 +887,6 @@ fn hook_expecting() -> Fixture {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn hook_expects_fails_on_a_variable_a_selected_hook_declares() {
     let fixture = hook_expecting();
 
@@ -931,7 +907,6 @@ fn hook_expects_fails_on_a_variable_a_selected_hook_declares() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn hook_expects_goes_quiet_once_it_is_set_without_a_reinstall() {
     let fixture = hook_expecting();
 
@@ -946,7 +921,6 @@ fn hook_expects_goes_quiet_once_it_is_set_without_a_reinstall() {
 // which is the one failure mode nothing else in this command can see.
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn codex_warns_that_it_needs_the_feature_flag_and_still_exits_0() {
     let fixture = Fixture::new();
 
@@ -974,7 +948,6 @@ fn codex_warns_that_it_needs_the_feature_flag_and_still_exits_0() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn codex_names_the_file_ambit_wrote_and_says_the_flag_is_not_ambits_to_write() {
     let fixture = Fixture::new();
 
@@ -992,7 +965,6 @@ fn codex_names_the_file_ambit_wrote_and_says_the_flag_is_not_ambits_to_write() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn codex_says_nothing_when_no_hook_is_selected() {
     // Nothing is waiting on the flag, so a project that configures codex for its MCP servers alone
     // has no reason to hear about it.
@@ -1006,7 +978,6 @@ fn codex_says_nothing_when_no_hook_is_selected() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn codex_says_nothing_when_hooks_are_selected_and_codex_is_not_configured() {
     let fixture = Fixture::new();
 
@@ -1020,7 +991,6 @@ fn codex_says_nothing_when_hooks_are_selected_and_codex_is_not_configured() {
 // `ambit doctor` before an install.
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn before_install_reports_the_missing_lock_and_every_missing_artifact() {
     let fixture = Fixture::new();
 
@@ -1047,7 +1017,6 @@ fn before_install_reports_the_missing_lock_and_every_missing_artifact() {
 }
 
 #[test]
-#[ignore = "needs B1, B4, B5"]
 fn before_install_a_broken_config_is_an_error_rather_than_a_finding() {
     let fixture = Fixture::new();
 

@@ -739,7 +739,6 @@ mod catalog_sources {
     use super::*;
 
     #[test]
-    #[ignore = "needs B3"]
     fn resolves_a_path_source_relative_to_the_project() {
         let fixture = Fixture::new();
         let config = load_project_config(&fixture.project_dir).unwrap();
@@ -762,7 +761,6 @@ mod catalog_sources {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn rejects_a_source_in_no_recognized_format() {
         let fixture = Fixture::new();
 
@@ -784,7 +782,6 @@ mod catalog_sources {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn rejects_a_path_source_that_is_not_a_directory() {
         let fixture = Fixture::new();
 
@@ -807,7 +804,6 @@ mod ambit_search {
     use super::*;
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn emits_the_full_fixture_catalog_as_json() {
         let fixture = Fixture::new();
         let result = fixture.cli(&["search", "*", "--json"]);
@@ -945,7 +941,6 @@ mod ambit_search {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn emits_byte_identical_json_on_a_second_run_with_keys_sorted() {
         let fixture = Fixture::new();
         let first = fixture.cli(&["search", "*", "--json"]);
@@ -962,7 +957,6 @@ mod ambit_search {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn carries_no_machine_specific_paths_into_json_output() {
         let fixture = Fixture::new();
         let result = fixture.cli(&["search", "*", "--json"]);
@@ -971,7 +965,6 @@ mod ambit_search {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn lists_packs_with_their_descriptions_and_skills_and_mcps_as_text() {
         let fixture = Fixture::new();
         let result = fixture.cli(&["search", "*"]);
@@ -997,7 +990,6 @@ mod ambit_search {
     }
 
     #[test]
-    #[ignore = "needs B2"]
     fn succeeds_with_nothing_to_dump_when_no_catalogs_are_configured() {
         let fixture = Fixture::new();
 
@@ -1010,7 +1002,6 @@ mod ambit_search {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn exits_2_on_a_skill_name_that_disagrees_with_its_path() {
         let fixture = Fixture::new();
 
@@ -1024,7 +1015,6 @@ mod ambit_search {
     }
 
     #[test]
-    #[ignore = "needs B2"]
     fn exits_2_when_the_project_has_no_config() {
         let fixture = Fixture::new();
 
@@ -1078,7 +1068,6 @@ mod ambit_search_narrowed {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn matches_names_with_the_glob_a_requires_entry_uses_prefix_included() {
         let fixture = Fixture::new();
         let result = fixture.cli(&["search", "function.*", "--capability", "pack"]);
@@ -1091,7 +1080,6 @@ mod ambit_search_narrowed {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn excludes_the_prefix_itself_exactly_as_the_same_pattern_does_in_requires() {
         let fixture = Fixture::new();
         let result = fixture.cli(&["search", "function.engineering.*", "--capability", "pack"]);
@@ -1103,7 +1091,6 @@ mod ambit_search_narrowed {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn treats_a_pattern_with_no_wildcard_as_an_exact_name() {
         let fixture = Fixture::new();
         let result = fixture.cli(&["search", "code-review", "--capability", "skill"]);
@@ -1115,7 +1102,6 @@ mod ambit_search_narrowed {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn prints_only_the_sections_capability_asked_for() {
         let fixture = Fixture::new();
         let result = fixture.cli(&["search", "*", "--capability", "skill"]);
@@ -1130,7 +1116,6 @@ mod ambit_search_narrowed {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn widens_when_capability_is_repeated() {
         let fixture = Fixture::new();
         let result = fixture.cli(&[
@@ -1149,7 +1134,6 @@ mod ambit_search_narrowed {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn emits_every_namespace_as_a_json_key_whatever_was_asked_for() {
         let fixture = Fixture::new();
         let result = fixture.cli(&["search", "*", "--capability", "skill", "--json"]);
@@ -1167,7 +1151,6 @@ mod ambit_search_narrowed {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn limits_to_one_catalog_and_widens_when_catalog_is_repeated() {
         let fixture = Fixture::new();
         let second = "acme";
@@ -1217,7 +1200,6 @@ mod ambit_search_narrowed {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn narrows_across_flags() {
         let fixture = Fixture::new();
         let second = "acme";
@@ -1241,7 +1223,6 @@ mod ambit_search_narrowed {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn succeeds_with_an_empty_report_when_the_pattern_matches_nothing() {
         // A requirement reaching nothing is a config that will not do what it says, while a search
         // finding nothing is the answer to the search.
@@ -1256,7 +1237,6 @@ mod ambit_search_narrowed {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn exits_2_on_a_catalog_this_project_does_not_list_naming_what_it_does() {
         let fixture = Fixture::new();
         let result = fixture.cli(&["search", "*", "--catalog", "nope"]);
@@ -1272,7 +1252,6 @@ mod ambit_search_narrowed {
     }
 
     #[test]
-    #[ignore = "needs B2"]
     fn exits_2_on_a_capability_that_is_not_a_namespace() {
         let fixture = Fixture::new();
         let result = fixture.cli(&["search", "*", "--capability", "tag"]);
@@ -1619,7 +1598,6 @@ mod catalog_hooks {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn shows_hooks_in_ambit_search_json_and_text() {
         let fixture = Fixture::new();
 
@@ -1681,7 +1659,6 @@ mod catalog_hooks {
     }
 
     #[test]
-    #[ignore = "needs B3"]
     fn keeps_both_catalogs_copies_of_a_duplicate_hook_name_each_with_its_own_definition() {
         let fixture = Fixture::new();
 
@@ -1727,7 +1704,6 @@ mod the_command_surface {
     use super::*;
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn dumps_the_merged_catalog_under_ambit_search() {
         let fixture = Fixture::new();
         let dump = fixture.cli(&["search", "*"]);
@@ -1737,7 +1713,6 @@ mod the_command_surface {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn emits_the_merged_catalog_as_json() {
         let fixture = Fixture::new();
         let dump = fixture.cli(&["search", "*", "--json"]);
@@ -1784,7 +1759,6 @@ mod merging {
     }
 
     #[test]
-    #[ignore = "needs B3"]
     fn tags_every_loaded_item_with_the_catalog_it_came_from() {
         let fixture = Fixture::new();
         let merged = fixture.merged();
@@ -1881,7 +1855,6 @@ mod multi_catalog_merge {
     const THIRD: &str = "backup";
 
     #[test]
-    #[ignore = "needs B3"]
     fn keeps_both_catalogs_copies_of_a_duplicate_name() {
         let fixture = Fixture::new();
 
@@ -1910,7 +1883,6 @@ mod multi_catalog_merge {
     }
 
     #[test]
-    #[ignore = "needs B3"]
     fn keeps_what_one_catalog_alone_provides_exactly_once() {
         let fixture = Fixture::new();
 
@@ -1930,7 +1902,6 @@ mod multi_catalog_merge {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn keeps_each_copys_own_definition_not_one_body_under_two_catalog_names() {
         // The transports differ, so this is the assertion that both bodies are in the merged view
         // rather than one of them twice.
@@ -1962,7 +1933,6 @@ mod multi_catalog_merge {
     }
 
     #[test]
-    #[ignore = "needs B3"]
     fn keeps_all_three_copies_when_three_catalogs_provide_one_name() {
         let fixture = Fixture::new();
 
@@ -1985,7 +1955,6 @@ mod multi_catalog_merge {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn refuses_a_selection_that_reaches_both_copies_of_a_skill_naming_both_catalogs() {
         let fixture = Fixture::new();
 
@@ -2018,7 +1987,6 @@ mod multi_catalog_merge {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn refuses_a_selected_mcp_server_two_catalogs_provide_as_it_does_a_skill() {
         let fixture = Fixture::new();
 
@@ -2042,7 +2010,6 @@ mod multi_catalog_merge {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn resolves_normally_with_no_whose_copy_column_when_one_copy_is_selected() {
         let fixture = Fixture::new();
 
@@ -2079,7 +2046,6 @@ mod multi_catalog_merge {
     }
 
     #[test]
-    #[ignore = "needs B2 and B3"]
     fn carries_nothing_about_other_copies_into_explain_json() {
         let fixture = Fixture::new();
 

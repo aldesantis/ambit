@@ -530,6 +530,7 @@ pub fn adapter_for(profile: &'static HarnessProfile) -> ProfileAdapter {
 }
 
 impl HarnessAdapter for ProfileAdapter {
+    #[cfg(test)]
     fn name(&self) -> &str {
         self.profile.name
     }

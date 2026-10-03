@@ -170,7 +170,6 @@ fn symlink(target: &str, link: &Path) {
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn preserves_plugin_boundaries_external_dependencies_and_transitive_skill_requirements() {
     let f = fixture();
     f.export_it().expect("export");
@@ -235,7 +234,6 @@ fn preserves_plugin_boundaries_external_dependencies_and_transitive_skill_requir
 
 #[cfg(unix)]
 #[test]
-#[ignore = "needs B1 and B2"]
 fn copies_symlinked_assets_preserves_executability_and_runs_after_relocation_and_source_removal() {
     let f = fixture();
     symlink(
@@ -263,7 +261,6 @@ fn copies_symlinked_assets_preserves_executability_and_runs_after_relocation_and
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn exports_dependency_only_packs_and_expands_helper_packs_without_plugin_metadata() {
     let f = fixture();
     f.put(
@@ -284,7 +281,6 @@ fn exports_dependency_only_packs_and_expands_helper_packs_without_plugin_metadat
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn keeps_dependency_declaration_order_and_removes_duplicates() {
     let f = fixture();
     f.put("packs/z.yml", "name: z\nplugin: {name: example-z}\n");
@@ -301,7 +297,6 @@ fn keeps_dependency_declaration_order_and_removes_duplicates() {
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn copies_claude_command_files_without_leaking_catalog_paths_into_the_manifest() {
     let f = fixture();
     f.put(
@@ -321,7 +316,6 @@ fn copies_claude_command_files_without_leaking_catalog_paths_into_the_manifest()
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn validates_a_dry_run_without_writing_output_or_its_parent() {
     let f = fixture();
     let result = f
@@ -418,7 +412,6 @@ const REJECTIONS: &[(&str, &str, &str, &str)] = &[
 ];
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn rejects_each_invalid_package_before_creating_output() {
     for (label, file, content, diagnostic) in REJECTIONS {
         let f = fixture();
@@ -433,7 +426,6 @@ fn rejects_each_invalid_package_before_creating_output() {
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn rejects_a_nested_skill_layout() {
     let f = fixture();
     f.put(
@@ -446,7 +438,6 @@ fn rejects_a_nested_skill_layout() {
 
 #[cfg(unix)]
 #[test]
-#[ignore = "needs B1 and B2"]
 fn rejects_catalog_escaping_and_cyclic_symlinks() {
     let f = fixture();
     std::fs::write(f.root.join("secret"), "not a plugin asset").expect("write");
@@ -460,7 +451,6 @@ fn rejects_catalog_escaping_and_cyclic_symlinks() {
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn rejects_a_hook_asset_colliding_with_the_generated_config() {
     let f = fixture();
     f.put("hooks/check/hooks.json", "{}");
@@ -469,7 +459,6 @@ fn rejects_a_hook_asset_colliding_with_the_generated_config() {
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn refuses_an_existing_output_without_changing_it() {
     let f = fixture();
     std::fs::create_dir(f.root.join("out")).expect("create the output");
@@ -480,7 +469,6 @@ fn refuses_an_existing_output_without_changing_it() {
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn requires_explicit_cli_format_and_output_and_supports_json_dry_runs() {
     let f = fixture();
     let cli = |args: &[&str]| run_cli(args, &f.source, &f.env);
@@ -509,7 +497,6 @@ fn requires_explicit_cli_format_and_output_and_supports_json_dry_runs() {
 }
 
 #[test]
-#[ignore = "needs B1, B2 and B4"]
 fn uses_locked_git_revisions_reproducibly_including_metadata_when_offline() {
     let f = fixture();
     let git = |args: &[&str]| {
@@ -615,7 +602,6 @@ fn uses_locked_git_revisions_reproducibly_including_metadata_when_offline() {
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn preserves_empty_supporting_directories() {
     let f = fixture();
     std::fs::create_dir_all(f.source.join("skills/helper/assets/empty")).expect("create");
@@ -625,7 +611,6 @@ fn preserves_empty_supporting_directories() {
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn rejects_malformed_claude_frontmatter_and_links_above_the_plugin_root() {
     let f = fixture();
     f.put(
@@ -641,7 +626,6 @@ fn rejects_malformed_claude_frontmatter_and_links_above_the_plugin_root() {
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn rejects_missing_assets_referenced_through_claude_plugin_root() {
     let f = fixture();
     f.put(
@@ -653,7 +637,6 @@ fn rejects_missing_assets_referenced_through_claude_plugin_root() {
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn rejects_an_mcp_script_argument_that_would_depend_on_the_source_checkout() {
     let f = fixture();
     f.put(
@@ -665,7 +648,6 @@ fn rejects_an_mcp_script_argument_that_would_depend_on_the_source_checkout() {
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn requires_a_directory_for_slash_commands_and_a_valid_homepage_url() {
     let f = fixture();
     f.put(
@@ -691,7 +673,6 @@ fn linked(output: &str) -> ExportOptions {
 
 #[cfg(unix)]
 #[test]
-#[ignore = "needs B1 and B2"]
 fn links_skills_and_hook_assets_relative_to_the_final_output_and_survives_moving_the_repository() {
     let f = fixture();
     f.export(linked("plugins")).expect("export");
@@ -728,7 +709,6 @@ fn links_skills_and_hook_assets_relative_to_the_final_output_and_survives_moving
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn rejects_remote_catalogs_for_linked_exports_even_during_dry_runs() {
     let f = fixture();
     f.put(
@@ -747,7 +727,6 @@ fn rejects_remote_catalogs_for_linked_exports_even_during_dry_runs() {
 
 #[cfg(unix)]
 #[test]
-#[ignore = "needs B1 and B2"]
 fn checks_linked_exports_without_writing_and_replaces_drift_while_retaining_json_formatting() {
     let f = fixture();
     let check = || ExportOptions {
@@ -803,7 +782,6 @@ fn checks_linked_exports_without_writing_and_replaces_drift_while_retaining_json
 
 #[cfg(unix)]
 #[test]
-#[ignore = "needs B1 and B2"]
 fn detects_changed_link_targets_and_copied_directories_in_linked_exports() {
     let f = fixture();
     let check = ExportOptions {
@@ -833,7 +811,6 @@ fn detects_changed_link_targets_and_copied_directories_in_linked_exports() {
 
 #[cfg(unix)]
 #[test]
-#[ignore = "needs B1 and B2"]
 fn detects_changed_bytes_and_executable_permissions_in_standalone_exports() {
     let f = fixture();
     f.export_it().expect("export");
@@ -858,7 +835,6 @@ fn detects_changed_bytes_and_executable_permissions_in_standalone_exports() {
 
 #[cfg(unix)]
 #[test]
-#[ignore = "needs B1 and B2"]
 fn refuses_unsafe_replacements_and_validates_before_touching_an_existing_export() {
     let f = fixture();
     let forced = |output: &str| ExportOptions {
@@ -888,7 +864,6 @@ fn refuses_unsafe_replacements_and_validates_before_touching_an_existing_export(
 }
 
 #[test]
-#[ignore = "needs B1 and B2"]
 fn exposes_check_and_force_through_the_cli_and_leaves_missing_output_untouched() {
     let f = fixture();
     let cli = |flags: &[&str]| {

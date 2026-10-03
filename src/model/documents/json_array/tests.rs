@@ -8,11 +8,10 @@
 //! wrong), and the assertions are on bytes wherever bytes are the promise.
 
 use indexmap::IndexSet;
-use pretty_assertions::assert_eq;
 use serde_json::json;
 
 use super::*;
-use crate::model::documents::{DocumentShape, driver_for};
+use crate::model::documents::{DocumentFormat, DocumentShape, driver_for};
 use crate::util::json::{parse, stringify_pretty};
 
 const SECTION: &str = "hooks";

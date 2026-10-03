@@ -63,9 +63,6 @@ string_enum! {
     }
 }
 
-/// Every validation problem kind, in declaration order.
-pub const VALIDATION_PROBLEM_KINDS: &[ValidationProblemKind] = ValidationProblemKind::ALL;
-
 /// One problem, in the shape required of an error, since that is what it would have been.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidationProblem {

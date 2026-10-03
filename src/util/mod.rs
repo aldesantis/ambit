@@ -37,6 +37,7 @@ macro_rules! string_enum {
 
         impl $name {
             /// Every variant, in declaration order.
+            #[allow(dead_code)] // the macro serves every union; not each one is enumerated
             pub const ALL: &'static [Self] = &[$(Self::$variant),+];
 
             /// The TypeScript spelling.
@@ -47,6 +48,7 @@ macro_rules! string_enum {
             }
 
             /// The variant spelled `text`, if any.
+            #[allow(dead_code)] // the macro serves every union; not each one is parsed from text
             pub fn parse(text: &str) -> Option<Self> {
                 match text {
                     $($text => Some(Self::$variant),)+

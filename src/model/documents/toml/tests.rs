@@ -11,7 +11,6 @@
 //! replace, and for those the promised behavior is exit 2 with the file untouched, never a guess.
 
 use indexmap::IndexSet;
-use pretty_assertions::assert_eq;
 use serde_json::json;
 
 use super::*;
@@ -647,7 +646,6 @@ command = "other"
 /// is pinned rather than left as an accident.
 mod whether_an_entry_is_already_what_install_would_write {
     use super::*;
-    use pretty_assertions::assert_eq;
 
     fn matches(text: Option<&str>, entry: &ConfigEntry) -> bool {
         TomlDriver

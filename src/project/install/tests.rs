@@ -125,7 +125,6 @@ fn falls_back_to_the_platforms_own_home_directory_when_home_is_unset() {
 // the Claude adapter's plan
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn targets_one_directory_per_bundle_skill_and_one_config_file_and_touches_nothing() {
     let project = project();
     let plan = claude_adapter().plan(&project.bundle(), &paths(&project.dir, None));
@@ -165,7 +164,6 @@ fn targets_one_directory_per_bundle_skill_and_one_config_file_and_touches_nothin
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn plans_the_mode_copy_and_link_ask_for_whatever_the_source_would_have_chosen() {
     let project = project();
     let bundle = project.bundle();
@@ -183,7 +181,6 @@ fn plans_the_mode_copy_and_link_ask_for_whatever_the_source_would_have_chosen() 
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn is_pure_planning_twice_yields_the_same_paths() {
     let project = project();
     let bundle = project.bundle();
@@ -196,7 +193,6 @@ fn is_pure_planning_twice_yields_the_same_paths() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn plans_no_server_config_file_for_a_bundle_with_no_servers() {
     let project = project();
 
@@ -220,7 +216,6 @@ fn plans_no_server_config_file_for_a_bundle_with_no_servers() {
 // ambit install
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn writes_exactly_the_resolved_skill_directories() {
     let project = project();
     let result = project.cli(&["install"]);
@@ -231,7 +226,6 @@ fn writes_exactly_the_resolved_skill_directories() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn serves_the_catalogs_bytes_byte_for_byte_at_the_installed_path() {
     let project = project();
 
@@ -244,7 +238,6 @@ fn serves_the_catalogs_bytes_byte_for_byte_at_the_installed_path() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn installs_what_a_different_profile_resolves_to_and_nothing_more() {
     let project = project();
 
@@ -261,7 +254,6 @@ fn installs_what_a_different_profile_resolves_to_and_nothing_more() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn creates_no_skills_directory_for_an_empty_bundle() {
     let project = project();
 
@@ -299,7 +291,6 @@ fn default_state_artifacts() -> Vec<OwnedArtifact> {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn records_every_skill_directory_and_every_managed_config_key_as_owned() {
     let project = project();
 
@@ -316,7 +307,6 @@ fn records_every_skill_directory_and_every_managed_config_key_as_owned() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn writes_a_byte_stable_state_file() {
     let project = project();
 
@@ -329,7 +319,6 @@ fn writes_a_byte_stable_state_file() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn leaves_the_same_tree_behind_on_a_second_run() {
     let project = project();
 
@@ -343,7 +332,6 @@ fn leaves_the_same_tree_behind_on_a_second_run() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn replaces_an_owned_skill_directory_rather_than_merging_into_it() {
     // `--copy` because the claim is about a directory of ambit's own bytes: writing into a
     // *linked* skill writes into the catalog.
@@ -361,7 +349,6 @@ fn replaces_an_owned_skill_directory_rather_than_merging_into_it() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn lists_what_it_wrote() {
     let project = project();
     let result = project.cli(&["install"]);
@@ -391,7 +378,6 @@ fn lists_what_it_wrote() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn emits_machine_readable_output_carrying_no_absolute_paths() {
     let project = project();
     let result = project.cli(&["install", "--json"]);
@@ -430,7 +416,6 @@ fn emits_machine_readable_output_carrying_no_absolute_paths() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn returns_the_bundle_it_installed() {
     let project = project();
     let result = install_project(&project.dir, &project.env, InstallOptions::default(), &[])
@@ -474,7 +459,6 @@ fn recorded_mode(project: &Project, target: &str) -> Option<ArtifactMode> {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn symlinks_a_path_catalogs_skill_relatively_at_the_directory_the_catalog_holds() {
     let project = project();
     let result = project.cli(&["install"]);
@@ -504,7 +488,6 @@ fn symlinks_a_path_catalogs_skill_relatively_at_the_directory_the_catalog_holds(
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn makes_editing_the_installed_skill_edit_the_tracked_source() {
     let project = project();
 
@@ -516,7 +499,6 @@ fn makes_editing_the_installed_skill_edit_the_tracked_source() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn copies_under_copy_so_editing_the_installed_skill_leaves_the_source_alone() {
     let project = project();
     let result = project.cli(&["install", "--copy"]);
@@ -536,7 +518,6 @@ fn copies_under_copy_so_editing_the_installed_skill_leaves_the_source_alone() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn replaces_a_copy_with_a_link_and_a_link_with_a_copy_when_the_mode_changes() {
     let project = project();
 
@@ -582,7 +563,6 @@ fn refuses_copy_and_link_together_rather_than_picking_one() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn unlinks_a_pruned_skill_without_following_the_link_into_the_catalog() {
     let project = project();
 
@@ -637,7 +617,6 @@ fn keys_of(value: &serde_json::Value) -> Vec<String> {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn holds_exactly_the_tag_matched_server_and_the_requires_only_one() {
     let project = project();
 
@@ -654,7 +633,6 @@ fn holds_exactly_the_tag_matched_server_and_the_requires_only_one() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn writes_no_file_at_all_when_the_bundle_selects_no_server() {
     let project = project();
 
@@ -667,7 +645,6 @@ fn writes_no_file_at_all_when_the_bundle_selects_no_server() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn writes_a_reference_rather_than_the_value_even_with_the_variable_set() {
     let mut project = project();
 
@@ -686,7 +663,6 @@ fn writes_a_reference_rather_than_the_value_even_with_the_variable_set() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn writes_the_same_reference_whether_or_not_the_variable_is_set() {
     let mut project = project();
 
@@ -703,7 +679,6 @@ fn writes_the_same_reference_whether_or_not_the_variable_is_set() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn gives_a_server_the_variable_names_it_reads_from_the_ones_the_machine_sets() {
     // The rename an `expects` entry cannot express on its own: two servers wanting `PLANNER_TOKEN`
     // read the same name, and each takes it from a variable of its own.
@@ -752,7 +727,6 @@ fn gives_a_server_the_variable_names_it_reads_from_the_ones_the_machine_sets() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn omits_args_and_headers_a_server_does_not_declare() {
     let project = project();
 
@@ -795,7 +769,6 @@ fn pretty(value: &serde_json::Value) -> String {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn leaves_a_hand_added_server_and_every_foreign_key_untouched() {
     let project = project();
 
@@ -833,7 +806,6 @@ fn leaves_a_hand_added_server_and_every_foreign_key_untouched() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn records_only_the_keys_it_wrote_as_owned() {
     let project = project();
 
@@ -863,7 +835,6 @@ fn records_only_the_keys_it_wrote_as_owned() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn is_byte_identical_on_a_second_install() {
     let project = project();
 
@@ -877,7 +848,6 @@ fn is_byte_identical_on_a_second_install() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn exits_2_rather_than_overwriting_a_file_it_cannot_parse() {
     let project = project();
 
@@ -895,7 +865,6 @@ fn exits_2_rather_than_overwriting_a_file_it_cannot_parse() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn exits_2_when_the_servers_section_is_not_an_object() {
     let project = project();
 
@@ -937,7 +906,6 @@ fn managed_block(project: &Project, file: &str) -> Vec<String> {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn lists_every_skill_directory_it_installed_in_the_shared_directorys_own_file() {
     let project = project();
 
@@ -957,7 +925,6 @@ fn lists_every_skill_directory_it_installed_in_the_shared_directorys_own_file() 
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn keeps_at_the_root_only_what_a_nested_file_cannot_reach() {
     let project = project();
 
@@ -972,7 +939,6 @@ fn keeps_at_the_root_only_what_a_nested_file_cannot_reach() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn leaves_the_nested_file_itself_tracked_so_a_clone_inherits_the_ignore_list() {
     let project = project();
 
@@ -984,7 +950,6 @@ fn leaves_the_nested_file_itself_tracked_so_a_clone_inherits_the_ignore_list() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn ignores_a_linked_skill_too_which_git_would_otherwise_track_as_a_symlink() {
     let project = project();
 
@@ -999,7 +964,6 @@ fn ignores_a_linked_skill_too_which_git_would_otherwise_track_as_a_symlink() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn appends_to_a_gitignore_the_project_already_had_leaving_its_lines_untouched() {
     let project = project();
 
@@ -1015,7 +979,6 @@ fn appends_to_a_gitignore_the_project_already_had_leaving_its_lines_untouched() 
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn drops_the_skill_a_narrowed_profile_no_longer_installs() {
     let project = project();
 
@@ -1037,7 +1000,6 @@ fn drops_the_skill_a_narrowed_profile_no_longer_installs() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn rewrites_its_own_block_in_place_rather_than_adding_a_second_one() {
     let project = project();
 
@@ -1056,7 +1018,6 @@ fn rewrites_its_own_block_in_place_rather_than_adding_a_second_one() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn writes_nothing_when_the_blocks_already_say_what_this_install_would_write() {
     let project = project();
 
@@ -1077,7 +1038,6 @@ fn writes_nothing_when_the_blocks_already_say_what_this_install_would_write() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn removes_the_nested_file_when_a_project_ends_up_installing_no_skills_at_all() {
     let project = project();
 
@@ -1093,7 +1053,6 @@ fn removes_the_nested_file_when_a_project_ends_up_installing_no_skills_at_all() 
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn exits_2_rather_than_guessing_at_an_unterminated_block_leaving_the_file_alone() {
     let project = project();
     let broken = format!("{HANDWRITTEN_IGNORE}{BLOCK_BEGIN}\n.ambit/\ncoverage/\n");
@@ -1182,7 +1141,6 @@ fn self_catalog_project() -> Project {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn installs_the_projects_own_skill_and_server_and_records_both() {
     let project = self_catalog_project();
     let result = project.cli(&["install"]);
@@ -1209,7 +1167,6 @@ fn installs_the_projects_own_skill_and_server_and_records_both() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn links_the_skill_to_the_projects_own_directory_not_to_a_copy_of_it() {
     let project = self_catalog_project();
 
@@ -1226,7 +1183,6 @@ fn links_the_skill_to_the_projects_own_directory_not_to_a_copy_of_it() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn names_the_catalog_local_since_that_is_what_the_config_called_it() {
     let project = self_catalog_project();
     let bundle = project.bundle();
@@ -1252,7 +1208,6 @@ fn names_the_catalog_local_since_that_is_what_the_config_called_it() {
 // ambit install failures
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn exits_2_for_an_mcp_entity_whose_transport_names_no_kind_or_two_kinds() {
     for transport in [
         "transport: {}",
@@ -1272,7 +1227,6 @@ fn exits_2_for_an_mcp_entity_whose_transport_names_no_kind_or_two_kinds() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn exits_2_for_a_harness_with_no_adapter() {
     let project = project();
 
@@ -1310,7 +1264,6 @@ fn names_every_shipped_adapter_when_one_is_unknown() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn exits_2_when_the_project_has_no_config() {
     let project = project();
 
@@ -1323,7 +1276,6 @@ fn exits_2_when_the_project_has_no_config() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn exits_2_rather_than_trusting_an_unreadable_state_file() {
     let project = project();
 
@@ -1370,7 +1322,6 @@ fn extra_sections(lock: &str, root: &str, shared: &str) -> String {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn writes_nothing_at_all() {
     let project = project();
     let result = project.cli(&["install", "--dry-run"]);
@@ -1385,7 +1336,6 @@ fn writes_nothing_at_all() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn prints_the_rows_the_install_goes_on_to_print_plus_what_only_a_preview_can_say() {
     let project = project();
     let preview = project.cli(&["install", "--dry-run"]);
@@ -1403,7 +1353,6 @@ fn prints_the_rows_the_install_goes_on_to_print_plus_what_only_a_preview_can_say
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn reports_every_derived_file_as_unchanged_once_the_project_is_installed() {
     let project = project();
 
@@ -1419,7 +1368,6 @@ fn reports_every_derived_file_as_unchanged_once_the_project_is_installed() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn reports_the_root_block_unchanged_and_the_nested_one_stale_when_only_the_bundle_narrowed() {
     let project = project();
 
@@ -1436,7 +1384,6 @@ fn reports_the_root_block_unchanged_and_the_nested_one_stale_when_only_the_bundl
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn reports_what_the_install_would_remove_and_removes_none_of_it() {
     let project = project();
 
@@ -1488,7 +1435,6 @@ fn reports_what_the_install_would_remove_and_removes_none_of_it() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn refuses_an_unowned_target_rather_than_previewing_an_install_that_would_stop() {
     let project = project();
 
@@ -1504,7 +1450,6 @@ fn refuses_an_unowned_target_rather_than_previewing_an_install_that_would_stop()
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn still_refuses_a_stale_lock_under_frozen_since_refusing_writes_nothing() {
     let project = project();
 
@@ -1553,7 +1498,6 @@ fn write_unowned_server(project: &Project) -> String {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn refuses_to_overwrite_a_skill_directory_it_does_not_own() {
     let project = project();
 
@@ -1575,7 +1519,6 @@ fn refuses_to_overwrite_a_skill_directory_it_does_not_own() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn leaves_an_unowned_directory_byte_identical_and_installs_nothing_else_either() {
     let project = project();
 
@@ -1602,7 +1545,6 @@ fn leaves_an_unowned_directory_byte_identical_and_installs_nothing_else_either()
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn refuses_a_plain_file_sitting_where_a_skill_directory_belongs() {
     let project = project();
 
@@ -1616,7 +1558,6 @@ fn refuses_a_plain_file_sitting_where_a_skill_directory_belongs() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn does_not_read_owning_one_skill_as_permission_to_overwrite_another() {
     let project = project();
 
@@ -1643,7 +1584,6 @@ fn does_not_read_owning_one_skill_as_permission_to_overwrite_another() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn refuses_to_overwrite_a_server_key_it_does_not_own() {
     let project = project();
     let contents = write_unowned_server(&project);
@@ -1667,7 +1607,6 @@ fn refuses_to_overwrite_a_server_key_it_does_not_own() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn replaces_an_adopted_skill_directory_rather_than_copying_into_it() {
     let project = project();
 
@@ -1691,7 +1630,6 @@ fn replaces_an_adopted_skill_directory_rather_than_copying_into_it() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn adopts_a_colliding_server_key_while_leaving_foreign_keys_alone() {
     let project = project();
 
@@ -1715,7 +1653,6 @@ fn adopts_a_colliding_server_key_while_leaving_foreign_keys_alone() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn needs_adopt_only_once_the_second_install_owns_what_the_first_adopted() {
     let project = project();
 
@@ -1729,7 +1666,6 @@ fn needs_adopt_only_once_the_second_install_owns_what_the_first_adopted() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn changes_nothing_when_there_is_nothing_to_adopt() {
     let project = project();
 
@@ -1774,7 +1710,6 @@ fn pruned(path: &str, kind: ArtifactKind, keys: Option<Vec<String>>) -> PrunedAr
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn removes_the_skill_directories_the_new_bundle_no_longer_selects() {
     let project = project();
 
@@ -1789,7 +1724,6 @@ fn removes_the_skill_directories_the_new_bundle_no_longer_selects() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn stops_claiming_what_it_removed() {
     let project = project();
 
@@ -1815,7 +1749,6 @@ fn stops_claiming_what_it_removed() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn reports_what_it_removed_by_path() {
     let project = project();
 
@@ -1845,7 +1778,6 @@ fn reports_what_it_removed_by_path() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn removes_only_the_server_keys_the_new_bundle_dropped() {
     let project = project();
 
@@ -1868,7 +1800,6 @@ fn removes_only_the_server_keys_the_new_bundle_dropped() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn empties_the_servers_section_rather_than_deleting_a_file_it_co_owns() {
     let project = project();
 
@@ -1888,7 +1819,6 @@ fn empties_the_servers_section_rather_than_deleting_a_file_it_co_owns() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn prunes_around_a_hand_added_server_and_every_foreign_key() {
     let project = project();
 
@@ -1911,7 +1841,6 @@ fn prunes_around_a_hand_added_server_and_every_foreign_key() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn leaves_a_skill_directory_no_state_claims_alone() {
     let project = project();
 
@@ -1929,7 +1858,6 @@ fn leaves_a_skill_directory_no_state_claims_alone() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn removes_a_skill_an_entry_named_once_the_entry_goes() {
     let project = project();
 
@@ -1954,7 +1882,6 @@ fn removes_a_skill_an_entry_named_once_the_entry_goes() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn changes_nothing_when_the_bundle_is_unchanged() {
     let project = project();
 
@@ -1971,7 +1898,6 @@ fn changes_nothing_when_the_bundle_is_unchanged() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn succeeds_when_what_it_owned_is_already_gone() {
     let project = project();
 
@@ -1989,7 +1915,6 @@ fn succeeds_when_what_it_owned_is_already_gone() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn exits_2_rather_than_guessing_at_a_managed_key_that_names_no_section() {
     let project = project();
 
@@ -2052,7 +1977,6 @@ fn project_files() -> Vec<String> {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn changes_no_bytes_on_a_second_identical_install() {
     let project = project();
 
@@ -2068,7 +1992,6 @@ fn changes_no_bytes_on_a_second_identical_install() {
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn changes_no_bytes_on_a_second_install_of_a_project_holding_content_it_does_not_own() {
     let project = project();
 
@@ -2093,7 +2016,6 @@ fn changes_no_bytes_on_a_second_install_of_a_project_holding_content_it_does_not
 }
 
 #[test]
-#[ignore = "needs B1, B2, B3"]
 fn prints_the_same_report_twice() {
     let project = project();
     let first = project.cli(&["install"]);
@@ -2104,7 +2026,6 @@ fn prints_the_same_report_twice() {
 // state
 
 #[test]
-#[ignore = "needs B1"]
 fn treats_an_absent_file_as_owning_nothing() {
     let project = project();
 
@@ -2115,7 +2036,6 @@ fn treats_an_absent_file_as_owning_nothing() {
 }
 
 #[test]
-#[ignore = "needs B1"]
 fn rejects_a_state_file_from_a_future_version() {
     let error = parse_state(
         "{\"version\": 2, \"harnesses\": [], \"artifacts\": []}",

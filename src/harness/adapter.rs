@@ -177,6 +177,26 @@ impl PlannedArtifact {
     }
 }
 
+/// A planned artifact in the shape state records it, which is all the `.gitignore` renderer reads:
+/// `install --dry-run` and `doctor` both ask it about a plan that has not been applied.
+impl From<&PlannedArtifact> for OwnedArtifact {
+    fn from(artifact: &PlannedArtifact) -> Self {
+        let config = match artifact {
+            PlannedArtifact::HarnessConfig(config) => Some(config),
+            _ => None,
+        };
+
+        Self {
+            path: artifact.path().to_owned(),
+            kind: artifact.kind(),
+            mode: artifact.mode(),
+            managed_keys: config.map(|config| config.managed_keys.clone()),
+            format: config.map(|config| config.format),
+            shape: config.and_then(|config| config.shape),
+        }
+    }
+}
+
 /// What `apply` reports back, and what goes into state verbatim.
 pub type AppliedArtifact = OwnedArtifact;
 
@@ -208,6 +228,7 @@ pub struct SkippedHook {
 
 /// Code that writes a bundle into one agent tool's layout.
 pub trait HarnessAdapter: Sync {
+    #[cfg(test)]
     fn name(&self) -> &str;
 
     /// Pure: decides every path without touching disk.

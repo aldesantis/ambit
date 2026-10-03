@@ -296,7 +296,6 @@ mod ambit_prune {
     use super::*;
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn removes_the_skills_the_narrowed_bundle_dropped_and_keeps_the_ones_it_still_selects() {
         let f = fixture();
         assert_eq!(f.cli(&["install"]).code, ExitCode::Success);
@@ -313,7 +312,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn stops_claiming_what_it_removed_and_rewrites_the_managed_blocks_to_match() {
         let f = fixture();
         f.cli(&["install"]);
@@ -342,7 +340,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn removes_the_server_keys_the_narrowed_bundle_dropped_and_keeps_the_file() {
         let f = fixture();
         f.cli(&["install"]);
@@ -357,7 +354,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn leaves_a_hand_written_skill_and_a_hand_added_server_exactly_where_they_are() {
         let f = fixture();
         fs::write(
@@ -386,7 +382,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn rewrites_ambit_lock_to_the_bundle_it_pruned_down_to_byte_for_byte_as_install_would() {
         let f = fixture();
         f.cli(&["install"]);
@@ -412,7 +407,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn leaves_the_lock_byte_identical_when_it_prunes_nothing_rather_than_rewriting_it_in_place() {
         let f = fixture();
         f.cli(&["install"]);
@@ -424,7 +418,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn writes_no_lock_under_dry_run_however_much_it_says_it_would_remove() {
         let f = fixture();
         f.cli(&["install"]);
@@ -439,7 +432,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn leaves_a_pruned_project_passing_ambit_doctor_lock_check_included() {
         let f = fixture();
         assert_eq!(f.cli(&["install"]).code, ExitCode::Success);
@@ -462,7 +454,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn changes_no_bytes_when_the_bundle_is_unchanged() {
         let f = fixture();
         f.cli(&["install"]);
@@ -479,7 +470,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn writes_nothing_at_all_in_a_project_ambit_never_installed_into() {
         let f = fixture();
         let result = f.cli(&["prune"]);
@@ -493,7 +483,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn is_a_no_op_the_second_time() {
         let f = fixture();
         f.cli(&["install"]);
@@ -509,7 +498,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn lists_what_it_removed() {
         let f = fixture();
         f.cli(&["install"]);
@@ -547,7 +535,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn emits_what_it_removed_and_what_it_still_owns_carrying_no_absolute_paths() {
         let f = fixture();
         f.cli(&["install"]);
@@ -588,7 +575,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn reports_what_it_would_remove_under_dry_run_and_removes_none_of_it() {
         let f = fixture();
         f.cli(&["install"]);
@@ -623,7 +609,6 @@ mod ambit_prune {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn removes_nothing_when_the_project_resolves_to_what_is_already_installed() {
         let f = fixture();
         f.cli(&["install"]);
@@ -638,7 +623,6 @@ mod ambit_clean {
     use super::*;
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn removes_every_skill_directory_and_every_managed_server_key() {
         let f = installed();
         let result = f.cli(&["clean"]);
@@ -649,7 +633,6 @@ mod ambit_clean {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn removes_ambits_own_state_directory_and_both_managed_blocks() {
         let f = installed();
         f.cli(&["clean"]);
@@ -661,7 +644,6 @@ mod ambit_clean {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn leaves_the_project_holding_only_the_files_ambit_does_not_own() {
         let f = installed();
         f.cli(&["clean"]);
@@ -676,7 +658,6 @@ mod ambit_clean {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn gives_a_gitignore_the_project_already_had_back_byte_for_byte() {
         let f = installed();
         let handwritten = "node_modules/\n.env\n";
@@ -692,7 +673,6 @@ mod ambit_clean {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn leaves_a_hand_written_skill_and_a_hand_added_server_untouched() {
         let f = installed();
         f.write_foreign_skill_dir();
@@ -721,7 +701,6 @@ mod ambit_clean {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn works_on_a_project_whose_catalog_can_no_longer_be_resolved() {
         // The whole point of answering from state alone: this is the state a project is usually in
         // when someone reaches for `clean`.
@@ -736,7 +715,6 @@ mod ambit_clean {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn is_a_no_op_the_second_time_and_on_a_project_ambit_never_touched() {
         let f = installed();
         f.cli(&["clean"]);
@@ -753,7 +731,6 @@ mod ambit_clean {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn lists_what_it_removed_artifacts_and_records_apart() {
         let f = installed();
         let result = f.cli(&["clean"]);
@@ -823,7 +800,6 @@ mod ambit_clean {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn emits_machine_readable_output_carrying_no_absolute_paths() {
         let f = installed();
         let result = f.cli(&["clean", "--json"]);
@@ -834,7 +810,6 @@ mod ambit_clean {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn reports_what_it_would_remove_under_dry_run_and_removes_none_of_it() {
         let f = installed();
         let before = f.snapshot();
@@ -854,7 +829,6 @@ mod ambit_clean {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn unlinks_a_linked_skill_without_following_it_into_the_catalog() {
         let f = installed();
         clean_project(&f.project_dir, CleanOptions::default()).unwrap();
@@ -868,7 +842,6 @@ mod ambit_clean {
     }
 
     #[test]
-    #[ignore = "needs B1, B2, B4"]
     fn leaves_a_project_reinstallable_with_no_ownership_conflict_to_adopt_past() {
         let f = installed();
         f.cli(&["clean"]);

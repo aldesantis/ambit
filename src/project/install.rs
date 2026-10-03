@@ -49,7 +49,7 @@ use crate::model::state::{
 };
 use crate::project::gitignore::{GitignoreStatus, gitignore_status, write_gitignore_blocks};
 use crate::project::lock::{
-    Lock, assert_lock_current, build_lock, read_catalog_pins, read_lock_text, serialize_lock,
+    assert_lock_current, build_lock, read_catalog_pins, read_lock_text, serialize_lock,
     write_lock_text,
 };
 use crate::project::ownership::{OwnershipOptions, authorize_plan};
@@ -107,7 +107,6 @@ pub struct PlannedInstall {
     pub skipped: Vec<SkippedHook>,
     /// What the last install recorded owning.
     pub prior: State,
-    pub lock: Lock,
     /// The lock as the bytes an install would write, which is what `--frozen` compares.
     pub lock_text: String,
 }
@@ -123,7 +122,6 @@ pub struct InstallPreview {
     pub skipped: Vec<SkippedHook>,
     /// What install would remove, from state alone.
     pub pruned: Vec<PrunedArtifact>,
-    pub lock: Lock,
     /// Whether `ambit.lock` would change.
     pub lock_changed: bool,
     /// Whether each managed `.gitignore` block would change, one row per file.
@@ -140,10 +138,10 @@ pub struct InstallResult {
     pub artifacts: Vec<AppliedArtifact>,
     /// Hooks a configured harness could not express, and so was not given.
     pub skipped: Vec<SkippedHook>,
-    /// What the previous install owned and this one does not, removed by path.
+    /// What the previous install owned and this one does not, removed by path. No report prints it
+    /// (the TS result carried it for library callers); the tests read it.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub pruned: Vec<PrunedArtifact>,
-    /// What was written to `ambit.lock`.
-    pub lock: Lock,
 }
 
 /// The platform's own answer for the home directory, used only when the passed environment has no
@@ -458,33 +456,8 @@ pub fn plan_install(
         skipped,
         prior: read_state(project_dir)?,
         lock_text: serialize_lock(&lock),
-        lock,
         bundle,
     })
-}
-
-/// A planned artifact in the shape state would record it, which is all the gitignore renderer
-/// reads.
-pub fn as_owned(artifact: &PlannedArtifact) -> OwnedArtifact {
-    let PlannedArtifact::HarnessConfig(config) = artifact else {
-        return OwnedArtifact {
-            path: artifact.path().to_owned(),
-            kind: artifact.kind(),
-            mode: artifact.mode(),
-            managed_keys: None,
-            format: None,
-            shape: None,
-        };
-    };
-
-    OwnedArtifact {
-        path: config.path.clone(),
-        kind: artifact.kind(),
-        mode: None,
-        managed_keys: Some(config.managed_keys.clone()),
-        format: Some(config.format),
-        shape: config.shape,
-    }
 }
 
 /// What an install would do, without doing any of it: `install --dry-run`.
@@ -532,7 +505,7 @@ pub fn preview_install(
     )?;
 
     let pruned = plan_prune(&planned.artifacts, &planned.prior)?;
-    let owned: Vec<OwnedArtifact> = planned.artifacts.iter().map(as_owned).collect();
+    let owned: Vec<OwnedArtifact> = planned.artifacts.iter().map(OwnedArtifact::from).collect();
     let gitignore = gitignore_status(project_dir, &owned)?;
     let lock_changed = read_lock_text(project_dir)?.as_deref() != Some(planned.lock_text.as_str());
 
@@ -542,7 +515,6 @@ pub fn preview_install(
         artifacts: planned.artifacts,
         skipped: planned.skipped,
         pruned,
-        lock: planned.lock,
         lock_changed,
         gitignore,
     })
@@ -620,7 +592,6 @@ pub fn install_project(
         artifacts,
         skipped: planned.skipped,
         pruned,
-        lock: planned.lock,
     })
 }
 

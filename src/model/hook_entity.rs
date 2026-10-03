@@ -48,9 +48,6 @@ string_enum! {
     }
 }
 
-/// Every hook type, in declaration order.
-pub const HOOK_TYPES: &[HookType] = HookType::ALL;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HookEntity {
     pub name: String,

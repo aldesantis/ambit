@@ -11,7 +11,7 @@ use jsonc_parser::ParseOptions;
 use jsonc_parser::cst::{CstInputValue, CstRootNode};
 
 use crate::errors::{Result, config_error};
-use crate::model::documents::format::{ConfigEntry, DocumentDriver, DocumentFormat};
+use crate::model::documents::format::{ConfigEntry, DocumentDriver};
 use crate::util::json::{JsonObject, JsonValue, format_number, js_key_order, structurally_equal};
 
 /// The document a file that does not exist yet stands in as.
@@ -108,10 +108,6 @@ fn to_cst(value: &JsonValue) -> CstInputValue {
 pub struct JsoncDriver;
 
 impl DocumentDriver for JsoncDriver {
-    fn format(&self) -> DocumentFormat {
-        DocumentFormat::Jsonc
-    }
-
     fn section_keys(
         &self,
         text: Option<&str>,
