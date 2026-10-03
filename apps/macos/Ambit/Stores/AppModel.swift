@@ -9,6 +9,7 @@ import Observation
 final class AppModel {
     let environment: AppEnvironment
     @ObservationIgnored let registry: ProjectRegistry
+    let account: GitHubAccountModel
 
     private(set) var projects: [RememberedProject]
     private(set) var selection: SetupID?
@@ -21,6 +22,7 @@ final class AppModel {
         self.environment = environment
         registry = ProjectRegistry(store: environment.stateStore, engine: environment.engine, home: environment.home)
         projects = registry.projects
+        account = GitHubAccountModel(services: environment.gitHub, engine: environment.engine)
 
         let last = registry.lastActiveSetup
         if case let .project(path) = last, !registry.projects.contains(where: { $0.path == path }) {
@@ -28,6 +30,8 @@ final class AppModel {
         } else {
             selection = last ?? .personal
         }
+
+        Task { [account] in await account.restore() }
     }
 
     func setupModel(for id: SetupID) -> SetupModel {

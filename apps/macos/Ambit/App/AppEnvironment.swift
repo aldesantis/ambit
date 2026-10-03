@@ -11,6 +11,7 @@ struct AppEnvironment {
     var folderPicker: any FolderPicker
     /// The Personal setup root and the engine's HOME.
     var home: URL
+    var gitHub: GitHubServices = .inert
 
     static func make(for launch: LaunchContext) -> AppEnvironment {
         let hooks = launch.testHooks
@@ -34,6 +35,6 @@ struct AppEnvironment {
 
         return AppEnvironment(
             launch: launch, engine: engine, stateStore: AppStateStore(directory: stateDirectory),
-            folderPicker: folderPicker, home: home)
+            folderPicker: folderPicker, home: home, gitHub: .make(for: launch))
     }
 }
