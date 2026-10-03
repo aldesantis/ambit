@@ -17,6 +17,8 @@ mod version;
 
 #[cfg(test)]
 mod test_support;
+#[cfg(test)]
+mod tests;
 
 use std::io::IsTerminal as _;
 use std::panic::{self, AssertUnwindSafe};
