@@ -4,6 +4,7 @@ use std::sync::LazyLock;
 
 use indexmap::IndexMap;
 use regex::Regex;
+use url::Url;
 
 use crate::errors::Result;
 use crate::model::yaml::YamlMapping;
@@ -138,109 +139,9 @@ pub fn parse_plugin_metadata(mapping: &YamlMapping) -> Result<PluginMetadata> {
     Ok(result)
 }
 
-/// The WHATWG special schemes whose URLs must carry a host.
-const SPECIAL_SCHEMES: &[&str] = &["http", "https", "ws", "wss", "ftp"];
-
-static SCHEME: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[A-Za-z][A-Za-z0-9+.\-]*:").expect("valid regex"));
-
-/// Whether `text` is an absolute URL, as the WHATWG parser behind JavaScript's `URL.canParse`
-/// judges one.
-///
-/// A subset of that parser, enough for the URLs a plugin manifest names: a scheme is required, and
-/// a special scheme other than `file` must carry a host free of forbidden code points, with a
-/// numeric port no greater than 65535 when one is written. Other schemes accept any remainder
-/// without spaces in an authority.
+/// Whether `text` parses as an absolute URL under the WHATWG URL standard, any scheme allowed.
 fn can_parse_url(text: &str) -> bool {
-    let trimmed: String = text
-        .trim_matches(|c: char| c <= ' ')
-        .chars()
-        .filter(|&c| !matches!(c, '\t' | '\n' | '\r'))
-        .collect();
-
-    let Some(scheme) = SCHEME.find(&trimmed) else {
-        return false;
-    };
-
-    let scheme_name = trimmed[..scheme.end() - 1].to_ascii_lowercase();
-    let rest = &trimmed[scheme.end()..];
-
-    if scheme_name == "file" {
-        return true;
-    }
-
-    if !SPECIAL_SCHEMES.contains(&scheme_name.as_str()) {
-        return match rest.strip_prefix("//") {
-            Some(authority) => authority_is_valid(authority, false),
-            None => true,
-        };
-    }
-
-    authority_is_valid(rest.trim_start_matches(['/', '\\']), true)
-}
-
-/// Whether the authority at the start of `rest` (up to the path, query, or fragment) holds a host
-/// the parser accepts. `special` hosts must be non-empty.
-fn authority_is_valid(rest: &str, special: bool) -> bool {
-    let end = rest
-        .find(|c: char| c == '/' || c == '?' || c == '#' || (special && c == '\\'))
-        .unwrap_or(rest.len());
-    let authority = &rest[..end];
-    let host_and_port = authority
-        .rsplit_once('@')
-        .map_or(authority, |(_, host)| host);
-
-    let (host, port) = if host_and_port.starts_with('[') {
-        match host_and_port.find(']') {
-            Some(close) => {
-                let after = &host_and_port[close + 1..];
-
-                match after.strip_prefix(':') {
-                    Some(port) => (&host_and_port[..=close], Some(port)),
-                    None if after.is_empty() => (host_and_port, None),
-                    None => return false,
-                }
-            }
-            None => return false,
-        }
-    } else {
-        match host_and_port.rsplit_once(':') {
-            Some((host, port)) => (host, Some(port)),
-            None => (host_and_port, None),
-        }
-    };
-
-    if special && host.is_empty() {
-        return false;
-    }
-
-    if let Some(port) = port
-        && !port.is_empty()
-        && !(port.chars().all(|c| c.is_ascii_digit())
-            && port.parse::<u32>().is_ok_and(|n| n <= 65535))
-    {
-        return false;
-    }
-
-    if host.starts_with('[') {
-        return host[1..host.len() - 1]
-            .chars()
-            .all(|c| c.is_ascii_hexdigit() || c == ':' || c == '.');
-    }
-
-    let forbidden: &[char] = if special {
-        &[
-            ' ', '#', '%', '/', ':', '<', '>', '?', '@', '[', '\\', ']', '^', '|',
-        ]
-    } else {
-        &[
-            ' ', '#', '/', ':', '<', '>', '?', '@', '[', '\\', ']', '^', '|',
-        ]
-    };
-
-    !host
-        .chars()
-        .any(|c| forbidden.contains(&c) || c.is_control())
+    Url::parse(text).is_ok()
 }
 
 #[cfg(test)]
@@ -248,7 +149,7 @@ mod tests {
     use super::can_parse_url;
 
     #[test]
-    fn accepts_absolute_urls_as_url_can_parse_does() {
+    fn accepts_absolute_urls() {
         for url in [
             "https://example.com",
             "http://example.com:8080/path?q#f",
@@ -263,7 +164,7 @@ mod tests {
     }
 
     #[test]
-    fn refuses_what_url_can_parse_refuses() {
+    fn refuses_relative_and_malformed_urls() {
         for url in [
             "example.com",
             "/relative/path",
@@ -273,6 +174,8 @@ mod tests {
             "https://exa mple.com",
             "https://example.com:99999",
             "https://example.com:port",
+            "https://999.0.0.1",
+            "http://[::g]/",
         ] {
             assert!(!can_parse_url(url), "{url}");
         }

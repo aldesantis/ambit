@@ -24,6 +24,7 @@ lzma-rust2 = { version = "0.21.0", default-features = false, features = ["std", 
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 tempfile = "3.27.0"
 terminal_size = "0.4.4"
+url = "2.5.8"
 
 [dev-dependencies]
 assert_cmd = "2.2.2"
