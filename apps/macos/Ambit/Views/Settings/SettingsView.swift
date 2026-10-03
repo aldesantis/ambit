@@ -7,6 +7,9 @@ struct SettingsView: View {
             Tab("General", systemImage: "gearshape") {
                 GeneralSettingsView()
             }
+            Tab("Account", systemImage: "person.crop.circle") {
+                AccountSettingsView()
+            }
         }
         .frame(width: 460)
     }
