@@ -1,0 +1,33 @@
+{
+  "expects": {
+    "env": [
+      "FIXTURE_API_KEY"
+    ]
+  },
+  "hooks": {
+    "acme-standup": {
+      "catalog": "company",
+      "event": "SessionEnd"
+    }
+  },
+  "mcps": {
+    "fixture": {
+      "catalog": "company"
+    }
+  },
+  "packs": {
+    "project.acme": {
+      "catalog": "company"
+    }
+  },
+  "skills": {
+    "acme-brief": {
+      "catalog": "company",
+      "path": "skills/acme-brief"
+    },
+    "company-context": {
+      "catalog": "company",
+      "path": "skills/company-context"
+    }
+  }
+}
