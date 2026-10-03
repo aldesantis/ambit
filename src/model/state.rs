@@ -364,7 +364,7 @@ pub fn read_state(project_dir: &Path) -> Result<State> {
             return Err(config_error(
                 format!("cannot read {file}"),
                 [
-                    io_message(&error, "open", &target),
+                    io_message(&error, &target),
                     format!(
                         "make {} readable, or delete it and run `ambit install` again",
                         target.display()
@@ -389,10 +389,9 @@ pub fn write_state(project_dir: &Path, state: &State) -> Result<()> {
     let target = state_file_path(project_dir);
     let directory = target.parent().expect("the state file has a directory");
 
-    mkdir_p(directory)
-        .map_err(|error| AmbitError::unexpected(io_message(&error, "mkdir", directory)))?;
+    mkdir_p(directory).map_err(|error| AmbitError::unexpected(io_message(&error, directory)))?;
     write_text(&target, &serialize_state(state))
-        .map_err(|error| AmbitError::unexpected(io_message(&error, "open", &target)))
+        .map_err(|error| AmbitError::unexpected(io_message(&error, &target)))
 }
 
 #[cfg(test)]

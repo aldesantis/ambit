@@ -398,9 +398,8 @@ impl CatalogFiles<'_> {
         }
 
         let directory = self.absolute(relative);
-        let unexpected = |error: std::io::Error, path: &Path| {
-            AmbitError::unexpected(io_message(&error, "scandir", path))
-        };
+        let unexpected =
+            |error: std::io::Error, path: &Path| AmbitError::unexpected(io_message(&error, path));
         let mut names =
             read_dir_names(&directory).map_err(|error| unexpected(error, &directory))?;
 

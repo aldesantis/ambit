@@ -648,7 +648,7 @@ fn read_source(path: &Path, file: &str) -> Result<String> {
         config_error(
             format!("cannot read {file}"),
             [
-                io_message(&error, "open", path),
+                io_message(&error, path),
                 "check the path and its permissions".to_owned(),
             ],
         )
