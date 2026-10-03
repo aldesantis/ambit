@@ -25,6 +25,7 @@ bindgen = ["uniffi/cli"]
 ambit-core.workspace = true
 uniffi.workspace = true
 regex.workspace = true
+indexmap.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
