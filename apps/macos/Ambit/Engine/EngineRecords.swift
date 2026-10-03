@@ -260,12 +260,6 @@ struct RemovalImpact: Sendable, Hashable {
     var removed: [ItemRef] = []
 }
 
-/// A `requires` entry that matches nothing, with the error resolution would report.
-struct UnmatchedEntry: Sendable, Hashable {
-    var entry: SelectionEntry
-    var error: EngineError
-}
-
 struct PlannedWrite: Sendable, Hashable {
     var path: String
     var kind: String

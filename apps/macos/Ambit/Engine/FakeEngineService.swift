@@ -248,6 +248,10 @@ private struct FakeSetupSession: SetupSessionService {
 
     func unmatchedEntries(draftText: String?) async throws -> [UnmatchedEntry] {
         let fixture = fixture
+        if fixture.resolvesSelection {
+            return resolver(fixture).unmatchedEntries(try entries(draftText))
+        }
+
         guard let summary = summary(draftText) else {
             return []
         }
@@ -331,14 +335,6 @@ private struct FakeSetupSession: SetupSessionService {
             throw error
         }
         return try resolver(fixture).previewRule(catalog: catalog, kind: kind, pattern: pattern)
-    }
-
-    func unmatchedEntries(draftText: String?) async throws -> [UnmatchedEntry] {
-        let fixture = fixture
-        guard fixture.resolvesSelection else {
-            return []
-        }
-        return resolver(fixture).unmatchedEntries(try entries(draftText))
     }
 
     private func resolver(_ fixture: FakeEngineService.Fixture) -> FakeSelectionResolver {
