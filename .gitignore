@@ -2,3 +2,7 @@
 
 # Rust build output.
 /target
+
+# macOS app: generated Xcode project and build output.
+/apps/macos/*.xcodeproj
+/apps/macos/build/
