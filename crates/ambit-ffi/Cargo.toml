@@ -24,6 +24,11 @@ bindgen = ["uniffi/cli"]
 [dependencies]
 ambit-core.workspace = true
 uniffi.workspace = true
+regex.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+pretty_assertions.workspace = true
 
 [lints]
 workspace = true
