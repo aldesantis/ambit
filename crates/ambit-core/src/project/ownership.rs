@@ -196,21 +196,17 @@ pub fn owned_keys(prior: &State, file: &str) -> IndexSet<String> {
         .collect()
 }
 
-/// Checks one config file's planned keys against what is already in it.
+/// The planned keys of one config file that the file already holds and ambit does not own, in
+/// plan order.
 ///
-/// Adoption needs no bookkeeping here: `apply` writes managed keys unconditionally, precisely
-/// because the file is co-owned, so allowing the collision is the whole of taking it over.
+/// Driven by the plan's entries, which arrive sorted, so which collision is reported first depends
+/// on the bundle, not on the order keys happen to sit in the file.
 ///
 /// # Errors
 ///
-/// Exit 2 for a colliding key ambit does not own, or for a document that cannot be read at all. A
-/// section holding something other than an object is left to the merge to report, which is the
-/// code that cannot proceed with it.
-fn check_config_keys(
-    artifact: &PlannedHarnessConfig,
-    prior: &State,
-    options: OwnershipOptions,
-) -> Result<()> {
+/// Exit 2 for a document that cannot be read at all. A section holding something other than an
+/// object is left to the merge to report, which is the code that cannot proceed with it.
+fn colliding_keys(artifact: &PlannedHarnessConfig, prior: &State) -> Result<Vec<String>> {
     let driver = driver_for(
         artifact.format,
         artifact.shape.unwrap_or(DocumentShape::Map),
@@ -219,23 +215,64 @@ fn check_config_keys(
     let text = read_document_text(&artifact.target, &artifact.path)?;
     let present = driver.section_keys(text.as_deref(), &artifact.section, &artifact.path)?;
 
-    if present.is_empty() || options.adopt {
-        return Ok(());
+    if present.is_empty() {
+        return Ok(Vec::new());
     }
 
     let owned = owned_keys(prior, &artifact.path);
 
-    // Driven by the plan's entries, which arrive sorted, so which collision is reported first
-    // depends on the bundle, not on the order keys happen to sit in the file.
-    for entry in &artifact.entries {
-        let key = managed_key(&artifact.section, &entry.key);
+    Ok(artifact
+        .entries
+        .iter()
+        .filter(|entry| present.contains(&entry.key))
+        .map(|entry| managed_key(&artifact.section, &entry.key))
+        .filter(|key| !owned.contains(key))
+        .collect())
+}
 
-        if present.contains(&entry.key) && !owned.contains(&key) {
-            return Err(refuse_key(artifact, &key));
-        }
+/// What stands in the way of one whole-path artifact.
+enum PathCheck {
+    /// Nothing, or something ambit already owns.
+    Clear,
+    /// An ancestor that is not a directory ambit can write into, project-relative.
+    Ancestor(String),
+    /// Something ambit did not create, which only adoption may replace.
+    Unowned,
+    /// A pre-shared-layout skills directory holding only skills ambit installed, which is adopted
+    /// without being asked.
+    Migrating,
+}
+
+/// Checks one whole-path artifact against prior ownership and the filesystem.
+///
+/// # Errors
+///
+/// Exit 2 when the target or one of its ancestors cannot be inspected.
+fn check_path(artifact: &PlannedArtifact, owned: &IndexSet<String>) -> Result<PathCheck> {
+    let path = artifact.path();
+
+    // Checked before the ownership question, regardless of what state says: an artifact ambit
+    // owns is no more writable than a new one when the directory it lives in has been replaced by
+    // a dangling link.
+    if let Some(blocking) = blocking_ancestor(path, artifact.target())? {
+        return Ok(PathCheck::Ancestor(blocking));
     }
 
-    Ok(())
+    if owned.contains(path) || !exists(artifact.target(), path)? {
+        return Ok(PathCheck::Clear);
+    }
+
+    // The one case adoption is implicit: a skills directory holding nothing but skills ambit
+    // itself installed. This is what a pre-shared-layout install leaves behind, and replacing it
+    // with a link to the shared directory loses nothing, since ambit wrote everything in it. One
+    // hand-written skill in there and this is false, so the refusal stands.
+    if artifact.kind() == ArtifactKind::SkillsLink
+        && holds_only_owned(artifact.target(), path, owned)?
+    {
+        return Ok(PathCheck::Migrating);
+    }
+
+    Ok(PathCheck::Unowned)
 }
 
 /// Checks a whole plan against prior ownership, and returns the ownership `apply` may act with.
@@ -246,6 +283,10 @@ fn check_config_keys(
 ///
 /// Returns `prior`, plus an owned entry for every target `--adopt` just took over, so `apply`
 /// replaces an adopted directory instead of copying into it and leaving strangers' files behind.
+///
+/// Adoption needs no bookkeeping for a config key: `apply` writes managed keys unconditionally,
+/// precisely because the file is co-owned, so allowing the collision is the whole of taking it
+/// over.
 ///
 /// # Errors
 ///
@@ -260,36 +301,24 @@ pub fn authorize_plan(
 
     for artifact in plan {
         if let PlannedArtifact::HarnessConfig(config) = artifact {
-            check_config_keys(config, prior, options)?;
+            // Read even under `--adopt`, so a document that cannot be parsed stops the run here
+            // rather than halfway through `apply`.
+            let colliding = colliding_keys(config, prior)?;
+
+            if let Some(key) = colliding.first().filter(|_| !options.adopt) {
+                return Err(refuse_key(config, key));
+            }
+
             continue;
         }
 
         let path = artifact.path();
 
-        // Checked before the ownership question, regardless of what state says: an artifact ambit
-        // owns is no more writable than a new one when the directory it lives in has been replaced
-        // by a dangling link.
-        if let Some(blocking) = blocking_ancestor(path, artifact.target())? {
-            return Err(refuse_ancestor(path, &blocking));
-        }
-
-        if owned.contains(path) {
-            continue;
-        }
-
-        if !exists(artifact.target(), path)? {
-            continue;
-        }
-
-        // The one case adoption is implicit: a skills directory holding nothing but skills ambit
-        // itself installed. This is what a pre-shared-layout install leaves behind, and replacing
-        // it with a link to the shared directory loses nothing, since ambit wrote everything in
-        // it. One hand-written skill in there and this is false, so the refusal below stands.
-        let migrating = artifact.kind() == ArtifactKind::SkillsLink
-            && holds_only_owned(artifact.target(), path, &owned)?;
-
-        if !migrating && !options.adopt {
-            return Err(refuse_path(artifact));
+        match check_path(artifact, &owned)? {
+            PathCheck::Clear => continue,
+            PathCheck::Ancestor(blocking) => return Err(refuse_ancestor(path, &blocking)),
+            PathCheck::Unowned if !options.adopt => return Err(refuse_path(artifact)),
+            PathCheck::Unowned | PathCheck::Migrating => {}
         }
 
         adopted.push(OwnedArtifact {
@@ -310,4 +339,104 @@ pub fn authorize_plan(
 
     authorized.artifacts.extend(adopted);
     Ok(authorized)
+}
+
+/// The summary of the error an operation that will not adopt returns for its conflicts.
+///
+/// Exported so the app's bindings can tell this refusal apart from other config errors.
+pub const OWNERSHIP_CONFLICT: &str = "refusing to overwrite what ambit does not own";
+
+/// One path or config key a plan would overwrite that ambit does not own.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OwnershipConflict {
+    /// Project-relative, `/`-separated: what has to move. For a blocked ancestor, the ancestor.
+    pub path: String,
+    /// The dotted managed key, for a conflict inside a co-owned config file.
+    pub key: Option<String>,
+    /// One line naming what is in the way.
+    pub message: String,
+    /// Why, ending in the corrective action. Never adoption.
+    pub detail: Vec<String>,
+}
+
+/// Every conflict a plan has with prior ownership, without adopting anything.
+///
+/// The checks of [`authorize_plan`] with adoption off, collected rather than stopping at the
+/// first, for a caller that shows every conflict at once and must never take a target over. The
+/// skills-directory migration `authorize_plan` performs implicitly is not a conflict here either.
+///
+/// # Errors
+///
+/// Exit 2 when a target, an ancestor, or a config file cannot be inspected: "I could not look" is
+/// not a conflict, and not the absence of one.
+pub fn ownership_conflicts(
+    plan: &[PlannedArtifact],
+    prior: &State,
+) -> Result<Vec<OwnershipConflict>> {
+    let owned = owned_paths(prior);
+    let mut conflicts = Vec::new();
+
+    for artifact in plan {
+        if let PlannedArtifact::HarnessConfig(config) = artifact {
+            for key in colliding_keys(config, prior)? {
+                conflicts.push(OwnershipConflict {
+                    path: config.path.clone(),
+                    message: format!("\"{key}\" in {} is not managed by ambit", config.path),
+                    detail: vec![
+                        format!(
+                            "\"{key}\" in {} exists but ambit did not create it",
+                            config.path
+                        ),
+                        format!(
+                            "remove \"{key}\" from {}, or deselect what installs it",
+                            config.path
+                        ),
+                    ],
+                    key: Some(key),
+                });
+            }
+
+            continue;
+        }
+
+        let path = artifact.path();
+
+        match check_path(artifact, &owned)? {
+            PathCheck::Clear | PathCheck::Migrating => {}
+            PathCheck::Ancestor(blocking) => conflicts.push(OwnershipConflict {
+                message: format!("{blocking} is in the way of {path}"),
+                detail: vec![
+                    format!(
+                        "{blocking} is not a directory ambit can write into, so {path} cannot be created"
+                    ),
+                    format!("move {blocking} aside, or point it at a directory that exists"),
+                ],
+                path: blocking,
+                key: None,
+            }),
+            PathCheck::Unowned => conflicts.push(OwnershipConflict {
+                path: path.to_owned(),
+                key: None,
+                message: format!("{path} is not managed by ambit"),
+                detail: vec![
+                    format!("{path} exists but ambit did not create it"),
+                    format!("move {path} aside, or deselect what installs it"),
+                ],
+            }),
+        }
+    }
+
+    Ok(conflicts)
+}
+
+/// The error for a non-empty list of conflicts: exit 2, one detail line per conflict.
+pub fn conflicts_error(conflicts: &[OwnershipConflict]) -> AmbitError {
+    config_error(
+        OWNERSHIP_CONFLICT,
+        conflicts.iter().map(|conflict| {
+            let step = conflict.detail.last().map_or("", String::as_str);
+
+            format!("{}: {step}", conflict.message)
+        }),
+    )
 }
