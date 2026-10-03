@@ -31,6 +31,8 @@ struct AppState: Codable, Equatable, Sendable {
     var lastActiveSetup: SetupID?
     /// True once the first launch registered the login item, so a later opt-out sticks.
     var launchAtLoginInitialized = false
+    /// The user's launch-at-login choice; on until they turn it off.
+    var launchAtLoginPreferred = true
 
     init() {}
 
@@ -40,6 +42,7 @@ struct AppState: Codable, Equatable, Sendable {
         projects = try container.decodeIfPresent([RememberedProject].self, forKey: .projects) ?? []
         lastActiveSetup = try? container.decodeIfPresent(SetupID.self, forKey: .lastActiveSetup)
         launchAtLoginInitialized = try container.decodeIfPresent(Bool.self, forKey: .launchAtLoginInitialized) ?? false
+        launchAtLoginPreferred = try container.decodeIfPresent(Bool.self, forKey: .launchAtLoginPreferred) ?? true
     }
 }
 

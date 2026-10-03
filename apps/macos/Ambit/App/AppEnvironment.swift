@@ -11,6 +11,10 @@ struct AppEnvironment {
     var folderPicker: any FolderPicker
     /// The Personal setup root and the engine's HOME.
     var home: URL
+    /// App updates. Tests get a fake that never touches the network.
+    var updater: any AppUpdater = FakeAppUpdater()
+    /// The system login item. Tests get an in-memory one so real login items stay untouched.
+    var loginItems: any LoginItemControl = InMemoryLoginItemControl()
 
     static func make(for launch: LaunchContext) -> AppEnvironment {
         let hooks = launch.testHooks
@@ -32,8 +36,13 @@ struct AppEnvironment {
         // Replaced by LiveEngineService once the UniFFI engine is linked.
         let engine: any EngineService = FakeEngineService()
 
+        let isTesting = launch.isUnitTestHost || launch.isUITesting
+        let updater: any AppUpdater =
+            isTesting ? FakeAppUpdater(named: hooks?.updaterScenario) : SparkleAppUpdater()
+        let loginItems: any LoginItemControl = isTesting ? InMemoryLoginItemControl() : SystemLoginItemControl()
+
         return AppEnvironment(
             launch: launch, engine: engine, stateStore: AppStateStore(directory: stateDirectory),
-            folderPicker: folderPicker, home: home)
+            folderPicker: folderPicker, home: home, updater: updater, loginItems: loginItems)
     }
 }
