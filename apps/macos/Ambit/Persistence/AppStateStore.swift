@@ -33,6 +33,8 @@ struct AppState: Codable, Equatable, Sendable {
     var launchAtLoginInitialized = false
     /// The last catalog update check of each setup, by setup root path.
     var catalogChecks: [String: SetupCatalogChecks] = [:]
+    /// The user's launch-at-login choice; on until they turn it off.
+    var launchAtLoginPreferred = true
 
     init() {}
 
@@ -43,6 +45,7 @@ struct AppState: Codable, Equatable, Sendable {
         lastActiveSetup = try? container.decodeIfPresent(SetupID.self, forKey: .lastActiveSetup)
         launchAtLoginInitialized = try container.decodeIfPresent(Bool.self, forKey: .launchAtLoginInitialized) ?? false
         catalogChecks = (try? container.decodeIfPresent([String: SetupCatalogChecks].self, forKey: .catalogChecks)) ?? [:]
+        launchAtLoginPreferred = try container.decodeIfPresent(Bool.self, forKey: .launchAtLoginPreferred) ?? true
     }
 }
 
