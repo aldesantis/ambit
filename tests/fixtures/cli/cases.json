@@ -1,0 +1,176 @@
+{
+  "help": [
+    "--help"
+  ],
+  "bare": [],
+  "version": [
+    "--version"
+  ],
+  "help-export": [
+    "export",
+    "--help"
+  ],
+  "help-init": [
+    "init",
+    "--help"
+  ],
+  "help-search": [
+    "search",
+    "--help"
+  ],
+  "help-resolve": [
+    "resolve",
+    "--help"
+  ],
+  "help-why": [
+    "why",
+    "--help"
+  ],
+  "help-install": [
+    "install",
+    "--help"
+  ],
+  "help-status": [
+    "status",
+    "--help"
+  ],
+  "help-outdated": [
+    "outdated",
+    "--help"
+  ],
+  "help-update": [
+    "update",
+    "--help"
+  ],
+  "help-prune": [
+    "prune",
+    "--help"
+  ],
+  "help-clean": [
+    "clean",
+    "--help"
+  ],
+  "help-validate": [
+    "validate",
+    "--help"
+  ],
+  "help-doctor": [
+    "doctor",
+    "--help"
+  ],
+  "help-self-update": [
+    "self-update",
+    "--help"
+  ],
+  "unknown-command-frob": [
+    "frob"
+  ],
+  "unknown-command-instal": [
+    "instal"
+  ],
+  "install-extra-arg": [
+    "install",
+    "extra"
+  ],
+  "install-unknown-option": [
+    "install",
+    "--bogus"
+  ],
+  "install-misspelled-option": [
+    "install",
+    "--dr-run"
+  ],
+  "install-flag-with-value": [
+    "install",
+    "--json=1"
+  ],
+  "install-short-option": [
+    "install",
+    "-x"
+  ],
+  "root-short-help": [
+    "-h"
+  ],
+  "root-json": [
+    "--json"
+  ],
+  "install-project-missing-value": [
+    "install",
+    "--project"
+  ],
+  "search-missing-pattern": [
+    "search"
+  ],
+  "search-capability-missing-value": [
+    "search",
+    "--capability"
+  ],
+  "search-capability-invalid": [
+    "search",
+    "--capability",
+    "foo",
+    "x"
+  ],
+  "export-format-invalid": [
+    "export",
+    "--format",
+    "zip"
+  ],
+  "install-copy-link": [
+    "install",
+    "--copy",
+    "--link"
+  ],
+  "update-offline": [
+    "update",
+    "--offline"
+  ],
+  "outdated-offline": [
+    "outdated",
+    "--offline"
+  ],
+  "self-update-offline": [
+    "self-update",
+    "--offline"
+  ],
+  "self-update-project": [
+    "self-update",
+    "--project",
+    "x"
+  ],
+  "help-extra": [
+    "--help",
+    "extra"
+  ],
+  "install-bogus-help": [
+    "install",
+    "--bogus",
+    "--help"
+  ],
+  "search-help": [
+    "search",
+    "--help"
+  ],
+  "search-bogus": [
+    "search",
+    "--bogus"
+  ],
+  "install-extra-bogus": [
+    "install",
+    "extra",
+    "--bogus"
+  ],
+  "install-copy-link-bogus": [
+    "install",
+    "--copy",
+    "--link",
+    "--bogus"
+  ],
+  "update-args-dry-run-offline": [
+    "update",
+    "a",
+    "b",
+    "--dry-run",
+    "--offline"
+  ]
+}

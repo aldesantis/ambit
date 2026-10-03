@@ -1,0 +1,12 @@
+Usage: ambit why [options] <kind:name>
+
+explain why one item is in the bundle
+
+Arguments:
+  kind:name        `skill:<name>`, `mcp:<name>`, or `hook:<name>`
+
+Options:
+  --project <dir>  project directory
+  --json           machine-readable output
+  --offline        use only cached catalogs
+  --help           show usage

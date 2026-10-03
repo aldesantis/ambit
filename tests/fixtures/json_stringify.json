@@ -1,0 +1,188 @@
+[
+  {
+    "source": "\"plain\"",
+    "compact": "\"plain\"",
+    "pretty": "\"plain\"",
+    "digest": "945603a8f587"
+  },
+  {
+    "source": "\"control \\u0001\\u0007\\b\\f\\n\\r\\t\\u001f end\"",
+    "compact": "\"control \\u0001\\u0007\\b\\f\\n\\r\\t\\u001f end\"",
+    "pretty": "\"control \\u0001\\u0007\\b\\f\\n\\r\\t\\u001f end\"",
+    "digest": "37c14b1c1159"
+  },
+  {
+    "source": "\"line \\u2028 sep \\u2029 para\"",
+    "compact": "\"line   sep   para\"",
+    "pretty": "\"line   sep   para\"",
+    "digest": "5d8191a5493d"
+  },
+  {
+    "source": "\"emoji 😀 é \\ud83d\\ude00\"",
+    "compact": "\"emoji 😀 é 😀\"",
+    "pretty": "\"emoji 😀 é 😀\"",
+    "digest": "1cc655f99764"
+  },
+  {
+    "source": "\"quote \\\" backslash \\\\ slash /\"",
+    "compact": "\"quote \\\" backslash \\\\ slash /\"",
+    "pretty": "\"quote \\\" backslash \\\\ slash /\"",
+    "digest": "0bf8d8cac25a"
+  },
+  {
+    "source": "\"\\u007f\\u0080\"",
+    "compact": "\"\"",
+    "pretty": "\"\"",
+    "digest": "43b95ba33161"
+  },
+  {
+    "source": "0",
+    "compact": "0",
+    "pretty": "0",
+    "digest": "5feceb66ffc8"
+  },
+  {
+    "source": "-0",
+    "compact": "0",
+    "pretty": "0",
+    "digest": "5feceb66ffc8"
+  },
+  {
+    "source": "1",
+    "compact": "1",
+    "pretty": "1",
+    "digest": "6b86b273ff34"
+  },
+  {
+    "source": "-1",
+    "compact": "-1",
+    "pretty": "-1",
+    "digest": "1bad6b8cf971"
+  },
+  {
+    "source": "1.5",
+    "compact": "1.5",
+    "pretty": "1.5",
+    "digest": "9f29a130438b"
+  },
+  {
+    "source": "0.1",
+    "compact": "0.1",
+    "pretty": "0.1",
+    "digest": "14be4b45f18e"
+  },
+  {
+    "source": "1e21",
+    "compact": "1e+21",
+    "pretty": "1e+21",
+    "digest": "241c4643fa70"
+  },
+  {
+    "source": "1e-7",
+    "compact": "1e-7",
+    "pretty": "1e-7",
+    "digest": "5b33e02f2c51"
+  },
+  {
+    "source": "123456789012345",
+    "compact": "123456789012345",
+    "pretty": "123456789012345",
+    "digest": "e27a7686b802"
+  },
+  {
+    "source": "1.0",
+    "compact": "1",
+    "pretty": "1",
+    "digest": "6b86b273ff34"
+  },
+  {
+    "source": "100",
+    "compact": "100",
+    "pretty": "100",
+    "digest": "ad5736686512"
+  },
+  {
+    "source": "2.5e-5",
+    "compact": "0.000025",
+    "pretty": "0.000025",
+    "digest": "2d8a28589fc2"
+  },
+  {
+    "source": "1e300",
+    "compact": "1e+300",
+    "pretty": "1e+300",
+    "digest": "2b0de494c41d"
+  },
+  {
+    "source": "true",
+    "compact": "true",
+    "pretty": "true",
+    "digest": "b5bea41b6c62"
+  },
+  {
+    "source": "false",
+    "compact": "false",
+    "pretty": "false",
+    "digest": "fcbcf165908d"
+  },
+  {
+    "source": "null",
+    "compact": "null",
+    "pretty": "null",
+    "digest": "74234e98afe7"
+  },
+  {
+    "source": "[]",
+    "compact": "[]",
+    "pretty": "[]",
+    "digest": "4f53cda18c2b"
+  },
+  {
+    "source": "{}",
+    "compact": "{}",
+    "pretty": "{}",
+    "digest": "44136fa355b3"
+  },
+  {
+    "source": "{\"b\":1,\"2\":0}",
+    "compact": "{\"2\":0,\"b\":1}",
+    "pretty": "{\n  \"2\": 0,\n  \"b\": 1\n}",
+    "digest": "018c76772a5e"
+  },
+  {
+    "source": "{\"b\":1,\"10\":0,\"2\":0,\"a\":{\"1\":true,\"z\":false}}",
+    "compact": "{\"2\":0,\"10\":0,\"b\":1,\"a\":{\"1\":true,\"z\":false}}",
+    "pretty": "{\n  \"2\": 0,\n  \"10\": 0,\n  \"b\": 1,\n  \"a\": {\n    \"1\": true,\n    \"z\": false\n  }\n}",
+    "digest": "b7dfd709614e"
+  },
+  {
+    "source": "{\"a\":1,\"a\":2}",
+    "compact": "{\"a\":2}",
+    "pretty": "{\n  \"a\": 2\n}",
+    "digest": "7e8059f49558"
+  },
+  {
+    "source": "{\"4294967294\":1,\"4294967295\":2,\"01\":3,\"-1\":4,\"x\":5,\"0\":6}",
+    "compact": "{\"0\":6,\"4294967294\":1,\"4294967295\":2,\"01\":3,\"-1\":4,\"x\":5}",
+    "pretty": "{\n  \"0\": 6,\n  \"4294967294\": 1,\n  \"4294967295\": 2,\n  \"01\": 3,\n  \"-1\": 4,\n  \"x\": 5\n}",
+    "digest": "8ae961d77208"
+  },
+  {
+    "source": "[1,\"two\",{\"three\":3},[4],null]",
+    "compact": "[1,\"two\",{\"three\":3},[4],null]",
+    "pretty": "[\n  1,\n  \"two\",\n  {\n    \"three\": 3\n  },\n  [\n    4\n  ],\n  null\n]",
+    "digest": "3a3c571da11e"
+  },
+  {
+    "source": "{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"./hooks/fmt.sh\",\"timeout\":30}]}",
+    "compact": "{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"./hooks/fmt.sh\",\"timeout\":30}]}",
+    "pretty": "{\n  \"matcher\": \"Bash\",\n  \"hooks\": [\n    {\n      \"type\": \"command\",\n      \"command\": \"./hooks/fmt.sh\",\n      \"timeout\": 30\n    }\n  ]\n}",
+    "digest": "7aa465112723"
+  },
+  {
+    "source": "{\"nested\":{\"deep\":[{\"k\":\"v\",\"n\":1.25}]}}",
+    "compact": "{\"nested\":{\"deep\":[{\"k\":\"v\",\"n\":1.25}]}}",
+    "pretty": "{\n  \"nested\": {\n    \"deep\": [\n      {\n        \"k\": \"v\",\n        \"n\": 1.25\n      }\n    ]\n  }\n}",
+    "digest": "96c0a3da4701"
+  }
+]

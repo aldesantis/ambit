@@ -1,0 +1,1256 @@
+[
+  {
+    "input": {
+      "key": ""
+    },
+    "output": "key: \"\"\n"
+  },
+  {
+    "input": {
+      "empty-key": "v"
+    },
+    "output": "empty-key: v\n"
+  },
+  {
+    "input": [
+      ""
+    ],
+    "output": "- \"\"\n"
+  },
+  {
+    "input": {
+      "key": " a"
+    },
+    "output": "key: \" a\"\n"
+  },
+  {
+    "input": {
+      " a": "v"
+    },
+    "output": "\" a\": v\n"
+  },
+  {
+    "input": [
+      " a"
+    ],
+    "output": "- \" a\"\n"
+  },
+  {
+    "input": {
+      "key": "a "
+    },
+    "output": "key: \"a \"\n"
+  },
+  {
+    "input": {
+      "a ": "v"
+    },
+    "output": "\"a \": v\n"
+  },
+  {
+    "input": [
+      "a "
+    ],
+    "output": "- \"a \"\n"
+  },
+  {
+    "input": {
+      "key": "a: b"
+    },
+    "output": "key: \"a: b\"\n"
+  },
+  {
+    "input": {
+      "a: b": "v"
+    },
+    "output": "\"a: b\": v\n"
+  },
+  {
+    "input": [
+      "a: b"
+    ],
+    "output": "- \"a: b\"\n"
+  },
+  {
+    "input": {
+      "key": "a #b"
+    },
+    "output": "key: \"a #b\"\n"
+  },
+  {
+    "input": {
+      "a #b": "v"
+    },
+    "output": "\"a #b\": v\n"
+  },
+  {
+    "input": [
+      "a #b"
+    ],
+    "output": "- \"a #b\"\n"
+  },
+  {
+    "input": {
+      "key": "#a"
+    },
+    "output": "key: \"#a\"\n"
+  },
+  {
+    "input": {
+      "#a": "v"
+    },
+    "output": "\"#a\": v\n"
+  },
+  {
+    "input": [
+      "#a"
+    ],
+    "output": "- \"#a\"\n"
+  },
+  {
+    "input": {
+      "key": "-a"
+    },
+    "output": "key: -a\n"
+  },
+  {
+    "input": {
+      "-a": "v"
+    },
+    "output": "-a: v\n"
+  },
+  {
+    "input": [
+      "-a"
+    ],
+    "output": "- -a\n"
+  },
+  {
+    "input": {
+      "key": "- a"
+    },
+    "output": "key: \"- a\"\n"
+  },
+  {
+    "input": {
+      "- a": "v"
+    },
+    "output": "\"- a\": v\n"
+  },
+  {
+    "input": [
+      "- a"
+    ],
+    "output": "- \"- a\"\n"
+  },
+  {
+    "input": {
+      "key": "?"
+    },
+    "output": "key: \"?\"\n"
+  },
+  {
+    "input": {
+      "?": "v"
+    },
+    "output": "\"?\": v\n"
+  },
+  {
+    "input": [
+      "?"
+    ],
+    "output": "- \"?\"\n"
+  },
+  {
+    "input": {
+      "key": "yes"
+    },
+    "output": "key: yes\n"
+  },
+  {
+    "input": {
+      "yes": "v"
+    },
+    "output": "yes: v\n"
+  },
+  {
+    "input": [
+      "yes"
+    ],
+    "output": "- yes\n"
+  },
+  {
+    "input": {
+      "key": "no"
+    },
+    "output": "key: no\n"
+  },
+  {
+    "input": {
+      "no": "v"
+    },
+    "output": "no: v\n"
+  },
+  {
+    "input": [
+      "no"
+    ],
+    "output": "- no\n"
+  },
+  {
+    "input": {
+      "key": "true"
+    },
+    "output": "key: \"true\"\n"
+  },
+  {
+    "input": {
+      "true": "v"
+    },
+    "output": "\"true\": v\n"
+  },
+  {
+    "input": [
+      "true"
+    ],
+    "output": "- \"true\"\n"
+  },
+  {
+    "input": {
+      "key": "null"
+    },
+    "output": "key: \"null\"\n"
+  },
+  {
+    "input": {
+      "null": "v"
+    },
+    "output": "\"null\": v\n"
+  },
+  {
+    "input": [
+      "null"
+    ],
+    "output": "- \"null\"\n"
+  },
+  {
+    "input": {
+      "key": "~"
+    },
+    "output": "key: \"~\"\n"
+  },
+  {
+    "input": {
+      "~": "v"
+    },
+    "output": "\"~\": v\n"
+  },
+  {
+    "input": [
+      "~"
+    ],
+    "output": "- \"~\"\n"
+  },
+  {
+    "input": {
+      "key": "1e5"
+    },
+    "output": "key: \"1e5\"\n"
+  },
+  {
+    "input": {
+      "1e5": "v"
+    },
+    "output": "\"1e5\": v\n"
+  },
+  {
+    "input": [
+      "1e5"
+    ],
+    "output": "- \"1e5\"\n"
+  },
+  {
+    "input": {
+      "key": "0x1F"
+    },
+    "output": "key: \"0x1F\"\n"
+  },
+  {
+    "input": {
+      "0x1F": "v"
+    },
+    "output": "\"0x1F\": v\n"
+  },
+  {
+    "input": [
+      "0x1F"
+    ],
+    "output": "- \"0x1F\"\n"
+  },
+  {
+    "input": {
+      "key": "0o7"
+    },
+    "output": "key: \"0o7\"\n"
+  },
+  {
+    "input": {
+      "0o7": "v"
+    },
+    "output": "\"0o7\": v\n"
+  },
+  {
+    "input": [
+      "0o7"
+    ],
+    "output": "- \"0o7\"\n"
+  },
+  {
+    "input": {
+      "key": ".5"
+    },
+    "output": "key: \".5\"\n"
+  },
+  {
+    "input": {
+      ".5": "v"
+    },
+    "output": "\".5\": v\n"
+  },
+  {
+    "input": [
+      ".5"
+    ],
+    "output": "- \".5\"\n"
+  },
+  {
+    "input": {
+      "key": "+1"
+    },
+    "output": "key: \"+1\"\n"
+  },
+  {
+    "input": {
+      "+1": "v"
+    },
+    "output": "\"+1\": v\n"
+  },
+  {
+    "input": [
+      "+1"
+    ],
+    "output": "- \"+1\"\n"
+  },
+  {
+    "input": {
+      "key": "1_000"
+    },
+    "output": "key: 1_000\n"
+  },
+  {
+    "input": {
+      "1_000": "v"
+    },
+    "output": "1_000: v\n"
+  },
+  {
+    "input": [
+      "1_000"
+    ],
+    "output": "- 1_000\n"
+  },
+  {
+    "input": {
+      "key": "@a"
+    },
+    "output": "key: \"@a\"\n"
+  },
+  {
+    "input": {
+      "@a": "v"
+    },
+    "output": "\"@a\": v\n"
+  },
+  {
+    "input": [
+      "@a"
+    ],
+    "output": "- \"@a\"\n"
+  },
+  {
+    "input": {
+      "key": "`a"
+    },
+    "output": "key: \"`a\"\n"
+  },
+  {
+    "input": {
+      "`a": "v"
+    },
+    "output": "\"`a\": v\n"
+  },
+  {
+    "input": [
+      "`a"
+    ],
+    "output": "- \"`a\"\n"
+  },
+  {
+    "input": {
+      "key": "a\nb"
+    },
+    "output": "key: \"a\\nb\"\n"
+  },
+  {
+    "input": {
+      "a\nb": "v"
+    },
+    "output": "\"a\\nb\": v\n"
+  },
+  {
+    "input": [
+      "a\nb"
+    ],
+    "output": "- \"a\\nb\"\n"
+  },
+  {
+    "input": {
+      "key": "a\tb"
+    },
+    "output": "key: a\tb\n"
+  },
+  {
+    "input": {
+      "a\tb": "v"
+    },
+    "output": "a\tb: v\n"
+  },
+  {
+    "input": [
+      "a\tb"
+    ],
+    "output": "- a\tb\n"
+  },
+  {
+    "input": {
+      "key": "\"q\""
+    },
+    "output": "key: \"\\\"q\\\"\"\n"
+  },
+  {
+    "input": {
+      "\"q\"": "v"
+    },
+    "output": "\"\\\"q\\\"\": v\n"
+  },
+  {
+    "input": [
+      "\"q\""
+    ],
+    "output": "- \"\\\"q\\\"\"\n"
+  },
+  {
+    "input": {
+      "key": "'q'"
+    },
+    "output": "key: \"'q'\"\n"
+  },
+  {
+    "input": {
+      "'q'": "v"
+    },
+    "output": "\"'q'\": v\n"
+  },
+  {
+    "input": [
+      "'q'"
+    ],
+    "output": "- \"'q'\"\n"
+  },
+  {
+    "input": {
+      "key": "it's"
+    },
+    "output": "key: it's\n"
+  },
+  {
+    "input": {
+      "it's": "v"
+    },
+    "output": "it's: v\n"
+  },
+  {
+    "input": [
+      "it's"
+    ],
+    "output": "- it's\n"
+  },
+  {
+    "input": {
+      "key": "say \"hi\""
+    },
+    "output": "key: say \"hi\"\n"
+  },
+  {
+    "input": {
+      "say \"hi\"": "v"
+    },
+    "output": "say \"hi\": v\n"
+  },
+  {
+    "input": [
+      "say \"hi\""
+    ],
+    "output": "- say \"hi\"\n"
+  },
+  {
+    "input": {
+      "key": "[a]"
+    },
+    "output": "key: \"[a]\"\n"
+  },
+  {
+    "input": {
+      "[a]": "v"
+    },
+    "output": "\"[a]\": v\n"
+  },
+  {
+    "input": [
+      "[a]"
+    ],
+    "output": "- \"[a]\"\n"
+  },
+  {
+    "input": {
+      "key": "{a}"
+    },
+    "output": "key: \"{a}\"\n"
+  },
+  {
+    "input": {
+      "{a}": "v"
+    },
+    "output": "\"{a}\": v\n"
+  },
+  {
+    "input": [
+      "{a}"
+    ],
+    "output": "- \"{a}\"\n"
+  },
+  {
+    "input": {
+      "key": "*a"
+    },
+    "output": "key: \"*a\"\n"
+  },
+  {
+    "input": {
+      "*a": "v"
+    },
+    "output": "\"*a\": v\n"
+  },
+  {
+    "input": [
+      "*a"
+    ],
+    "output": "- \"*a\"\n"
+  },
+  {
+    "input": {
+      "key": "&a"
+    },
+    "output": "key: \"&a\"\n"
+  },
+  {
+    "input": {
+      "&a": "v"
+    },
+    "output": "\"&a\": v\n"
+  },
+  {
+    "input": [
+      "&a"
+    ],
+    "output": "- \"&a\"\n"
+  },
+  {
+    "input": {
+      "key": "!a"
+    },
+    "output": "key: \"!a\"\n"
+  },
+  {
+    "input": {
+      "!a": "v"
+    },
+    "output": "\"!a\": v\n"
+  },
+  {
+    "input": [
+      "!a"
+    ],
+    "output": "- \"!a\"\n"
+  },
+  {
+    "input": {
+      "key": "%a"
+    },
+    "output": "key: \"%a\"\n"
+  },
+  {
+    "input": {
+      "%a": "v"
+    },
+    "output": "\"%a\": v\n"
+  },
+  {
+    "input": [
+      "%a"
+    ],
+    "output": "- \"%a\"\n"
+  },
+  {
+    "input": {
+      "key": "|"
+    },
+    "output": "key: \"|\"\n"
+  },
+  {
+    "input": {
+      "|": "v"
+    },
+    "output": "\"|\": v\n"
+  },
+  {
+    "input": [
+      "|"
+    ],
+    "output": "- \"|\"\n"
+  },
+  {
+    "input": {
+      "key": ">"
+    },
+    "output": "key: \">\"\n"
+  },
+  {
+    "input": {
+      ">": "v"
+    },
+    "output": "\">\": v\n"
+  },
+  {
+    "input": [
+      ">"
+    ],
+    "output": "- \">\"\n"
+  },
+  {
+    "input": {
+      "key": "é"
+    },
+    "output": "key: é\n"
+  },
+  {
+    "input": {
+      "é": "v"
+    },
+    "output": "é: v\n"
+  },
+  {
+    "input": [
+      "é"
+    ],
+    "output": "- é\n"
+  },
+  {
+    "input": {
+      "key": "\u0007"
+    },
+    "output": "key: \"\\a\"\n"
+  },
+  {
+    "input": {
+      "\u0007": "v"
+    },
+    "output": "\"\\a\": v\n"
+  },
+  {
+    "input": [
+      "\u0007"
+    ],
+    "output": "- \"\\a\"\n"
+  },
+  {
+    "input": {
+      "key": "😀"
+    },
+    "output": "key: 😀\n"
+  },
+  {
+    "input": {
+      "😀": "v"
+    },
+    "output": "😀: v\n"
+  },
+  {
+    "input": [
+      "😀"
+    ],
+    "output": "- 😀\n"
+  },
+  {
+    "input": {
+      "key": "https://example.com/a?b=c#d"
+    },
+    "output": "key: https://example.com/a?b=c#d\n"
+  },
+  {
+    "input": {
+      "https://example.com/a?b=c#d": "v"
+    },
+    "output": "https://example.com/a?b=c#d: v\n"
+  },
+  {
+    "input": [
+      "https://example.com/a?b=c#d"
+    ],
+    "output": "- https://example.com/a?b=c#d\n"
+  },
+  {
+    "input": {
+      "key": "a:b"
+    },
+    "output": "key: a:b\n"
+  },
+  {
+    "input": {
+      "a:b": "v"
+    },
+    "output": "a:b: v\n"
+  },
+  {
+    "input": [
+      "a:b"
+    ],
+    "output": "- a:b\n"
+  },
+  {
+    "input": {
+      "key": "a,b"
+    },
+    "output": "key: a,b\n"
+  },
+  {
+    "input": {
+      "a,b": "v"
+    },
+    "output": "a,b: v\n"
+  },
+  {
+    "input": [
+      "a,b"
+    ],
+    "output": "- a,b\n"
+  },
+  {
+    "input": {
+      "key": "a: "
+    },
+    "output": "key: \"a: \"\n"
+  },
+  {
+    "input": {
+      "a: ": "v"
+    },
+    "output": "\"a: \": v\n"
+  },
+  {
+    "input": [
+      "a: "
+    ],
+    "output": "- \"a: \"\n"
+  },
+  {
+    "input": {
+      "key": "a:"
+    },
+    "output": "key: \"a:\"\n"
+  },
+  {
+    "input": {
+      "a:": "v"
+    },
+    "output": "\"a:\": v\n"
+  },
+  {
+    "input": [
+      "a:"
+    ],
+    "output": "- \"a:\"\n"
+  },
+  {
+    "input": {
+      "key": "-"
+    },
+    "output": "key: \"-\"\n"
+  },
+  {
+    "input": {
+      "-": "v"
+    },
+    "output": "\"-\": v\n"
+  },
+  {
+    "input": [
+      "-"
+    ],
+    "output": "- \"-\"\n"
+  },
+  {
+    "input": {
+      "key": "--"
+    },
+    "output": "key: --\n"
+  },
+  {
+    "input": {
+      "--": "v"
+    },
+    "output": "--: v\n"
+  },
+  {
+    "input": [
+      "--"
+    ],
+    "output": "- --\n"
+  },
+  {
+    "input": {
+      "key": "---"
+    },
+    "output": "key: ---\n"
+  },
+  {
+    "input": {
+      "---": "v"
+    },
+    "output": "\"---\": v\n"
+  },
+  {
+    "input": [
+      "---"
+    ],
+    "output": "- ---\n"
+  },
+  {
+    "input": {
+      "key": "..."
+    },
+    "output": "key: ...\n"
+  },
+  {
+    "input": {
+      "...": "v"
+    },
+    "output": "\"...\": v\n"
+  },
+  {
+    "input": [
+      "..."
+    ],
+    "output": "- ...\n"
+  },
+  {
+    "input": {
+      "key": "a\\b"
+    },
+    "output": "key: a\\b\n"
+  },
+  {
+    "input": {
+      "a\\b": "v"
+    },
+    "output": "a\\b: v\n"
+  },
+  {
+    "input": [
+      "a\\b"
+    ],
+    "output": "- a\\b\n"
+  },
+  {
+    "input": {
+      "key": "plain words"
+    },
+    "output": "key: plain words\n"
+  },
+  {
+    "input": {
+      "plain words": "v"
+    },
+    "output": "plain words: v\n"
+  },
+  {
+    "input": [
+      "plain words"
+    ],
+    "output": "- plain words\n"
+  },
+  {
+    "input": {
+      "key": "False"
+    },
+    "output": "key: \"False\"\n"
+  },
+  {
+    "input": {
+      "False": "v"
+    },
+    "output": "\"False\": v\n"
+  },
+  {
+    "input": [
+      "False"
+    ],
+    "output": "- \"False\"\n"
+  },
+  {
+    "input": {
+      "key": "NULL"
+    },
+    "output": "key: \"NULL\"\n"
+  },
+  {
+    "input": {
+      "NULL": "v"
+    },
+    "output": "\"NULL\": v\n"
+  },
+  {
+    "input": [
+      "NULL"
+    ],
+    "output": "- \"NULL\"\n"
+  },
+  {
+    "input": {
+      "key": ".inf"
+    },
+    "output": "key: \".inf\"\n"
+  },
+  {
+    "input": {
+      ".inf": "v"
+    },
+    "output": "\".inf\": v\n"
+  },
+  {
+    "input": [
+      ".inf"
+    ],
+    "output": "- \".inf\"\n"
+  },
+  {
+    "input": {
+      "key": "-.inf"
+    },
+    "output": "key: \"-.inf\"\n"
+  },
+  {
+    "input": {
+      "-.inf": "v"
+    },
+    "output": "\"-.inf\": v\n"
+  },
+  {
+    "input": [
+      "-.inf"
+    ],
+    "output": "- \"-.inf\"\n"
+  },
+  {
+    "input": {
+      "key": ".nan"
+    },
+    "output": "key: \".nan\"\n"
+  },
+  {
+    "input": {
+      ".nan": "v"
+    },
+    "output": "\".nan\": v\n"
+  },
+  {
+    "input": [
+      ".nan"
+    ],
+    "output": "- \".nan\"\n"
+  },
+  {
+    "input": {
+      "key": "1.0"
+    },
+    "output": "key: \"1.0\"\n"
+  },
+  {
+    "input": {
+      "1.0": "v"
+    },
+    "output": "\"1.0\": v\n"
+  },
+  {
+    "input": [
+      "1.0"
+    ],
+    "output": "- \"1.0\"\n"
+  },
+  {
+    "input": {
+      "key": "-3"
+    },
+    "output": "key: \"-3\"\n"
+  },
+  {
+    "input": {
+      "-3": "v"
+    },
+    "output": "\"-3\": v\n"
+  },
+  {
+    "input": [
+      "-3"
+    ],
+    "output": "- \"-3\"\n"
+  },
+  {
+    "input": {
+      "key": "0"
+    },
+    "output": "key: \"0\"\n"
+  },
+  {
+    "input": {
+      "0": "v"
+    },
+    "output": "\"0\": v\n"
+  },
+  {
+    "input": [
+      "0"
+    ],
+    "output": "- \"0\"\n"
+  },
+  {
+    "input": {
+      "key": "007"
+    },
+    "output": "key: \"007\"\n"
+  },
+  {
+    "input": {
+      "007": "v"
+    },
+    "output": "\"007\": v\n"
+  },
+  {
+    "input": [
+      "007"
+    ],
+    "output": "- \"007\"\n"
+  },
+  {
+    "input": {
+      "key": "1:2"
+    },
+    "output": "key: 1:2\n"
+  },
+  {
+    "input": {
+      "1:2": "v"
+    },
+    "output": "1:2: v\n"
+  },
+  {
+    "input": [
+      "1:2"
+    ],
+    "output": "- 1:2\n"
+  },
+  {
+    "input": {
+      "key": "a b"
+    },
+    "output": "key: a b\n"
+  },
+  {
+    "input": {
+      "a b": "v"
+    },
+    "output": "a b: v\n"
+  },
+  {
+    "input": [
+      "a b"
+    ],
+    "output": "- a b\n"
+  },
+  {
+    "input": {
+      "key": "\u0000"
+    },
+    "output": "key: \"\\0\"\n"
+  },
+  {
+    "input": {
+      "\u0000": "v"
+    },
+    "output": "\"\\0\": v\n"
+  },
+  {
+    "input": [
+      "\u0000"
+    ],
+    "output": "- \"\\0\"\n"
+  },
+  {
+    "input": {
+      "key": ""
+    },
+    "output": "key: \"\"\n"
+  },
+  {
+    "input": {
+      "": "v"
+    },
+    "output": "\"\": v\n"
+  },
+  {
+    "input": [
+      ""
+    ],
+    "output": "- \"\"\n"
+  },
+  {
+    "input": {
+      "key": ""
+    },
+    "output": "key: \"\"\n"
+  },
+  {
+    "input": {
+      "": "v"
+    },
+    "output": "\"\": v\n"
+  },
+  {
+    "input": [
+      ""
+    ],
+    "output": "- \"\"\n"
+  },
+  {
+    "input": {
+      "b": 1,
+      "a": {
+        "d": [
+          1,
+          2
+        ],
+        "c": {}
+      },
+      "e": [],
+      "f": null,
+      "g": true,
+      "h": false
+    },
+    "output": "a:\n  c: {}\n  d:\n    - 1\n    - 2\nb: 1\ne: []\nf: null\ng: true\nh: false\n"
+  },
+  {
+    "input": {
+      "list": [
+        {
+          "b": 1,
+          "a": 2
+        },
+        [
+          1,
+          [
+            2
+          ]
+        ],
+        [],
+        {}
+      ]
+    },
+    "output": "list:\n  - a: 2\n    b: 1\n  - - 1\n    - - 2\n  - []\n  - {}\n"
+  },
+  {
+    "input": {
+      "n": [
+        0,
+        12,
+        -3,
+        1.5,
+        1e+21,
+        1e-7,
+        123456789012,
+        0.1
+      ]
+    },
+    "output": "n:\n  - 0\n  - 12\n  - -3\n  - 1.5\n  - 1e+21\n  - 1e-7\n  - 123456789012\n  - 0.1\n"
+  },
+  {
+    "input": {
+      "version": 1,
+      "catalogs": {
+        "acme": {
+          "source": "git:https://example.com/acme.git",
+          "ref": "main",
+          "commit": "0123456789abcdef0123456789abcdef01234567"
+        }
+      }
+    },
+    "output": "catalogs:\n  acme:\n    commit: 0123456789abcdef0123456789abcdef01234567\n    ref: main\n    source: git:https://example.com/acme.git\nversion: 1\n"
+  },
+  {
+    "input": {
+      "2": "x",
+      "10": "y",
+      "b": "z",
+      "B": "w",
+      "é": 1,
+      "z": 2
+    },
+    "output": "\"10\": y\n\"2\": x\nB: w\nb: z\nz: 2\né: 1\n"
+  },
+  {
+    "input": {},
+    "output": "{}\n"
+  },
+  {
+    "input": [],
+    "output": "[]\n"
+  },
+  {
+    "input": "top",
+    "output": "top\n"
+  },
+  {
+    "input": {
+      "nested": {
+        "deeper": {
+          "deepest": [
+            "x",
+            {
+              "k": "v"
+            }
+          ]
+        }
+      }
+    },
+    "output": "nested:\n  deeper:\n    deepest:\n      - x\n      - k: v\n"
+  }
+]

@@ -1,0 +1,9 @@
+Usage: ambit outdated [options]
+
+check whether any catalog's ref now names a different commit
+
+Options:
+  --project <dir>  project directory
+  --json           machine-readable output
+  --offline        use only cached catalogs
+  --help           show usage

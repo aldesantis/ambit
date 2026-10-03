@@ -1,0 +1,302 @@
+{
+  "section": "mcp",
+  "file": ".opencode/opencode.jsonc",
+  "cases": [
+    {
+      "op": "mergeSection",
+      "text": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n  },\n}\n",
+      "entries": [
+        {
+          "key": "fixture",
+          "value": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@acme/fixture-mcp"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    },\n  },\n}\n"
+      }
+    },
+    {
+      "op": "mergeSection",
+      "text": null,
+      "entries": [
+        {
+          "key": "fixture",
+          "value": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@acme/fixture-mcp"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "ok": "{\n  \"mcp\": {\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    }\n  }\n}\n"
+      }
+    },
+    {
+      "op": "mergeSection",
+      "text": "{\n  // just a model\n  \"model\": \"x\"\n}\n",
+      "entries": [
+        {
+          "key": "fixture",
+          "value": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@acme/fixture-mcp"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "ok": "{\n  // just a model\n  \"model\": \"x\",\n  \"mcp\": {\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    }\n  }\n}\n"
+      }
+    },
+    {
+      "op": "mergeSection",
+      "text": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n  },\n}\n",
+      "entries": [
+        {
+          "key": "fixture",
+          "value": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@acme/fixture-mcp"
+            ]
+          }
+        },
+        {
+          "key": "other",
+          "value": {
+            "type": "remote",
+            "url": "https://other.invalid/mcp"
+          }
+        }
+      ],
+      "result": {
+        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    },\n    \"other\": {\n      \"type\": \"remote\",\n      \"url\": \"https://other.invalid/mcp\"\n    },\n  },\n}\n"
+      }
+    },
+    {
+      "op": "mergeSection",
+      "text": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    },\n  },\n}\n",
+      "entries": [
+        {
+          "key": "fixture",
+          "value": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@acme/fixture-mcp"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    },\n  },\n}\n"
+      }
+    },
+    {
+      "op": "mergeSection",
+      "text": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n  },\n}\n",
+      "entries": [
+        {
+          "key": "fixture",
+          "value": {
+            "type": "local",
+            "command": [
+              "old"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"old\"\n      ]\n    },\n  },\n}\n"
+      }
+    },
+    {
+      "op": "mergeSection",
+      "text": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"old\"\n      ]\n    },\n  },\n}\n",
+      "entries": [
+        {
+          "key": "fixture",
+          "value": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@acme/fixture-mcp"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    },\n  },\n}\n"
+      }
+    },
+    {
+      "op": "mergeSection",
+      "text": "{\n  // mine\n  \"model\": \"x\"\n}\n",
+      "entries": [
+        {
+          "key": "fixture",
+          "value": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@acme/fixture-mcp"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "ok": "{\n  // mine\n  \"model\": \"x\",\n  \"mcp\": {\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    }\n  }\n}\n"
+      }
+    },
+    {
+      "op": "mergeSection",
+      "text": "{ not jsonc\n",
+      "entries": [
+        {
+          "key": "fixture",
+          "value": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@acme/fixture-mcp"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "error": {
+          "code": 2,
+          "message": ".opencode/opencode.jsonc is not valid JSONC",
+          "detail": [
+            "parse error at offset 2",
+            "correct the syntax, so ambit can add its own keys without discarding the rest"
+          ]
+        }
+      }
+    },
+    {
+      "op": "mergeSection",
+      "text": "[1, 2]\n",
+      "entries": [
+        {
+          "key": "fixture",
+          "value": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@acme/fixture-mcp"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "error": {
+          "code": 2,
+          "message": ".opencode/opencode.jsonc is not a JSONC object",
+          "detail": [
+            "ambit merges its keys into this document, which requires an object at the root",
+            "make the document an object, or move the file aside"
+          ]
+        }
+      }
+    },
+    {
+      "op": "mergeSection",
+      "text": "{\"mcp\": []}\n",
+      "entries": [
+        {
+          "key": "fixture",
+          "value": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@acme/fixture-mcp"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "error": {
+          "code": 2,
+          "message": "\"mcp\" in .opencode/opencode.jsonc is not a JSONC object",
+          "detail": [
+            "ambit writes one key per managed entry inside `mcp`",
+            "make `mcp` an object, or move its current value aside"
+          ]
+        }
+      }
+    },
+    {
+      "op": "removeKeys",
+      "text": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    },\n  },\n}\n",
+      "keys": [
+        "fixture"
+      ],
+      "result": {
+        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n  },\n}\n"
+      }
+    },
+    {
+      "op": "removeKeys",
+      "text": "{\n  // mine\n  \"model\": \"x\",\n  \"mcp\": {\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    }\n  }\n}\n",
+      "keys": [
+        "fixture"
+      ],
+      "result": {
+        "ok": "{\n  // mine\n  \"model\": \"x\",\n  \"mcp\": {\n  }\n}\n"
+      }
+    },
+    {
+      "op": "removeKeys",
+      "text": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n  },\n}\n",
+      "keys": [
+        "absent"
+      ],
+      "result": {
+        "ok": null
+      }
+    },
+    {
+      "op": "removeKeys",
+      "text": null,
+      "keys": [
+        "fixture"
+      ],
+      "result": {
+        "ok": null
+      }
+    },
+    {
+      "op": "removeKeys",
+      "text": "{\"model\": \"x\"}\n",
+      "keys": [
+        "fixture"
+      ],
+      "result": {
+        "ok": null
+      }
+    }
+  ]
+}
