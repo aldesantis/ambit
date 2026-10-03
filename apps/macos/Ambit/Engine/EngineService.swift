@@ -69,6 +69,10 @@ protocol SetupSessionService: Sendable {
 
     func ruleMatches(draftText: String?, entry: SelectionEntry) async throws -> [ItemRef]
 
+    /// The `requires` entries of `draftText`, or of the saved config, that match nothing in the
+    /// catalogs as loaded. Offline: reads what `loadCatalogs` cached.
+    func unmatchedEntries(draftText: String?) async throws -> [UnmatchedEntry]
+
     func removalImpact(draftText: String?, item: ItemRef) async throws -> RemovalImpact
 
     /// The items a rule of `kind` with `pattern` in `catalog` matches now, before dependencies.
