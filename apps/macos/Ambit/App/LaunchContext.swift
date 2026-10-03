@@ -12,6 +12,8 @@ struct LaunchContext: Sendable, Equatable {
         var gitHubScenario: String?
         var updaterScenario: String?
         var inMemoryKeychain = false
+        /// Seeds the fake engine; see `FakeEngineService.scenario(_:home:)`.
+        var engineScenario: String?
     }
 
     /// Non-nil only under `AMBIT_UI_TESTING=1`.
@@ -57,7 +59,8 @@ struct LaunchContext: Sendable, Equatable {
             pickFolder: url("AMBIT_TEST_PICK_FOLDER"),
             gitHubScenario: environment["AMBIT_TEST_GITHUB"],
             updaterScenario: environment["AMBIT_TEST_UPDATER"],
-            inMemoryKeychain: environment["AMBIT_TEST_KEYCHAIN"] == "memory")
+            inMemoryKeychain: environment["AMBIT_TEST_KEYCHAIN"] == "memory",
+            engineScenario: environment["AMBIT_TEST_ENGINE"])
         isLoginLaunch = arguments.contains("--login-launch")
     }
 }

@@ -71,6 +71,16 @@ protocol SetupSessionService: Sendable {
 
     func removalImpact(draftText: String?, item: ItemRef) async throws -> RemovalImpact
 
+    /// The items a rule of `kind` with `pattern` in `catalog` matches now, before dependencies.
+    ///
+    /// Throws `EngineError.config` when the pattern breaks the grammar, `EngineError.resolution`
+    /// when it matches nothing, and the catalog's load error when the catalog did not load.
+    func previewRule(draftText: String?, catalog: String, kind: ItemKind, pattern: String) async throws -> [ItemRef]
+
+    /// The entries of `draftText` (or the saved config) that match nothing in the loaded
+    /// catalogs. Entries for catalogs that did not load are left out.
+    func unmatchedEntries(draftText: String?) async throws -> [UnmatchedEntry]
+
     /// Plans `draftText`, or the saved config when it is `nil`. Never writes.
     func review(draftText: String?, progress: ProgressHandler?) async throws -> ReviewHandle
 
