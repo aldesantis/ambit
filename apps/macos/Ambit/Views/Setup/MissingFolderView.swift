@@ -17,7 +17,7 @@ struct MissingFolderView: View {
             .accessibilityIdentifier("missing.locate")
 
             Button("Forget Project") {
-                model.forget(project)
+                Task { await model.forget(project) }
             }
             .accessibilityIdentifier("missing.forget")
         }

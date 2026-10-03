@@ -62,7 +62,7 @@ struct AppModelTests {
         await model.addProject()
         let project = try #require(model.projects.first)
 
-        model.forget(project)
+        await model.forget(project)
 
         #expect(model.projects.isEmpty)
         #expect(model.selection == .personal)
