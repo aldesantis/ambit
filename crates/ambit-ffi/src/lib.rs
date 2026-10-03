@@ -15,8 +15,10 @@
 
 uniffi::setup_scaffolding!("ambit_ffi");
 
+pub mod control;
 pub mod engine;
 pub mod errors;
+pub mod git;
 pub mod records;
 
 pub use engine::{Engine, EngineConfig, SetupSession, describe_source, supported_agent_tools};
