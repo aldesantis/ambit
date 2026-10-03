@@ -45,7 +45,7 @@ struct CatalogsView: View {
                 .accessibilityIdentifier("catalogs.list")
             }
 
-            // Catalog update checks (CatalogUpdatesView) are their own area and attach here.
+            CatalogUpdatesView(setup: setup)
         }
         .padding(.top, 8)
         .task(id: setup.configSummary) {

@@ -57,6 +57,21 @@ final class FakeEngineService: EngineService {
         /// How many times `status()` and `health()` ran.
         var statusReads = 0
         var healthChecks = 0
+        /// What `checkCatalogUpdate` reports per catalog name. A catalog without an entry is
+        /// current, or pinned or local when its source says so.
+        var catalogChecks: [String: CatalogCheckBehavior] = [:]
+        /// How many times `checkCatalogUpdate` ran, per catalog name.
+        var checkCounts: [String: Int] = [:]
+        /// The revisions of every `reviewCatalogUpdates` call, in order.
+        var reviewedRevisions: [[ReviewedRevision]] = []
+        /// The revisions of every applied update review, in order.
+        var appliedRevisions: [[ReviewedRevision]] = []
+    }
+
+    enum CatalogCheckBehavior: Sendable, Hashable {
+        /// The remote has `latest` while the setup installs `installed`; updating adds `added`.
+        case outdated(installed: String, latest: String, added: [ItemRef])
+        case failure(EngineError)
     }
 
     private let state: Mutex<[String: Fixture]>
@@ -231,6 +246,8 @@ private struct FakeReviewBacking: Sendable {
     var base: ConfigState
     var text: String
     var fileName: String
+    /// The catalog revisions an update review installs. Empty for other reviews.
+    var revisions: [ReviewedRevision] = []
 }
 
 private struct FakeSetupSession: SetupSessionService {
@@ -413,11 +430,57 @@ private struct FakeSetupSession: SetupSessionService {
     }
 
     func checkCatalogUpdate(catalog: String, progress: ProgressHandler?) async throws -> CatalogUpdateCheck {
-        CatalogUpdateCheck(catalog: catalog, freshness: .current, commit: nil, latest: nil, changes: BundleDiff())
+        let fixture = fixture
+        engine.updateFixture(root: root) { $0.checkCounts[catalog, default: 0] += 1 }
+        await progress?(ProgressEvent(stage: .fetching, subject: catalog, current: 0, total: 0))
+        try await pause(fixture.delay)
+
+        guard case let .valid(_, _, _, summary) = fixture.config,
+            let entry = summary.catalogs.first(where: { $0.name == catalog })
+        else {
+            throw EngineError.config(
+                message: String(localized: "There is no catalog named \(catalog)."), detail: [], path: nil, line: nil)
+        }
+
+        switch entry.sourceKind {
+        case .local:
+            return CatalogUpdateCheck(catalog: catalog, freshness: .local, commit: nil, latest: nil, changes: BundleDiff())
+        case .git(_, _, commitRef: true):
+            return CatalogUpdateCheck(
+                catalog: catalog, freshness: .pinned, commit: entry.gitRef, latest: entry.gitRef, changes: BundleDiff())
+        case .git, nil:
+            break
+        }
+
+        switch fixture.catalogChecks[catalog] {
+        case let .failure(error):
+            throw error
+        case let .outdated(installed, latest, added):
+            return CatalogUpdateCheck(
+                catalog: catalog, freshness: .outdated, commit: installed, latest: latest,
+                changes: BundleDiff(added: added, removed: []))
+        case nil:
+            return CatalogUpdateCheck(catalog: catalog, freshness: .current, commit: nil, latest: nil, changes: BundleDiff())
+        }
     }
 
     func reviewCatalogUpdates(_ updates: [ReviewedRevision], progress: ProgressHandler?) async throws -> ReviewHandle {
-        try await review(draftText: nil, progress: progress)
+        engine.updateFixture(root: root) { $0.reviewedRevisions.append(updates) }
+        let review = try await review(draftText: nil, progress: progress)
+        guard let backing = review.backing as? FakeReviewBacking else {
+            return review
+        }
+
+        var summary = review.summary
+        for update in updates {
+            if case let .outdated(_, _, added) = fixture.catalogChecks[update.catalog] {
+                summary.diff.added += added
+            }
+        }
+        summary.lockChanged = true
+        var updated = backing
+        updated.revisions = updates
+        return ReviewHandle(summary: summary, backing: updated)
     }
 
     func apply(_ review: ReviewHandle, progress: ProgressHandler?) async throws -> ApplyOutcome {
@@ -454,6 +517,14 @@ private struct FakeSetupSession: SetupSessionService {
 
         if case let .afterSave(error) = fixture.applyFailure {
             return .notFullyInstalled(saved: true, error: error)
+        }
+        if !backing.revisions.isEmpty {
+            engine.updateFixture(root: root) { fixture in
+                fixture.appliedRevisions.append(backing.revisions)
+                for revision in backing.revisions {
+                    fixture.catalogChecks[revision.catalog] = nil
+                }
+            }
         }
         return .installed(summary: InstallSummary(writes: writes, removals: review.summary.removals))
     }
@@ -583,9 +654,9 @@ enum FakeConfigText {
                     summary.catalogs[summary.catalogs.count - 1].source = rest
                     summary.catalogs[summary.catalogs.count - 1].sourceKind = sourceKind(rest, gitRef: nil)
                 case "ref" where !summary.catalogs.isEmpty:
+                    let catalog = summary.catalogs[summary.catalogs.count - 1]
                     summary.catalogs[summary.catalogs.count - 1].gitRef = rest
-                    summary.catalogs[summary.catalogs.count - 1].sourceKind = sourceKind(
-                        summary.catalogs[summary.catalogs.count - 1].source, gitRef: rest)
+                    summary.catalogs[summary.catalogs.count - 1].sourceKind = sourceKind(catalog.source, gitRef: rest)
                 default:
                     throw fail()
                 }
