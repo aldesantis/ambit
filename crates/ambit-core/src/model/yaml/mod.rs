@@ -16,8 +16,6 @@
 //! Editing a document someone else wrote goes through `edit.rs` instead, which splices the original
 //! text so comments and formatting outside the edited nodes survive.
 
-// Reached only through `config_edit`, which the CLI binary does not call.
-#[allow(dead_code)]
 pub(crate) mod edit;
 mod emit;
 mod frontmatter;
