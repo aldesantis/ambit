@@ -1,10 +1,10 @@
-Usage: ambit init [options]
-
 scaffold ambit.yml, skills/, mcps/, hooks/
 
+Usage: ambit init [OPTIONS]
+
 Options:
-  --dry-run        print the plan without touching disk
-  --project <dir>  project directory
-  --json           machine-readable output
-  --offline        use only cached catalogs
-  --help           show usage
+      --dry-run        print the plan without touching disk
+      --project <dir>  project directory
+      --json           machine-readable output
+      --offline        use only cached catalogs
+  -h, --help           Print help

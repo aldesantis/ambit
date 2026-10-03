@@ -1,2 +1,5 @@
-error: option '--copy' cannot be used with option '--link'
-(run `ambit --help` for usage)
+error: unexpected argument '--bogus' found
+
+Usage: ambit install --copy --link
+
+For more information, try '--help'.

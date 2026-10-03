@@ -26,6 +26,8 @@ tempfile = "3.27.0"
 terminal_size = "0.4.4"
 semver = "1.0.28"
 url = "2.5.8"
+# No `color`: usage text goes through ambit's own output, uncolored, the same everywhere.
+clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions", "wrap_help"] }
 
 [dev-dependencies]
 assert_cmd = "2.2.2"

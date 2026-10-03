@@ -1,12 +1,12 @@
-Usage: ambit self-update [options] [version]
-
 replace this ambit binary with a released one
 
+Usage: ambit self-update [OPTIONS] [version]
+
 Arguments:
-  version    release to install, like `v0.3.1`; the latest release when omitted
+  [version]  release to install, like `v0.3.1`; the latest release when omitted
 
 Options:
-  --dry-run  print the plan without touching disk
-  --json     machine-readable output
-  --offline  use only cached catalogs
-  --help     show usage
+      --dry-run  print the plan without touching disk
+      --json     machine-readable output
+      --offline  use only cached catalogs
+  -h, --help     Print help

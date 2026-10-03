@@ -1,2 +1,4 @@
-error: option '--capability <kind>' argument missing
-(run `ambit --help` for usage)
+error: a value is required for '--capability <kind>' but none was supplied
+  [possible values: pack, skill, mcp, hook]
+
+For more information, try '--help'.

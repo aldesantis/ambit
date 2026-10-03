@@ -1,2 +1,5 @@
-error: too many arguments for 'install'. Expected 0 arguments but got 1: extra.
-(run `ambit --help` for usage)
+error: unexpected argument 'extra' found
+
+Usage: ambit install [OPTIONS]
+
+For more information, try '--help'.

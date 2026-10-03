@@ -1,10 +1,10 @@
-Usage: ambit status [options]
-
 compare what is installed against what resolve produces
 
+Usage: ambit status [OPTIONS]
+
 Options:
-  --check          exit 5 when drift is detected
-  --project <dir>  project directory
-  --json           machine-readable output
-  --offline        use only cached catalogs
-  --help           show usage
+      --check          exit 5 when drift is detected
+      --project <dir>  project directory
+      --json           machine-readable output
+      --offline        use only cached catalogs
+  -h, --help           Print help

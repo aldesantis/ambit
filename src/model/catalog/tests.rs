@@ -1345,7 +1345,11 @@ mod ambit_search_narrowed {
         let result = fixture.cli(&["search"]);
 
         assert_eq!(result.code, ExitCode::Config);
-        assert!(result.stderr.contains("missing required argument"));
+        assert!(
+            result
+                .stderr
+                .contains("the following required arguments were not provided")
+        );
     }
 }
 

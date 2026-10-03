@@ -543,7 +543,7 @@ fn replaces_a_copy_with_a_link_and_a_link_with_a_copy_when_the_mode_changes() {
 
 #[test]
 fn refuses_copy_and_link_together_rather_than_picking_one() {
-    // Declared as conflicting options, so the refusal is the parser's and arrives before the
+    // Declared as conflicting options, so the refusal is clap's and arrives before the
     // handler, which is why nothing is installed, either way round.
     let project = project();
 
@@ -552,9 +552,10 @@ fn refuses_copy_and_link_together_rather_than_picking_one() {
 
         assert_eq!(result.code, ExitCode::Config);
         assert!(
-            result
-                .stderr
-                .contains("option '--copy' cannot be used with option '--link'"),
+            result.stderr.contains(&format!(
+                "the argument '{}' cannot be used with '{}'",
+                flags[0], flags[1]
+            )),
             "{}",
             result.stderr
         );

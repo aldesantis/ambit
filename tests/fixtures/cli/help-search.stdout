@@ -1,15 +1,15 @@
-Usage: ambit search [options] <pattern>
-
 search the merged catalog
 
+Usage: ambit search [OPTIONS] <pattern>
+
 Arguments:
-  pattern              glob matched against item names; `*` matches every name
+  <pattern>  glob matched against item names; `*` matches every name
 
 Options:
-  --catalog <name>     limit to this catalog; repeatable
-  --capability <kind>  limit to this namespace; repeatable (choices: "pack",
-                       "skill", "mcp", "hook")
-  --project <dir>      project directory
-  --json               machine-readable output
-  --offline            use only cached catalogs
-  --help               show usage
+      --catalog <name>     limit to this catalog; repeatable
+      --capability <kind>  limit to this namespace; repeatable [possible values: pack, skill, mcp,
+                           hook]
+      --project <dir>      project directory
+      --json               machine-readable output
+      --offline            use only cached catalogs
+  -h, --help               Print help

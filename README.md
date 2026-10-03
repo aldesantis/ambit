@@ -613,8 +613,8 @@ when `AMBIT_NO_UPDATE_CHECK` is set to anything. It never delays or fails the co
 | `--json`          | Machine-readable output. Every command supports it.                                                    |
 | `--offline`       | Resolve from the local cache alone. Refused by `outdated`, `update`, and `self-update`.                |
 | `--dry-run`       | On mutating commands: report what would happen and touch nothing.                                      |
-| `--help`          | Usage for the program or for any command.                                                              |
-| `--version`       | Print the ambit version.                                                                               |
+| `-h`, `--help`    | Usage for the program or for any command. `ambit help <command>` prints the same.                      |
+| `-V`, `--version` | Print the ambit version.                                                                               |
 
 ### Exit codes
 

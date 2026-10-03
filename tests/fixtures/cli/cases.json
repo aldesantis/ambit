@@ -172,5 +172,19 @@
     "b",
     "--dry-run",
     "--offline"
+  ],
+  "version-short": [
+    "-V"
+  ],
+  "help-subcommand-install": [
+    "help",
+    "install"
+  ],
+  "install-short-help": [
+    "install",
+    "-h"
+  ],
+  "options-terminator": [
+    "--"
   ]
 }

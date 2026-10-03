@@ -1,2 +1,4 @@
-error: option '--format <format>' argument 'zip' is invalid. Allowed choices are claude-plugin.
-(run `ambit --help` for usage)
+error: invalid value 'zip' for '--format <format>'
+  [possible values: claude-plugin]
+
+For more information, try '--help'.

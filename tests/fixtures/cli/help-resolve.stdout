@@ -1,10 +1,10 @@
-Usage: ambit resolve [options]
-
 compute the bundle and print it
 
+Usage: ambit resolve [OPTIONS]
+
 Options:
-  --explain        annotate each item with why it was selected
-  --project <dir>  project directory
-  --json           machine-readable output
-  --offline        use only cached catalogs
-  --help           show usage
+      --explain        annotate each item with why it was selected
+      --project <dir>  project directory
+      --json           machine-readable output
+      --offline        use only cached catalogs
+  -h, --help           Print help
