@@ -11,6 +11,7 @@ use std::path::Path;
 use std::sync::LazyLock;
 
 use ambit_core::errors::{AmbitError, ExitCode};
+use ambit_core::model::git::credentials::{GitFailure, classify_git_failure};
 use ambit_core::util::fs::io_message;
 use regex::Regex;
 
@@ -281,64 +282,25 @@ fn position(message: &str) -> (Option<String>, Option<u32>) {
     (Some(inner.to_owned()), None)
 }
 
-/// Sorts a network failure by the text git and the cache layer produce.
+/// Sorts a network failure: a cache that cannot answer offline by the flag every such error
+/// names, everything else by what git said ([`classify_git_failure`]).
 fn classify_network(message: &str, detail: &[String]) -> NetworkKind {
     let text = std::iter::once(message)
         .chain(detail.iter().map(String::as_str))
         .collect::<Vec<_>>()
-        .join("\n")
-        .to_ascii_lowercase();
-    let has = |needles: &[&str]| needles.iter().any(|needle| text.contains(needle));
+        .join("\n");
 
-    // Every error raised for a cache that cannot answer offline names the flag.
-    if has(&["`--offline`"]) {
+    if text.contains("`--offline`") {
         return NetworkKind::NotCached;
     }
 
-    if has(&["saml", "sso"]) {
-        return NetworkKind::AccessDenied { sso: true };
+    match classify_git_failure(&text) {
+        GitFailure::AuthRequired => NetworkKind::AuthRequired,
+        GitFailure::AccessDenied { sso } => NetworkKind::AccessDenied { sso },
+        GitFailure::NotFound | GitFailure::RevisionNotFound => NetworkKind::NotFound,
+        GitFailure::Network => NetworkKind::Offline,
+        GitFailure::Other => NetworkKind::Other,
     }
-
-    if has(&[
-        "authentication failed",
-        "could not read username",
-        "could not read password",
-        "terminal prompts disabled",
-        "invalid username or password",
-    ]) {
-        return NetworkKind::AuthRequired;
-    }
-
-    if has(&[
-        "the requested url returned error: 403",
-        "permission denied",
-        "access denied",
-        "permission to ",
-    ]) {
-        return NetworkKind::AccessDenied { sso: false };
-    }
-
-    if has(&[
-        "repository not found",
-        "not found",
-        "does not appear to be a git repository",
-        "couldn't find remote ref",
-    ]) {
-        return NetworkKind::NotFound;
-    }
-
-    if has(&[
-        "could not resolve host",
-        "failed to connect",
-        "network is unreachable",
-        "timed out",
-        "connection refused",
-        "unable to access",
-    ]) {
-        return NetworkKind::Offline;
-    }
-
-    NetworkKind::Other
 }
 
 #[cfg(test)]
