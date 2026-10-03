@@ -4,7 +4,7 @@ struct SidebarView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        List(selection: Binding(get: { model.selection }, set: { model.select($0) })) {
+        List(selection: Binding(get: { model.selection }, set: { id in Task { await model.requestSelection(id) } })) {
             Section("Personal") {
                 Label("Personal setup", systemImage: "person.crop.circle")
                     .tag(SetupID.personal)

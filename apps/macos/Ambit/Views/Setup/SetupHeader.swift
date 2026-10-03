@@ -34,17 +34,39 @@ struct SetupHeader: View {
     }
 }
 
-/// Discard and Review for the setup's draft. The draft model provides the actions.
+/// Apply and Discard for the setup's draft.
 private struct PendingChangesActions: View {
     let setup: SetupModel
+    @State private var confirmingDiscard = false
 
     var body: some View {
         HStack {
-            Button("Discard Changes", role: .destructive) {}
-            Button("Review Changes…") {}
-                .buttonStyle(.borderedProminent)
+            if setup.isDraftOutdated {
+                Label("The file changed outside Ambit", systemImage: "exclamationmark.triangle")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+                    .help("Refresh and reload the file to continue. Your changes can't be applied until then.")
+            }
+            Button("Discard Changes", role: .destructive) {
+                confirmingDiscard = true
+            }
+            .accessibilityIdentifier("setup.discard")
+            Button("Apply Changes…") {
+                Task { await setup.startReview() }
+            }
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.return, modifiers: .command)
+            .accessibilityIdentifier("setup.apply")
         }
-        .disabled(true)
+        .disabled(setup.review != nil || setup.operations.isBusy)
+        .confirmationDialog("Discard your changes to \(setup.displayName)?", isPresented: $confirmingDiscard) {
+            Button("Discard Changes", role: .destructive) {
+                setup.discardChanges()
+            }
+            .accessibilityIdentifier("setup.confirmDiscard")
+        } message: {
+            Text("Nothing has been written yet. The setup stays as it is on disk.")
+        }
     }
 }
 
