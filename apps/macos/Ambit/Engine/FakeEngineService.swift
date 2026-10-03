@@ -23,6 +23,11 @@ final class FakeEngineService: EngineService {
         var config: ConfigState = .missing
         var catalogs: [CatalogLoadState] = []
         var items: [BrowseItem] = []
+        /// Computes `selected`, `routes`, rule matches and removal impact from the draft with
+        /// `FakeSelectionResolver`, instead of returning `items` as given.
+        var resolvesSelection = false
+        /// What `skillDocument` returns per skill. Others get a document with only a name.
+        var documents: [ItemRef: SkillDocument] = [:]
         /// Added to every review of this root; any blocker makes the review unappliable.
         var blockers: [Blocker] = []
         var applyFailure: Failure?
@@ -177,19 +182,77 @@ private struct FakeSetupSession: SetupSessionService {
     }
 
     func browse(draftText: String?) async throws -> BrowseResult {
-        BrowseResult(items: fixture.items, problems: [])
+        let fixture = fixture
+        guard fixture.resolvesSelection else {
+            return BrowseResult(items: fixture.items, problems: [])
+        }
+        return BrowseResult(items: resolver(fixture).browse(try entries(draftText)), problems: [])
     }
 
     func skillDocument(catalog: String, name: String) async throws -> SkillDocument {
-        SkillDocument(frontmatter: [FrontmatterField(key: "name", value: name)], body: "", path: "")
+        if let document = fixture.documents[ItemRef(kind: .skill, catalog: catalog, name: name)] {
+            return document
+        }
+        return SkillDocument(frontmatter: [FrontmatterField(key: "name", value: name)], body: "", path: "")
     }
 
-    func packContents(catalog: String, name: String) async throws -> [ItemRef] { [] }
+    func packContents(catalog: String, name: String) async throws -> [ItemRef] {
+        let fixture = fixture
+        guard fixture.resolvesSelection else {
+            return []
+        }
+        return resolver(fixture).packContents(ItemRef(kind: .pack, catalog: catalog, name: name))
+    }
 
-    func ruleMatches(draftText: String?, entry: SelectionEntry) async throws -> [ItemRef] { [] }
+    func ruleMatches(draftText: String?, entry: SelectionEntry) async throws -> [ItemRef] {
+        let fixture = fixture
+        guard fixture.resolvesSelection else {
+            return []
+        }
+        return resolver(fixture).matches(entry).map(\.item)
+    }
 
     func removalImpact(draftText: String?, item: ItemRef) async throws -> RemovalImpact {
-        RemovalImpact(item: item, sustaining: [], effects: [])
+        let fixture = fixture
+        guard fixture.resolvesSelection else {
+            return RemovalImpact(item: item, sustaining: [], effects: [])
+        }
+        return resolver(fixture).removalImpact(of: item, entries: try entries(draftText))
+    }
+
+    func previewRule(draftText: String?, catalog: String, kind: ItemKind, pattern: String) async throws -> [ItemRef] {
+        let fixture = fixture
+        if let state = fixture.catalogs.first(where: { $0.name == catalog }), case let .failed(error) = state.availability {
+            throw error
+        }
+        return try resolver(fixture).previewRule(catalog: catalog, kind: kind, pattern: pattern)
+    }
+
+    func unmatchedEntries(draftText: String?) async throws -> [UnmatchedEntry] {
+        let fixture = fixture
+        guard fixture.resolvesSelection else {
+            return []
+        }
+        return resolver(fixture).unmatchedEntries(try entries(draftText))
+    }
+
+    private func resolver(_ fixture: FakeEngineService.Fixture) -> FakeSelectionResolver {
+        let loaded: Set<String>? =
+            fixture.catalogs.isEmpty
+            ? nil
+            : Set(fixture.catalogs.filter { if case .available = $0.availability { true } else { false } }.map(\.name))
+        return FakeSelectionResolver(items: fixture.items, loadedCatalogs: loaded)
+    }
+
+    /// The `requires` entries of `draftText`, or of the saved config when it is `nil`.
+    private func entries(_ draftText: String?) throws -> [SelectionEntry] {
+        if let draftText {
+            return try FakeConfigText.parse(draftText, fileName: DraftModel.newFileName).requires
+        }
+        if case let .valid(_, _, _, summary) = fixture.config {
+            return summary.requires
+        }
+        return []
     }
 
     func review(draftText: String?, progress: ProgressHandler?) async throws -> ReviewHandle {

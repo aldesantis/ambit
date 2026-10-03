@@ -202,6 +202,14 @@ struct BrowseItem: Sendable, Hashable {
     var selected: Bool
     var routes: [Route]
     var detail: ItemDetail
+    /// Configured agent tools that cannot install the item. Only hooks have any.
+    var limitations: [ToolLimitation] = []
+}
+
+/// An agent tool that skips an item. `message` is the reason in a sentence.
+struct ToolLimitation: Sendable, Hashable {
+    var tool: String
+    var message: String
 }
 
 struct BrowseResult: Sendable, Hashable {
@@ -241,6 +249,14 @@ struct RemovalImpact: Sendable, Hashable {
     var item: ItemRef
     var sustaining: [SustainingEntry]
     var effects: [EntryRemovalEffect]
+    /// What removing every sustaining entry would uninstall: the item and whatever only they kept.
+    var removed: [ItemRef] = []
+}
+
+/// A `requires` entry that matches nothing, with the error resolution would report.
+struct UnmatchedEntry: Sendable, Hashable {
+    var entry: SelectionEntry
+    var error: EngineError
 }
 
 struct PlannedWrite: Sendable, Hashable {
