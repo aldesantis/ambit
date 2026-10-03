@@ -165,14 +165,6 @@ fn resolve(
     ScalarOwned::parse_from_cow_and_metadata(value, style, tag)
 }
 
-/// Whether `text`, written plain, would read back as something other than a string.
-pub(super) fn resolves_to_non_string(text: &str) -> bool {
-    !matches!(
-        resolve(text.into(), ScalarStyle::Plain, None),
-        Some(ScalarOwned::String(_))
-    )
-}
-
 /// What a collection being loaded still expects.
 enum Frame {
     Seq,
@@ -505,18 +497,5 @@ mod tests {
 
         assert_eq!(document.line_of(&root), 1);
         assert_eq!(document.line_of(document.pairs(&root)[0].1), 2);
-    }
-
-    #[test]
-    fn types_plain_scalars_by_the_core_schema() {
-        for text in [
-            "", "~", "null", "true", "FALSE", "1e5", "0x1F", "0o17", "007", ".5", "-.inf",
-        ] {
-            assert!(resolves_to_non_string(text), "{text:?}");
-        }
-
-        for text in ["yes", "1_000", "abc", "1234567a"] {
-            assert!(!resolves_to_non_string(text), "{text:?}");
-        }
     }
 }

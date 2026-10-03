@@ -345,19 +345,19 @@
     "input": {
       "key": "1_000"
     },
-    "output": "key: 1_000\n"
+    "output": "key: \"1_000\"\n"
   },
   {
     "input": {
       "1_000": "v"
     },
-    "output": "1_000: v\n"
+    "output": "\"1_000\": v\n"
   },
   {
     "input": [
       "1_000"
     ],
-    "output": "- 1_000\n"
+    "output": "- \"1_000\"\n"
   },
   {
     "input": {
@@ -417,19 +417,19 @@
     "input": {
       "key": "a\tb"
     },
-    "output": "key: a\tb\n"
+    "output": "key: \"a\\tb\"\n"
   },
   {
     "input": {
       "a\tb": "v"
     },
-    "output": "a\tb: v\n"
+    "output": "\"a\\tb\": v\n"
   },
   {
     "input": [
       "a\tb"
     ],
-    "output": "- a\tb\n"
+    "output": "- \"a\\tb\"\n"
   },
   {
     "input": {
@@ -705,19 +705,19 @@
     "input": {
       "key": "https://example.com/a?b=c#d"
     },
-    "output": "key: https://example.com/a?b=c#d\n"
+    "output": "key: \"https://example.com/a?b=c#d\"\n"
   },
   {
     "input": {
       "https://example.com/a?b=c#d": "v"
     },
-    "output": "https://example.com/a?b=c#d: v\n"
+    "output": "\"https://example.com/a?b=c#d\": v\n"
   },
   {
     "input": [
       "https://example.com/a?b=c#d"
     ],
-    "output": "- https://example.com/a?b=c#d\n"
+    "output": "- \"https://example.com/a?b=c#d\"\n"
   },
   {
     "input": {
@@ -729,7 +729,7 @@
     "input": {
       "a:b": "v"
     },
-    "output": "a:b: v\n"
+    "output": "\"a:b\": v\n"
   },
   {
     "input": [
@@ -747,7 +747,7 @@
     "input": {
       "a,b": "v"
     },
-    "output": "a,b: v\n"
+    "output": "\"a,b\": v\n"
   },
   {
     "input": [
@@ -795,7 +795,7 @@
     "input": {
       "key": "-"
     },
-    "output": "key: \"-\"\n"
+    "output": "key: '-'\n"
   },
   {
     "input": {
@@ -807,7 +807,7 @@
     "input": [
       "-"
     ],
-    "output": "- \"-\"\n"
+    "output": "- '-'\n"
   },
   {
     "input": {
@@ -831,7 +831,7 @@
     "input": {
       "key": "---"
     },
-    "output": "key: ---\n"
+    "output": "key: \"---\"\n"
   },
   {
     "input": {
@@ -843,13 +843,13 @@
     "input": [
       "---"
     ],
-    "output": "- ---\n"
+    "output": "- \"---\"\n"
   },
   {
     "input": {
       "key": "..."
     },
-    "output": "key: ...\n"
+    "output": "key: \"...\"\n"
   },
   {
     "input": {
@@ -861,7 +861,7 @@
     "input": [
       "..."
     ],
-    "output": "- ...\n"
+    "output": "- \"...\"\n"
   },
   {
     "input": {
@@ -1071,7 +1071,7 @@
     "input": {
       "1:2": "v"
     },
-    "output": "1:2: v\n"
+    "output": "\"1:2\": v\n"
   },
   {
     "input": [
@@ -1083,19 +1083,19 @@
     "input": {
       "key": "a b"
     },
-    "output": "key: a b\n"
+    "output": "key: \"a\\Lb\"\n"
   },
   {
     "input": {
       "a b": "v"
     },
-    "output": "a b: v\n"
+    "output": "\"a\\Lb\": v\n"
   },
   {
     "input": [
       "a b"
     ],
-    "output": "- a b\n"
+    "output": "- \"a\\Lb\"\n"
   },
   {
     "input": {
@@ -1119,37 +1119,37 @@
     "input": {
       "key": ""
     },
-    "output": "key: \"\"\n"
+    "output": "key: \"\\x7F\"\n"
   },
   {
     "input": {
       "": "v"
     },
-    "output": "\"\": v\n"
+    "output": "\"\\x7F\": v\n"
   },
   {
     "input": [
       ""
     ],
-    "output": "- \"\"\n"
+    "output": "- \"\\x7F\"\n"
   },
   {
     "input": {
       "key": ""
     },
-    "output": "key: \"\"\n"
+    "output": "key: \"\\N\"\n"
   },
   {
     "input": {
       "": "v"
     },
-    "output": "\"\": v\n"
+    "output": "\"\\N\": v\n"
   },
   {
     "input": [
       ""
     ],
-    "output": "- \"\"\n"
+    "output": "- \"\\N\"\n"
   },
   {
     "input": {
@@ -1200,7 +1200,7 @@
         0.1
       ]
     },
-    "output": "n:\n  - 0\n  - 12\n  - -3\n  - 1.5\n  - 1e+21\n  - 1e-7\n  - 123456789012\n  - 0.1\n"
+    "output": "n:\n  - 0\n  - 12\n  - -3\n  - 1.5\n  - 1.0e+21\n  - 1.0e-7\n  - 123456789012\n  - 0.1\n"
   },
   {
     "input": {

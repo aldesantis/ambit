@@ -7,6 +7,7 @@ use serde_json::json;
 use super::*;
 use crate::errors::ExitCode;
 use crate::util::json::JsonValue;
+use saphyr::ScalarOwned;
 
 /// Asserts `result` rejected the document as a config error (exit 2), and returns the error.
 #[track_caller]
@@ -200,9 +201,9 @@ mod loader {
         assert!(pattern.is_match(&error.format()), "{}", error.format());
     }
 
-    /// Where saphyr notices a problem later than yaml did, the line is moved back to yaml's.
+    /// Where saphyr notices a problem after the line that holds it, the line is moved back to it.
     #[test]
-    fn reports_a_syntax_error_on_the_line_yaml_reported() {
+    fn reports_a_syntax_error_on_the_line_that_holds_it() {
         for (text, line) in [
             ("version: 1\ncatalogs: [\n", 3),
             ("version: 1\ncatalogs: [", 2),
@@ -221,7 +222,7 @@ mod loader {
     }
 
     #[test]
-    fn reports_a_frontmatter_syntax_error_on_the_line_yaml_reported() {
+    fn reports_a_frontmatter_syntax_error_on_the_line_that_holds_it() {
         assert_contains(
             &rejection(parse_frontmatter_mapping("---\nname: [\n---\n", FILE)).format(),
             &format!("invalid YAML ({FILE} line 2)"),
@@ -703,23 +704,74 @@ mod emitter {
         assert_eq!(emit_yaml(&document), emit_yaml(&document));
     }
 
-    /// Emitted output must match the recorded corpus byte for byte, so locks stay stable.
+    /// Converts a parsed node back to the JSON value it holds.
+    fn to_json(document: &load::Document, node: &load::Node) -> JsonValue {
+        if document.is_map(node) {
+            return JsonValue::Object(
+                document
+                    .pairs(node)
+                    .into_iter()
+                    .map(|(key, value)| {
+                        let key = document.string(key).expect("a string key").to_owned();
+
+                        (key, to_json(document, value))
+                    })
+                    .collect(),
+            );
+        }
+
+        if let Some(items) = document.items(node) {
+            return items.iter().map(|item| to_json(document, item)).collect();
+        }
+
+        match document.scalar(node).expect("a scalar") {
+            ScalarOwned::Null => JsonValue::Null,
+            ScalarOwned::Boolean(b) => json!(b),
+            ScalarOwned::Integer(n) => json!(n),
+            ScalarOwned::FloatingPoint(n) => json!(n.0),
+            ScalarOwned::String(text) => json!(text),
+        }
+    }
+
+    /// Every value in the corpus must read back as itself, and emit as the recorded bytes so a
+    /// change in layout shows up as a diff of the corpus. `UPDATE_GOLDEN=1 cargo test` rewrites
+    /// the recorded bytes.
     #[test]
-    fn matches_the_recorded_corpus() {
-        let corpus: Vec<JsonValue> =
+    fn round_trips_and_matches_the_recorded_corpus() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/yaml_emit.json");
+        let mut corpus: Vec<JsonValue> =
             serde_json::from_str(include_str!("../../../tests/fixtures/yaml_emit.json")).unwrap();
         let mut failures = Vec::new();
 
-        for case in &corpus {
-            let expected = case["output"].as_str().unwrap();
+        for case in &mut corpus {
             let actual = emit_yaml(&case["input"]);
+            let mut document = load::parse(&actual, FILE, 0).unwrap();
+            let root = document.root.take().unwrap();
 
-            if actual != expected {
+            if to_json(&document, &root) != case["input"] {
                 failures.push(format!(
-                    "input {}: expected {expected:?}, got {actual:?}",
+                    "{actual:?} does not read back as {}",
                     case["input"]
                 ));
             }
+
+            if case["output"].as_str() != Some(&actual) {
+                failures.push(format!(
+                    "input {}: expected {:?}, got {actual:?}",
+                    case["input"], case["output"]
+                ));
+                case["output"] = json!(actual);
+            }
+        }
+
+        #[allow(clippy::disallowed_methods)]
+        if std::env::var("UPDATE_GOLDEN").as_deref() == Ok("1") {
+            let mut text = serde_json::to_string_pretty(&corpus).unwrap();
+
+            text.push('\n');
+            std::fs::write(path, text).unwrap();
+
+            return;
         }
 
         assert!(failures.is_empty(), "{}", failures.join("\n"));
