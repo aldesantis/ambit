@@ -1,10 +1,22 @@
-//! What every document driver shares: the formats, the section shapes, and the driver contract.
+//! The document-format seam.
+//!
+//! A harness config file is never ambit's document alone. `.mcp.json` may hold servers added by
+//! hand; `.codex/config.toml` holds a person's model, sandbox and approval settings;
+//! `opencode.jsonc` holds their comments. Every driver here answers the same three questions (what
+//! keys are in the managed section, what the file looks like with ambit's entries merged in, and
+//! what it looks like with them removed) and must leave everything it does not own exactly as it
+//! found it.
+//!
+//! Drivers take and return text rather than a parsed document. TOML and JSONC cannot round-trip
+//! through a parse without losing comments, so text is the only representation all three formats
+//! share, and the only one in which "unchanged" means what it says.
 
 use std::path::Path;
 
 use indexmap::IndexSet;
 
-use crate::errors::Result;
+use crate::errors::{Result, config_error};
+use crate::util::fs;
 use crate::util::json::JsonValue;
 use crate::util::string_enum;
 
@@ -136,11 +148,60 @@ pub fn is_record(value: &JsonValue) -> bool {
 /// Exit 2 when the file exists but cannot be read. "I could not look" is not the same answer as
 /// "nothing is there"; treating it as the latter risks destroying data.
 pub fn read_document_text(target: &Path, file: &str) -> Result<Option<String>> {
-    let _ = (target, file);
-    todo!("port model/documents/format.ts:readDocumentText")
+    fs::read_text_opt(target).map_err(|error| {
+        config_error(
+            format!("cannot read {file}"),
+            [
+                fs::io_message(&error, "open", target),
+                format!(
+                    "make {} readable, or move it aside so ambit can write a fresh one",
+                    target.display()
+                ),
+            ],
+        )
+    })
 }
 
 /// The dotted key state records for one managed entry.
 pub fn managed_key(section: &str, key: &str) -> String {
     format!("{section}.{key}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::errors::ExitCode;
+
+    #[test]
+    fn reads_an_absent_file_as_no_document() {
+        let dir = tempfile::tempdir().expect("a tempdir");
+
+        assert_eq!(
+            read_document_text(&dir.path().join("absent.json"), "absent.json"),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    fn reads_a_present_file() {
+        let dir = tempfile::tempdir().expect("a tempdir");
+        let target = dir.path().join("present.json");
+        fs::write_text(&target, "{}\n").expect("written");
+
+        assert_eq!(
+            read_document_text(&target, "present.json"),
+            Ok(Some("{}\n".to_owned()))
+        );
+    }
+
+    #[test]
+    fn refuses_a_file_it_cannot_read_rather_than_treating_it_as_absent() {
+        let dir = tempfile::tempdir().expect("a tempdir");
+
+        let error = read_document_text(dir.path(), "dir.json").expect_err("a refusal");
+
+        assert_eq!(error.code, ExitCode::Config);
+        assert_eq!(error.message, "cannot read dir.json");
+        assert_eq!(error.detail.len(), 2);
+    }
 }
