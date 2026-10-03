@@ -48,3 +48,13 @@ too_many_lines = "allow"
 # Option structs mirror CLI flags.
 struct_excessive_bools = "allow"
 similar_names = "allow"
+
+# The profile that dist builds release binaries with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+# `publish = false` keeps ambit off crates.io, which dist reads as "do not release" unless told
+# otherwise. Releases are built by dist; see dist-workspace.toml.
+[package.metadata.dist]
+dist = true

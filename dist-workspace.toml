@@ -1,0 +1,26 @@
+[workspace]
+members = ["cargo:."]
+
+# Config for 'dist'
+[dist]
+# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.33.0"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app
+installers = ["shell", "powershell"]
+# Target platforms to build apps for (Rust target-triple syntax)
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+# Archive names, formats and per-asset `.sha256` files are left at dist's defaults on purpose:
+# `ambit self-update` (src/self_update/platform.rs) downloads `ambit-<triple>.tar.xz` (`.zip` on
+# Windows) and verifies it against `<asset>.sha256`, so changing any of them breaks self-update.
+checksum = "sha256"
+# Where the installers put the binary. The pre-dist install.sh used the same directory.
+install-path = "~/.local/bin"
+# ambit replaces itself with `ambit self-update`, so dist's separate updater binary is not shipped.
+install-updater = false
+# A pull request only runs `dist plan`, which checks this config without building anything.
+pr-run-mode = "plan"
+# Runs .github/workflows/checks.yml (fmt, clippy, tests) on the tagged commit before any binary is
+# built. A tag can point at a commit CI never saw, and a published release cannot be taken back.
+plan-jobs = ["./checks"]
