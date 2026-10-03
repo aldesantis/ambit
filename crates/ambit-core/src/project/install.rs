@@ -33,29 +33,34 @@ use std::sync::LazyLock;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::json;
 
-use crate::errors::{Result, config_error};
+use crate::errors::{AmbitError, Result, config_error};
 use crate::harness::adapter::{
     AppliedArtifact, HarnessAdapter, InstallScope, PlannedArtifact, ProjectPaths, SkippedHook,
 };
 use crate::harness::definitions::PROFILES;
 use crate::harness::profile::{ProfileAdapter, adapter_for};
-use crate::model::catalog::{CatalogLoadOptions, load_catalogs, merge_catalogs};
+use crate::model::catalog::{Catalog, CatalogLoadOptions, load_catalogs, merge_catalogs};
 use crate::model::config::{ProjectConfig, load_project_config};
 use crate::model::documents::DocumentShape;
 use crate::model::git::RefreshMode;
+use crate::model::lock_file::LOCK_FILENAME;
 use crate::model::sources::SourceContext;
 use crate::model::state::{
     ArtifactMode, OwnedArtifact, STATE_VERSION, State, read_state, write_state,
 };
-use crate::project::gitignore::{GitignoreStatus, gitignore_status, write_gitignore_blocks};
+use crate::project::gitignore::{
+    GITIGNORE_FILENAME, GitignoreStatus, gitignore_status, write_gitignore_blocks,
+};
 use crate::project::lock::{
     assert_lock_current, build_lock, read_catalog_pins, read_lock_text, serialize_lock,
     write_lock_text,
 };
+use crate::project::operation_lock::SetupLock;
 use crate::project::ownership::{OwnershipOptions, authorize_plan};
 use crate::project::prune::{PrunedArtifact, plan_prune, prune_artifacts};
 use crate::resolution::resolve::{Bundle, resolve_bundle};
 use crate::util::cmp::js_cmp;
+use crate::util::control::{Control, Progress, Stage};
 use crate::util::env::Env;
 use crate::util::json::{self, JsonValue};
 use crate::util::path::normalize;
@@ -109,6 +114,12 @@ pub struct PlannedInstall {
     pub prior: State,
     /// The lock as the bytes an install would write, which is what `--frozen` compares.
     pub lock_text: String,
+    /// The commit each git catalog resolved to, by catalog name, in config order. A `path:`
+    /// catalog has no revision and is absent.
+    pub commits: IndexMap<String, String>,
+    /// Where and how the plan materializes, for a caller that plans part of the bundle again and
+    /// must name the same artifacts (`item_statuses`).
+    pub project: ProjectPaths,
 }
 
 /// What `install --dry-run` reports: everything the run would do, with the project untouched.
@@ -217,7 +228,7 @@ pub fn adapters_for(harnesses: &[String]) -> Result<Vec<&'static dyn HarnessAdap
 /// owns *keys* there, not the file: two harnesses writing different entries into one document both
 /// have to write. Identity there is the whole write: the section, the driver, the root keys it
 /// seeds, and the entries themselves.
-fn identity_of(artifact: &PlannedArtifact) -> String {
+pub(crate) fn identity_of(artifact: &PlannedArtifact) -> String {
     let PlannedArtifact::HarnessConfig(config) = artifact else {
         return artifact.path().to_owned();
     };
@@ -279,8 +290,9 @@ pub fn plan_for(
 /// What the command doing the planning contributes, as against what the CLI parsed into
 /// [`InstallOptions`].
 ///
-/// Separate from the options because neither field is a flag anyone types. They are how `install`,
-/// `install --dry-run`, `prune`, and `ambit update`'s trailing install say which of them is asking.
+/// Separate from the options because no field is a flag anyone types. They are how `install`,
+/// `install --dry-run`, `prune`, `ambit update`'s trailing install and the app's reviewed apply say
+/// which of them is asking.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PlanContext {
     /// How a catalog with no pin to reproduce may consult its remote. Absent means not at all.
@@ -293,6 +305,15 @@ pub struct PlanContext {
     /// to the commits it just reported, and the lock on disk still holds the commits it is
     /// replacing, so honouring those pins would make the install undo the update it is part of.
     pub released: Vec<String>,
+    /// Commits to resolve to instead of the lock's, by catalog name. A catalog named here
+    /// reproduces that commit and is never refreshed.
+    ///
+    /// The app's: a review records the commit every git catalog resolved to, and applying it
+    /// plans with exactly those, so a branch that moved after the review cannot change what is
+    /// installed. A reviewed catalog update passes the checked commit the same way.
+    pub pins: Option<IndexMap<String, String>>,
+    /// Progress and cancellation. Planning honours cancellation; it writes nothing.
+    pub control: Control,
 }
 
 /// Which catalogs resolve to a recorded commit, and which are allowed to ask their remote.
@@ -320,6 +341,8 @@ struct CatalogPlan {
 /// update` already moved the clone to the commit it reported, and asking again risks a different
 /// answer.
 ///
+/// A catalog in [`PlanContext::pins`] reproduces that commit, whatever the lock says.
+///
 /// `--offline` disables every refresh, but not pins: reproducing a recorded commit works offline
 /// (the commit is in the cache), resolving a ref does not.
 ///
@@ -339,10 +362,16 @@ fn catalog_plan(
 ) -> Result<CatalogPlan> {
     let released: IndexSet<&str> = plan.released.iter().map(String::as_str).collect();
     let recorded = read_catalog_pins(project_dir, config)?;
-    let pins: IndexMap<String, String> = recorded
+    let mut pins: IndexMap<String, String> = recorded
         .into_iter()
         .filter(|(name, _)| !released.contains(name.as_str()))
         .collect();
+
+    for entry in &config.catalogs {
+        if let Some(commit) = plan.pins.as_ref().and_then(|pins| pins.get(&entry.name)) {
+            pins.insert(entry.name.clone(), commit.clone());
+        }
+    }
 
     let Some(mode) = plan.refresh.filter(|_| !options.offline) else {
         return Ok(CatalogPlan {
@@ -391,7 +420,54 @@ pub fn plan_install(
     options: InstallOptions,
     plan: &PlanContext,
 ) -> Result<PlannedInstall> {
-    let config = load_project_config(project_dir)?;
+    plan_install_from_config(
+        project_dir,
+        &load_project_config(project_dir)?,
+        env,
+        options,
+        plan,
+    )
+}
+
+/// [`plan_install`] for a config that need not be the one on disk: the app's unsaved draft.
+///
+/// Reads the lock, state and catalogs exactly as [`plan_install`] does and writes nothing to the
+/// project, so a draft can be planned, shown and discarded with the project untouched. The lock's
+/// pins still apply to every catalog whose `source` and `ref` the draft left alone.
+///
+/// # Errors
+///
+/// As [`plan_install`], minus the config file's own errors, plus exit 130 once `plan.control` is
+/// canceled.
+pub fn plan_install_from_config(
+    project_dir: &Path,
+    config: &ProjectConfig,
+    env: &Env,
+    options: InstallOptions,
+    plan: &PlanContext,
+) -> Result<PlannedInstall> {
+    let catalogs = load_plan_catalogs(project_dir, config, env, options, plan)?;
+
+    report(&plan.control, Stage::Resolving, "");
+
+    let bundle = resolve_bundle(config, &merge_catalogs(&catalogs))?;
+
+    plan_bundle(project_dir, config, env, options, plan, &catalogs, bundle)
+}
+
+/// Reports a step whose amount of work is not known in advance.
+fn report(control: &Control, stage: Stage, subject: &str) {
+    control.report(&Progress {
+        stage,
+        subject: subject.to_owned(),
+        current: 0,
+        total: 0,
+    });
+}
+
+/// The harnesses `config` names, deduplicated and sorted, so the plan does not depend on how
+/// `ambit.yml` spells or orders them.
+fn sorted_harnesses(config: &ProjectConfig) -> Vec<String> {
     let mut harnesses: Vec<String> = config
         .harnesses
         .iter()
@@ -401,8 +477,29 @@ pub fn plan_install(
         .collect();
 
     harnesses.sort_by(|a, b| js_cmp(a, b));
+    harnesses
+}
 
-    let adapters = adapters_for(&harnesses)?;
+/// The catalog-loading half of [`plan_install_from_config`]: every catalog `config` declares,
+/// resolved to the commit the pins and refresh plan say.
+///
+/// Split out so the app's review can look at the merged catalogs (every unmatched entry, not only
+/// the first) before resolution refuses them.
+///
+/// # Errors
+///
+/// As [`plan_install_from_config`], minus resolution.
+pub(crate) fn load_plan_catalogs(
+    project_dir: &Path,
+    config: &ProjectConfig,
+    env: &Env,
+    options: InstallOptions,
+    plan: &PlanContext,
+) -> Result<Vec<Catalog>> {
+    plan.control.check()?;
+
+    // Checked before any fetch, so a misspelled harness fails without touching the network.
+    adapters_for(&sorted_harnesses(config))?;
 
     // The environment arrives once, here: for source resolution (where the cache lives, what a
     // `git:` source authenticates with) and for `HOME`, which says whether this root is the user's
@@ -411,12 +508,15 @@ pub fn plan_install(
         project_dir: project_dir.to_path_buf(),
         env: env.clone(),
         offline: options.offline,
-        ..SourceContext::default()
+        control: plan.control.clone(),
     };
 
-    let CatalogPlan { pins, refresh } = catalog_plan(project_dir, &config, options, plan)?;
-    let loaded = load_catalogs(
-        &config,
+    let CatalogPlan { pins, refresh } = catalog_plan(project_dir, config, options, plan)?;
+
+    report(&plan.control, Stage::LoadingCatalogs, "");
+
+    let catalogs = load_catalogs(
+        config,
         &context,
         &mut CatalogLoadOptions {
             collect: None,
@@ -424,11 +524,36 @@ pub fn plan_install(
             pins: Some(pins),
         },
     )?;
-    let bundle = resolve_bundle(&config, &merge_catalogs(&loaded))?;
+
+    plan.control.check()?;
+    Ok(catalogs)
+}
+
+/// The planning half of [`plan_install_from_config`], from a bundle already resolved out of
+/// `catalogs`.
+///
+/// # Errors
+///
+/// Exit 2 for an unknown harness, an unreadable state file, or a bundle the lock cannot record;
+/// exit 130 once `plan.control` is canceled.
+pub(crate) fn plan_bundle(
+    project_dir: &Path,
+    config: &ProjectConfig,
+    env: &Env,
+    options: InstallOptions,
+    plan: &PlanContext,
+    catalogs: &[Catalog],
+    bundle: Bundle,
+) -> Result<PlannedInstall> {
+    plan.control.check()?;
+    report(&plan.control, Stage::Planning, "");
+
+    let harnesses = sorted_harnesses(config);
+    let adapters = adapters_for(&harnesses)?;
 
     // Serialized up front so `--frozen` compares the same bytes the run would go on to write,
     // rather than a second rendering that could differ.
-    let lock = build_lock(&loaded, &bundle)?;
+    let lock = build_lock(catalogs, &bundle)?;
     let project = ProjectPaths {
         root: project_dir.to_path_buf(),
         scope: Some(install_scope(project_dir, env)),
@@ -449,6 +574,10 @@ pub fn plan_install(
         .iter()
         .flat_map(|adapter| adapter.skips(&bundle))
         .collect();
+    let commits = catalogs
+        .iter()
+        .filter_map(|catalog| Some((catalog.name.clone(), catalog.commit.clone()?)))
+        .collect();
 
     Ok(PlannedInstall {
         harnesses,
@@ -457,6 +586,8 @@ pub fn plan_install(
         skipped,
         prior: read_state(project_dir)?,
         lock_text: serialize_lock(&lock),
+        commits,
+        project,
         bundle,
     })
 }
@@ -489,7 +620,7 @@ pub fn preview_install(
         options,
         &PlanContext {
             refresh: Some(RefreshMode::Probe),
-            released: Vec::new(),
+            ..PlanContext::default()
         },
     )?;
 
@@ -521,6 +652,132 @@ pub fn preview_install(
     })
 }
 
+/// Where an install stopped, once it had started writing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InstallFailure {
+    /// The step that failed.
+    pub stage: Stage,
+    /// What it was working on: a project-relative path, or empty for a step over the whole
+    /// project.
+    pub subject: String,
+    pub error: AmbitError,
+}
+
+/// State's project-relative path, for naming it in an [`InstallFailure`].
+const STATE_PATH: &str = ".ambit/state.json";
+
+/// Writes a plan that has already passed the ownership check: every artifact, then the prune,
+/// the lock, state and the gitignore blocks.
+///
+/// `owner` is the state `authorize_plan` returned, what `apply` may overwrite. Applies one
+/// artifact at a time so `control` can report each path. Cancellation is not consulted: stopping
+/// between writes would leave a half-written install that state does not describe.
+///
+/// No state is checkpointed between artifacts, so a failure leaves what was already written
+/// present but unowned. The next plan reports those paths as ownership conflicts; nothing adopts
+/// them.
+///
+/// # Errors
+///
+/// The step, the path, and the error of the first write that failed.
+pub fn execute_install(
+    project_dir: &Path,
+    planned: &PlannedInstall,
+    owner: &State,
+    control: &Control,
+) -> std::result::Result<InstallResult, InstallFailure> {
+    let fail = |stage: Stage, subject: &str| {
+        let subject = subject.to_owned();
+
+        move |error: AmbitError| InstallFailure {
+            stage,
+            subject,
+            error,
+        }
+    };
+    let total = u32::try_from(planned.artifacts.len()).unwrap_or(u32::MAX);
+    let mut current: u32 = 0;
+    let mut artifacts: Vec<AppliedArtifact> = Vec::new();
+
+    for adapter_plan in &planned.plans {
+        for artifact in &adapter_plan.plan {
+            current = current.saturating_add(1);
+            control.report(&Progress {
+                stage: Stage::WritingFiles,
+                subject: artifact.path().to_owned(),
+                current,
+                total,
+            });
+
+            let applied = adapter_plan
+                .adapter
+                .apply(std::slice::from_ref(artifact), owner)
+                .map_err(fail(Stage::WritingFiles, artifact.path()))?;
+
+            artifacts.extend(applied);
+        }
+    }
+
+    report(control, Stage::RemovingFiles, "");
+
+    // Against `prior`, not `owner`: what `--adopt` just took over is already in the plan, so the
+    // two agree here, and pruning is answerable from what the last install recorded.
+    let pruned = prune_artifacts(project_dir, &planned.artifacts, &planned.prior)
+        .map_err(fail(Stage::RemovingFiles, ""))?;
+
+    report(control, Stage::WritingRecords, "");
+    write_lock_text(project_dir, &planned.lock_text)
+        .map_err(fail(Stage::WritingRecords, LOCK_FILENAME))?;
+    write_state(
+        project_dir,
+        &State {
+            version: STATE_VERSION,
+            harnesses: planned.harnesses.clone(),
+            artifacts: artifacts.clone(),
+        },
+    )
+    .map_err(fail(Stage::WritingRecords, STATE_PATH))?;
+
+    // Last, deliberately after state: the blocks are rendered afresh every run, so a failure here
+    // costs nothing (the next install rewrites them), whereas failing before `write_state` would
+    // leave correctly installed artifacts unowned and the next plain install refusing them.
+    write_gitignore_blocks(project_dir, &artifacts)
+        .map_err(fail(Stage::WritingRecords, GITIGNORE_FILENAME))?;
+
+    Ok(InstallResult {
+        bundle: planned.bundle.clone(),
+        harnesses: planned.harnesses.clone(),
+        artifacts,
+        skipped: planned.skipped.clone(),
+        pruned,
+    })
+}
+
+/// Plans, then runs the checks an install makes before writing: `--frozen` and ownership.
+/// Returns the plan and the ownership `apply` may act with.
+fn checked_plan(
+    project_dir: &Path,
+    env: &Env,
+    options: InstallOptions,
+    plan: &PlanContext,
+) -> Result<(PlannedInstall, State)> {
+    let planned = plan_install(project_dir, env, options, plan)?;
+
+    if options.frozen {
+        assert_lock_current(project_dir, &planned.lock_text)?;
+    }
+
+    let owner = authorize_plan(
+        &planned.artifacts,
+        &planned.prior,
+        OwnershipOptions {
+            adopt: options.adopt,
+        },
+    )?;
+
+    Ok((planned, owner))
+}
+
 /// Resolves the project and materializes the bundle.
 ///
 /// `options` carries `--frozen`, `--offline`, `--adopt` and `--copy`/`--link`. `released` is the
@@ -540,60 +797,38 @@ pub fn install_project(
     options: InstallOptions,
     released: &[String],
 ) -> Result<InstallResult> {
-    let planned = plan_install(
+    let (resolved, _) = checked_plan(
         project_dir,
         env,
         options,
         &PlanContext {
             refresh: Some(RefreshMode::Advance),
             released: released.to_vec(),
+            ..PlanContext::default()
         },
     )?;
 
-    if options.frozen {
-        assert_lock_current(project_dir, &planned.lock_text)?;
-    }
-
-    let owner = authorize_plan(
-        &planned.artifacts,
-        &planned.prior,
-        OwnershipOptions {
-            adopt: options.adopt,
-        },
-    )?;
-
-    let mut artifacts: Vec<AppliedArtifact> = Vec::new();
-
-    for adapter_plan in &planned.plans {
-        artifacts.extend(adapter_plan.adapter.apply(&adapter_plan.plan, &owner)?);
-    }
-
-    // Against `prior`, not `owner`: what `--adopt` just took over is already in the plan, so the
-    // two agree here, and pruning is answerable from what the last install recorded.
-    let pruned = prune_artifacts(project_dir, &planned.artifacts, &planned.prior)?;
-
-    write_lock_text(project_dir, &planned.lock_text)?;
-    write_state(
+    // Locked only once the plan has passed every check, since taking the lock creates `.ambit/`
+    // and a refused install must leave the project untouched. Planned again under the lock, from
+    // the cache and pinned to the commits just resolved, so what is written is what the checks
+    // saw unless another operation changed the project in between, and then the checks run on
+    // what it left.
+    let _lock = SetupLock::acquire(project_dir)?;
+    let (planned, owner) = checked_plan(
         project_dir,
-        &State {
-            version: STATE_VERSION,
-            harnesses: planned.harnesses.clone(),
-            artifacts: artifacts.clone(),
+        env,
+        InstallOptions {
+            offline: true,
+            ..options
+        },
+        &PlanContext {
+            pins: Some(resolved.commits),
+            ..PlanContext::default()
         },
     )?;
 
-    // Last, deliberately after state: the blocks are rendered afresh every run, so a failure here
-    // costs nothing (the next install rewrites them), whereas failing before `write_state` would
-    // leave correctly installed artifacts unowned and the next plain install refusing them.
-    write_gitignore_blocks(project_dir, &artifacts)?;
-
-    Ok(InstallResult {
-        bundle: planned.bundle,
-        harnesses: planned.harnesses,
-        artifacts,
-        skipped: planned.skipped,
-        pruned,
-    })
+    execute_install(project_dir, &planned, &owner, &Control::default())
+        .map_err(|failure| failure.error)
 }
 
 #[cfg(all(test, feature = "cli"))]
