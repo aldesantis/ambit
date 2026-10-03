@@ -230,7 +230,11 @@ fn installs_every_skill_in_the_hand_written_fixture_catalog_ignoring_ambits_addi
     }
 
     let root = tempdir();
-    let project = root.path().join("project");
+    // Canonical, because dotagents compares the catalog's resolved path against the project's
+    // path as given, and Windows hands out the temp directory under its 8.3 short name.
+    let project = crate::util::fs::canonicalize(root.path())
+        .expect("resolve the tempdir")
+        .join("project");
     let catalog_dir = project.join(CATALOG_DIRNAME);
 
     write_dotagents_project(&project);

@@ -24,7 +24,7 @@ use crate::project::gitignore::{
 };
 use crate::project::lock::LOCK_FILENAME;
 use crate::util::fs;
-use crate::util::path::{join, relative};
+use crate::util::path::{join, relative, to_slash};
 
 /// A project with the default three-pack profile written.
 fn project() -> Project {
@@ -471,10 +471,10 @@ fn symlinks_a_path_catalogs_skill_relatively_at_the_directory_the_catalog_holds(
     assert_eq!(
         written.as_deref(),
         Some(
-            relative(
+            to_slash(Path::new(&relative(
                 target.parent().unwrap(),
                 &join(&project.catalog, CORE_SOURCE)
-            )
+            )))
             .as_str()
         )
     );
@@ -1175,10 +1175,10 @@ fn links_the_skill_to_the_projects_own_directory_not_to_a_copy_of_it() {
     // A `path:` catalog has no cache entry, so the link resolves back into the working tree.
     assert_eq!(
         project.link_at(&skill(OWN_SKILL)),
-        Some(relative(
+        Some(to_slash(Path::new(&relative(
             &project.path(SKILLS_DIR),
             &project.path(&format!("skills/{OWN_SKILL}"))
-        ))
+        ))))
     );
 }
 
