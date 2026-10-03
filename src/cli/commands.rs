@@ -82,6 +82,18 @@ pub type CommandHandlers = IndexMap<String, CommandHandler>;
 /// rule beyond what the declaration already states.
 pub type CommandRules = IndexMap<String, CommandRule>;
 
+/// Builds a [`CommandHandler`] from a plain function or closure.
+pub fn handler(
+    f: impl Fn(&mut CommandContext<'_>) -> Result<ExitCode> + 'static,
+) -> CommandHandler {
+    Box::new(f)
+}
+
+/// Builds a [`CommandRule`] from a plain function or closure.
+pub fn rule(f: impl Fn(&CommandContext<'_>) -> Result<()> + 'static) -> CommandRule {
+    Box::new(f)
+}
+
 /// One positional argument in commander syntax.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ArgSpec {
@@ -135,8 +147,225 @@ pub struct CommandSpec {
 /// Commands are flat. Project commands act on a project, and `self-update` acts on ambit itself.
 /// The global flags (`--project`, `--json`, `--offline`) and `--dry-run` are added by the parser
 /// from `reads_project` and `mutating`, after the command's own options, in that order.
+///
+/// Nothing writes into a catalog (a catalog is Markdown and YAML in a git repo, edited directly),
+/// and nothing reads a catalog directory instead of an `ambit.yml`, because a catalog repo lists
+/// itself.
 pub fn command_specs() -> Vec<CommandSpec> {
-    todo!("port cli/commands.ts:COMMAND_SPECS")
+    vec![
+        CommandSpec {
+            options: vec![
+                OptionSpec {
+                    choices: Some(&["claude-plugin"]),
+                    ..option("--format <format>", "package format")
+                },
+                option(
+                    "--output <dir>",
+                    "new output directory, relative to the project",
+                ),
+                option("--link", "link skills and hook assets to local catalogs"),
+                option("--force", "replace an existing export directory"),
+                option("--check", "exit 5 when exported files or links differ"),
+            ],
+            mutating: true,
+            ..command("export", "export selected packs as Claude plugins")
+        },
+        CommandSpec {
+            mutating: true,
+            ..command("init", "scaffold ambit.yml, skills/, mcps/, hooks/")
+        },
+        CommandSpec {
+            // Required; `*` is how everything is asked for. An optional pattern would make a
+            // missing argument silently mean "match everything," indistinguishable from a shell
+            // that swallowed it.
+            args: vec![ArgSpec {
+                spec: "<pattern>",
+                description: "glob matched against item names; `*` matches every name",
+            }],
+            options: vec![
+                list_option(
+                    "--catalog <name>",
+                    "limit to this catalog; repeatable",
+                    None,
+                ),
+                list_option(
+                    "--capability <kind>",
+                    "limit to this namespace; repeatable",
+                    Some(ITEM_KIND_NAMES),
+                ),
+            ],
+            ..command("search", "search the merged catalog")
+        },
+        CommandSpec {
+            options: vec![option(
+                "--explain",
+                "annotate each item with why it was selected",
+            )],
+            ..command("resolve", "compute the bundle and print it")
+        },
+        CommandSpec {
+            args: vec![ArgSpec {
+                spec: "<kind:name>",
+                description: "`skill:<name>`, `mcp:<name>`, or `hook:<name>`",
+            }],
+            ..command("why", "explain why one item is in the bundle")
+        },
+        CommandSpec {
+            options: vec![
+                option("--frozen", "fail if resolution would change ambit.lock"),
+                option("--adopt", "take ownership of existing unowned artifacts"),
+                // Mutually exclusive: one copies every skill, the other symlinks every skill. The
+                // parser enforces it, and the refusal travels out of `run` as exit 2.
+                OptionSpec {
+                    conflicts: &["link"],
+                    ..option("--copy", "copy local-source skills instead of symlinking")
+                },
+                option("--link", "symlink skills instead of copying"),
+            ],
+            mutating: true,
+            ..command("install", "resolve, write lock, materialize, prune")
+        },
+        CommandSpec {
+            options: vec![option("--check", "exit 5 when drift is detected")],
+            ..command(
+                "status",
+                "compare what is installed against what resolve produces",
+            )
+        },
+        // `outdated` and `update` are the only commands that reach a remote to check a ref the
+        // cache already answers. `install` deliberately resolves from the cache alone and never
+        // moves a pin.
+        command(
+            "outdated",
+            "check whether any catalog's ref now names a different commit",
+        ),
+        CommandSpec {
+            args: vec![ArgSpec {
+                spec: "[catalog...]",
+                description: "catalogs to update; every one of them when none is named",
+            }],
+            options: vec![
+                option("--adopt", "take ownership of existing unowned artifacts"),
+                OptionSpec {
+                    conflicts: &["link"],
+                    ..option("--copy", "copy local-source skills instead of symlinking")
+                },
+                option("--link", "symlink skills instead of copying"),
+            ],
+            mutating: true,
+            ..command("update", "move catalog pins forward, then install")
+        },
+        CommandSpec {
+            mutating: true,
+            ..command("prune", "remove owned artifacts not in the current bundle")
+        },
+        CommandSpec {
+            mutating: true,
+            ..command("clean", "remove everything ambit owns")
+        },
+        // Validates everything this project configures: every catalog it lists, its own items,
+        // its own `requires` entries. A catalog repo runs this too, since it lists itself as a
+        // catalog.
+        command(
+            "validate",
+            "validate everything this project configures, for CI",
+        ),
+        command("doctor", "check preconditions, drift, ownership"),
+        // The only command whose subject is ambit rather than a project. The version is a
+        // positional because `--version` is already how the program prints its own, and a command
+        // where the two spellings meant different things would be a trap.
+        CommandSpec {
+            args: vec![ArgSpec {
+                spec: "[version]",
+                description: "release to install, like `v0.3.1`; the latest release when omitted",
+            }],
+            mutating: true,
+            reads_project: false,
+            ..command(
+                "self-update",
+                "replace this ambit binary with a released one",
+            )
+        },
+    ]
+}
+
+/// The `--capability` choices: [`ItemKind`](crate::model::requirement::ItemKind)'s spellings, in
+/// declaration order.
+pub const ITEM_KIND_NAMES: &[&str] = &["pack", "skill", "mcp", "hook"];
+
+/// A command acting on a project, with no arguments or options of its own.
+fn command(name: &'static str, summary: &'static str) -> CommandSpec {
+    CommandSpec {
+        name,
+        summary,
+        args: Vec::new(),
+        options: Vec::new(),
+        mutating: false,
+        reads_project: true,
+        subcommands: None,
+    }
+}
+
+/// A plain option: no choices, given at most once (a repeat overwrites), no conflicts.
+pub const fn option(flags: &'static str, description: &'static str) -> OptionSpec {
+    OptionSpec {
+        flags,
+        description,
+        choices: None,
+        repeatable: false,
+        conflicts: &[],
+    }
+}
+
+/// A flag that may be given more than once, collecting into a list: `--catalog a --catalog b`.
+///
+/// `allowed`, when given, is checked on every value and listed in help as the choices.
+pub const fn list_option(
+    flags: &'static str,
+    description: &'static str,
+    allowed: Option<&'static [&'static str]>,
+) -> OptionSpec {
+    OptionSpec {
+        flags,
+        description,
+        choices: allowed,
+        repeatable: true,
+        conflicts: &[],
+    }
+}
+
+/// `--dry-run`, added only to commands that touch disk.
+pub(crate) const DRY_RUN: OptionSpec = option("--dry-run", "print the plan without touching disk");
+
+/// Flags every acting command accepts, after its own and `--dry-run`.
+///
+/// Attached to each command rather than to the program, because program-level options are only
+/// accepted before the command name; without this, `ambit install --json` would not parse.
+///
+/// There is no `--catalog <dir>` here: every project is a catalog now (it lists itself as
+/// `source: path:.`), so there is one subject and one directory flag. `ambit search` has its own
+/// `--catalog <name>` option, but that names one of several catalogs to search, not where to
+/// search from.
+///
+/// `--quiet` and `--no-color` are deliberately absent: ambit has no progress chatter to suppress
+/// and no color to disable, so both flags used to parse and do nothing. Re-add either only
+/// alongside the output it would control.
+///
+/// The same rule is why `--project` is conditional. `self-update`'s subject is the binary, not a
+/// project, so the flag would parse and do nothing there; [`CommandSpec::reads_project`] is how a
+/// command opts out. `--offline` stays on it, because a user who habitually passes the flag is
+/// better served by a refusal that explains itself than by `unknown option`.
+pub(crate) fn global_options(reads_project: bool) -> Vec<OptionSpec> {
+    let mut options = Vec::with_capacity(3);
+
+    if reads_project {
+        // Its default is the cwd, which help does not print.
+        options.push(option("--project <dir>", "project directory"));
+    }
+
+    options.push(option("--json", "machine-readable output"));
+    options.push(option("--offline", "use only cached catalogs"));
+    options
 }
 
 /// The project directory a command acts on: `--project` resolved against the cwd if given,
