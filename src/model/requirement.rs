@@ -3,7 +3,7 @@
 //! This module imports nothing that could reach back into `catalog.rs` or `pattern.rs`, which is
 //! why [`CATALOG_SEPARATOR`] lives here rather than beside `qualified_name`.
 
-use crate::errors::Result;
+use crate::errors::{Result, config_error};
 use crate::model::reference::Reference;
 use crate::util::string_enum;
 
@@ -52,6 +52,52 @@ pub const ITEM_KINDS: &[ItemKind] = ItemKind::ALL;
 /// Exit 2 for a bare name, which includes a `<prefix>:<name>` whose prefix is no namespace, or for
 /// a namespace with no name after it.
 pub fn parse_item_subject(text: &str, summary: &str) -> Result<Reference<ItemKind>> {
-    let _ = (text, summary);
-    todo!("port model/requirement.ts:parseItemSubject")
+    let (kind_text, name) = match text.find(KIND_SEPARATOR) {
+        Some(separator) => (
+            &text[..separator],
+            &text[separator + KIND_SEPARATOR.len()..],
+        ),
+        None => ("", ""),
+    };
+
+    let Some(kind) = ItemKind::parse(kind_text) else {
+        return Err(config_error(
+            summary,
+            [
+                "a bare name does not say what kind of thing it names".to_owned(),
+                format!("write the subject as one of: {}", spellings(text)),
+            ],
+        ));
+    };
+
+    if name.is_empty() {
+        return Err(config_error(
+            summary,
+            [
+                format!("`{kind}{KIND_SEPARATOR}` names no item"),
+                format!(
+                    "write the subject as `<kind>{KIND_SEPARATOR}<name>`, one of: {}",
+                    ITEM_KINDS
+                        .iter()
+                        .map(|kind| kind.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            ],
+        ));
+    }
+
+    Ok(Reference {
+        kind,
+        name: name.to_owned(),
+    })
+}
+
+/// Every spelling of what was typed, as the refusal for a bare name offers them.
+fn spellings(text: &str) -> String {
+    ITEM_KINDS
+        .iter()
+        .map(|kind| format!("`{kind}{KIND_SEPARATOR}{text}`"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }

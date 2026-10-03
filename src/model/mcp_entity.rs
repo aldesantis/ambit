@@ -7,8 +7,9 @@
 use indexmap::IndexMap;
 
 use crate::errors::Result;
-use crate::model::expectation::Expectation;
+use crate::model::expectation::{Expectation, parse_expectations};
 use crate::model::yaml::YamlMapping;
+use crate::util::cmp::js_cmp;
 use crate::util::string_enum;
 
 /// A locally-spawned server.
@@ -74,10 +75,97 @@ pub struct McpEntity {
 
 /// Parses one MCP entity: a whole `mcps/*.yml` document.
 ///
+/// Its `transport` names exactly one kind. Every `${VAR}` reference is kept verbatim.
+///
 /// # Errors
 ///
 /// Exit 2 for any shape violation.
 pub fn parse_mcp_entity(mapping: &YamlMapping) -> Result<McpEntity> {
-    let _ = mapping;
-    todo!("port model/mcp-entity.ts:parseMcpEntity")
+    mapping.reject_unknown_keys(ENTITY_KEYS)?;
+
+    Ok(McpEntity {
+        name: mapping.require_string("name")?,
+        transport: parse_transport(mapping)?,
+        expects: parse_expectations(mapping)?,
+    })
+}
+
+const ENTITY_KEYS: &[&str] = &["expects", "name", "transport"];
+
+/// The supported kinds, as a refusal lists them.
+fn kind_list() -> String {
+    MCP_TRANSPORT_KINDS
+        .iter()
+        .map(|kind| kind.as_str())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn parse_transport(mapping: &YamlMapping) -> Result<McpTransport> {
+    let transport = mapping.require_mapping("transport")?;
+    let kinds = transport.keys();
+
+    // `transport` is the discriminator, so it must never be ambiguous.
+    let [kind] = kinds.as_slice() else {
+        let message = if kinds.is_empty() {
+            "`transport` names no transport kind".to_owned()
+        } else {
+            let mut sorted = kinds.clone();
+
+            sorted.sort_by(|a, b| js_cmp(a, b));
+            format!(
+                "`transport` names {} transport kinds: {}",
+                kinds.len(),
+                sorted.join(", ")
+            )
+        };
+
+        return Err(mapping.key_error(
+            "transport",
+            &message,
+            vec![
+                format!("supported kinds: {}", kind_list()),
+                "give `transport` exactly one kind key".to_owned(),
+            ],
+        ));
+    };
+
+    match McpTransportKind::parse(kind) {
+        Some(McpTransportKind::Stdio) => {
+            let stdio = transport.require_mapping("stdio")?;
+
+            stdio.reject_unknown_keys(&["args", "command", "env"])?;
+
+            Ok(McpTransport::Stdio(StdioTransport {
+                command: stdio.require_string("command")?,
+                args: stdio.optional_string_list("args")?.unwrap_or_default(),
+                env: match stdio.optional_mapping("env")? {
+                    Some(env) => env.string_entries()?,
+                    None => IndexMap::new(),
+                },
+            }))
+        }
+        Some(McpTransportKind::Http) => {
+            let http = transport.require_mapping("http")?;
+
+            http.reject_unknown_keys(&["bearer_token_env_var", "headers", "url"])?;
+
+            Ok(McpTransport::Http(HttpTransport {
+                url: http.require_string("url")?,
+                bearer_token_env_var: http.optional_string("bearer_token_env_var")?,
+                headers: match http.optional_mapping("headers")? {
+                    Some(headers) => headers.string_entries()?,
+                    None => IndexMap::new(),
+                },
+            }))
+        }
+        None => Err(transport.key_error(
+            kind,
+            &format!("unknown transport kind \"{kind}\""),
+            vec![
+                format!("supported kinds: {}", kind_list()),
+                format!("replace `{kind}` with one of them"),
+            ],
+        )),
+    }
 }
