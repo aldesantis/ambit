@@ -16,6 +16,7 @@
 uniffi::setup_scaffolding!("ambit_ffi");
 
 pub mod control;
+pub mod edit;
 pub mod engine;
 pub mod errors;
 pub mod git;
