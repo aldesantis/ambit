@@ -577,7 +577,7 @@ mod catalog_parsing_failures {
     }
 
     #[test]
-    fn rejects_frontmatter_that_is_not_yaml() {
+    fn rejects_a_language_tagged_block_as_no_frontmatter() {
         let fixture = Fixture::new();
 
         fixture.write_catalog_file(CODE_REVIEW, "---json\n{\"name\": \"x\"}\n---\n");
@@ -586,7 +586,7 @@ mod catalog_parsing_failures {
             fixture
                 .rejection()
                 .message
-                .contains("declares its frontmatter as \"json\"")
+                .contains(&format!("{CODE_REVIEW} has no frontmatter block"))
         );
     }
 

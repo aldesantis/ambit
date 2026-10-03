@@ -529,6 +529,13 @@ mod frontmatter {
     }
 
     #[test]
+    fn parses_an_indented_block() {
+        let root = frontmatter("---\n  name: a\n  description: b\n---\n").unwrap();
+
+        assert_eq!(root.keys(), ["name", "description"]);
+    }
+
+    #[test]
     fn reports_lines_of_the_document_not_of_the_block() {
         // The reader is told a line number to go to, so it has to be the document's own.
         let text = "---\nname: alpha\nref: 1e5\n---\nbody\n";
@@ -583,14 +590,23 @@ mod frontmatter {
     }
 
     #[test]
-    fn rejects_a_language_tag_naming_anything_but_yaml() {
+    fn treats_a_language_tag_as_no_block() {
+        for text in [
+            "---json\n{\"name\": \"a\"}\n---\n",
+            "---yaml\nname: a\n---\n",
+        ] {
+            assert_eq!(
+                rejection(frontmatter(text)).message,
+                format!("{DOC} has no frontmatter block")
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_an_unclosed_block() {
         assert_eq!(
-            rejection(frontmatter("---json\n{\"name\": \"a\"}\n---\n")).message,
-            format!("{DOC} declares its frontmatter as \"json\"")
-        );
-        assert_eq!(
-            rejection(frontmatter("---toml\nname = \"a\"\n---\n")).message,
-            format!("cannot read the frontmatter of {DOC}")
+            rejection(frontmatter("---\nname: a\n")).message,
+            format!("{DOC} has an unclosed frontmatter block")
         );
     }
 

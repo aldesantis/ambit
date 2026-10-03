@@ -37,7 +37,6 @@ use crate::util::json::format_f64;
 use crate::util::text::js_trim;
 
 pub use emit::emit_yaml;
-pub use frontmatter::split_frontmatter;
 
 use load::{Document, Node, is_integer};
 
@@ -577,18 +576,17 @@ fn quote_hint(label: &str, written: &str) -> String {
 /// a plain value, so callers can read node positions off it.
 ///
 /// `line_offset` is the number of lines of the containing file above `text`, for a frontmatter
-/// block.
-fn parse_checked(text: &str, file: &str, line_offset: usize) -> Result<YamlMapping> {
+/// block. `empty` is the error for a document holding nothing but whitespace and comments.
+fn parse_checked(
+    text: &str,
+    file: &str,
+    line_offset: usize,
+    empty: impl FnOnce() -> AmbitError,
+) -> Result<YamlMapping> {
     let mut document = load::parse(text, file, line_offset)?;
 
     let Some(root) = document.root.take() else {
-        return Err(config_error(
-            format!("{file} is empty"),
-            [
-                "expected a YAML mapping",
-                "add the keys this format requires",
-            ],
-        ));
+        return Err(empty());
     };
 
     if !document.is_map(&root) {
@@ -620,7 +618,15 @@ fn parse_checked(text: &str, file: &str, line_offset: usize) -> Result<YamlMappi
 ///
 /// Exit 2, naming the offending file, identifier, and line.
 pub fn parse_yaml_mapping(text: &str, file: &str) -> Result<YamlMapping> {
-    parse_checked(text, file, 0)
+    parse_checked(text, file, 0, || {
+        config_error(
+            format!("{file} is empty"),
+            [
+                "expected a YAML mapping",
+                "add the keys this format requires",
+            ],
+        )
+    })
 }
 
 /// Parses the frontmatter block of a Markdown document (`SKILL.md`'s, in practice) under the same
@@ -633,14 +639,11 @@ pub fn parse_yaml_mapping(text: &str, file: &str) -> Result<YamlMapping> {
 ///
 /// Exit 2 if there is no frontmatter, or it violates a rule.
 pub fn parse_frontmatter_mapping(text: &str, file: &str) -> Result<YamlMapping> {
-    let split = split_frontmatter(text, file)?;
+    let found = frontmatter::frontmatter(text, file)?;
 
-    parse_checked(&split.block, file, line_count(&split.open))
-}
-
-/// How many lines `text` occupies above whatever follows it.
-fn line_count(text: &str) -> usize {
-    text.matches('\n').count()
+    parse_checked(&found.block, file, found.line_offset, || {
+        frontmatter::empty(file)
+    })
 }
 
 fn read_source(path: &Path, file: &str) -> Result<String> {

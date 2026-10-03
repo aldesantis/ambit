@@ -23,6 +23,7 @@ version = "0.6.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "gray_matter",
  "indexmap",
  "jsonc-parser",
  "lzma-rust2",
@@ -341,6 +342,16 @@ dependencies = [
  "cfg-if",
  "libc",
  "r-efi",
+]
+
+[[package]]
+name = "gray_matter"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3563a3eb8bacf11a0a6d93de7885f2cca224dddff0114e4eb8053ca0f1918acd"
+dependencies = [
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
