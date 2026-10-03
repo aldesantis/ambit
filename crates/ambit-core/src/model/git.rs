@@ -31,7 +31,6 @@
 pub mod credentials;
 
 use std::fmt::Write as _;
-use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -45,7 +44,7 @@ use crate::errors::{AmbitError, Result, config_error, network_error};
 use crate::model::git::credentials::{deciding_line, redact};
 use crate::util::control::{Control, Progress, Stage, canceled};
 use crate::util::env::Env;
-use crate::util::fs::{EntryKind, mkdir_p, rename, rm_rf, try_lock_file, write_text};
+use crate::util::fs::{EntryKind, FileLock, mkdir_p, rename, rm_rf, try_lock_file, write_text};
 use crate::util::path::join;
 use crate::util::string_enum;
 use crate::util::text::{is_js_whitespace, js_trim};
@@ -1239,7 +1238,7 @@ pub fn fetch_git_source(request: &GitFetchRequest) -> Result<FetchedGitSource> {
 /// # Errors
 ///
 /// [`canceled`] if the caller cancels while waiting; exit 1 if the lock file cannot be opened.
-fn lock_cache(cache: &Path, control: &Control) -> Result<File> {
+fn lock_cache(cache: &Path, control: &Control) -> Result<FileLock> {
     mkdir_p(cache)?;
 
     let path = join(cache, CACHE_LOCK_FILENAME);
