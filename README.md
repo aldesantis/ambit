@@ -61,7 +61,7 @@ has a `.sha256` file beside it.
 With a Rust toolchain you can build it from source instead:
 
 ```
-cargo install --locked --git https://github.com/aldesantis/ambit
+cargo install --locked --git https://github.com/aldesantis/ambit ambit
 ```
 
 If you have ambit 0.4 or older, `ambit self-update` cannot find newer releases. Run the install
@@ -638,13 +638,13 @@ cargo fmt                # `cargo fmt --check` is the CI variant
 cargo build --release
 ```
 
-`cargo run -- <args>` is the CLI.
+`cargo run -p ambit -- <args>` is the CLI.
 
-`tests/golden/` holds recorded program output. Regenerate it with `UPDATE_GOLDEN=1 cargo test` and
+`crates/ambit/tests/golden/` holds recorded program output. Regenerate it with `UPDATE_GOLDEN=1 cargo test` and
 read the diff.
 
 Releases are built by [cargo-dist](https://github.com/axodotdev/cargo-dist) from
-`dist-workspace.toml`. To cut one, set `version` in `Cargo.toml`, commit it, and push a matching
+`dist-workspace.toml`. To cut one, set `version` under `[workspace.package]` in `Cargo.toml`, commit it, and push a matching
 tag: `git tag v0.5.1 && git push --tags`. The release workflow runs the CI checks first and refuses
 a tag that does not match the version.
 

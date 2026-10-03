@@ -1,0 +1,32 @@
+[package]
+name = "ambit-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+description = "UniFFI bindings to the ambit engine for the macOS app."
+
+[lib]
+name = "ambit_ffi"
+crate-type = ["lib", "staticlib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[features]
+# Builds the `uniffi-bindgen` binary that generates the Swift bindings from the compiled library.
+bindgen = ["uniffi/cli"]
+
+[dependencies]
+ambit-core.workspace = true
+uniffi.workspace = true
+
+[lints]
+workspace = true
+
+[package.metadata.dist]
+dist = false
