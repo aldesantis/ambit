@@ -264,7 +264,7 @@ pub(super) fn parse(text: &str, file: &str, line_offset: usize) -> Result<Docume
 
 /// Rewrites a parser error into ambit's message shape, keeping the position.
 fn syntax_error(builder: &Builder, error: &ScanError) -> AmbitError {
-    let line = error.marker().line();
+    let line = error_line(&builder.text, error);
     let where_ = at(&builder.file, Some(line + builder.line_offset));
 
     if is_tab_as_indent(&builder.text, error) {
@@ -281,6 +281,40 @@ fn syntax_error(builder: &Builder, error: &ScanError) -> AmbitError {
         format!("invalid YAML {where_}"),
         [error.info(), "fix the syntax error"],
     )
+}
+
+/// The line an error is reported on, moved to where yaml reported it in the cases where saphyr
+/// notices the problem later than yaml did.
+///
+/// - A source that ends mid-construct (an unterminated quote, an unclosed flow collection) is
+///   reported on its last line, as yaml did, not past it: saphyr's marker can sit one line beyond
+///   a source with no final newline, and points at the opening quote of an unterminated scalar.
+/// - A plain line that is not a `key: value` pair (`tampered` appended to a file) is reported on
+///   that line. saphyr only notices when it reaches the next token, which is on a later line or
+///   past the end, so the line is the last non-blank one before its marker.
+fn error_line(text: &str, error: &ScanError) -> usize {
+    let last = text.matches('\n').count() + 1;
+    let info = error.info();
+
+    if info.contains("unexpected end of stream") {
+        return last;
+    }
+
+    let line = error.marker().line();
+
+    if info.starts_with("simple key expect") {
+        let lines: Vec<&str> = text.split('\n').collect();
+
+        if let Some(found) = (1..line.min(last + 1)).rev().find(|&candidate| {
+            lines
+                .get(candidate - 1)
+                .is_some_and(|l| !js_trim(l).is_empty())
+        }) {
+            return found;
+        }
+    }
+
+    line.min(last)
 }
 
 /// Whether a scan error is a tab used as indentation: saphyr says so in its message, and

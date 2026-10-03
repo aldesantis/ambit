@@ -200,6 +200,34 @@ mod loader {
         assert!(pattern.is_match(&error.format()), "{}", error.format());
     }
 
+    /// Where saphyr notices a problem later than yaml did, the line is moved back to yaml's.
+    #[test]
+    fn reports_a_syntax_error_on_the_line_yaml_reported() {
+        for (text, line) in [
+            ("version: 1\ncatalogs: [\n", 3),
+            ("version: 1\ncatalogs: [", 2),
+            ("version: 1\ntampered\n", 2),
+            ("version: 1\ntampered", 2),
+            ("version: 1\n\n\n\nfoo\n\n\n", 5),
+            ("version: 1\nfoo: bar\nbaz\nqux: 1\n", 3),
+            ("version: 1\nname: \"unterminated\n", 3),
+            ("version: 1\nharnesses:\n  - a\n tampered\n", 4),
+        ] {
+            assert_contains(
+                &rejection(parse_yaml_mapping(text, FILE)).format(),
+                &format!("invalid YAML ({FILE} line {line})"),
+            );
+        }
+    }
+
+    #[test]
+    fn reports_a_frontmatter_syntax_error_on_the_line_yaml_reported() {
+        assert_contains(
+            &rejection(parse_frontmatter_mapping("---\nname: [\n---\n", FILE)).format(),
+            &format!("invalid YAML ({FILE} line 2)"),
+        );
+    }
+
     #[test]
     fn rejects_more_than_one_document() {
         assert_contains(
