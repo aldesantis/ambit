@@ -145,6 +145,15 @@ pub fn matches_pattern(pattern: &str, text: &str) -> bool {
     rest.ends_with(last)
 }
 
+/// Whether a pattern is an exact name: one holding no wildcard.
+///
+/// An entry with a literal pattern selects at most one item per catalog; anything else is a rule
+/// whose matches can change whenever the catalog does.
+#[allow(dead_code)] // Reached by the desktop app's FFI layer, not by the CLI binary.
+pub fn is_literal(pattern: &str) -> bool {
+    !pattern.contains(WILDCARD)
+}
+
 /// What separates a kind from the address it applies to, where only a string will do.
 const KIND_SEPARATOR: &str = ":";
 
@@ -333,15 +342,15 @@ fn bad_kind(entry: &YamlMapping, declared: &[ItemKind]) -> AmbitError {
     }
 }
 
-/// The error for an address the demanded [`Addressing`] refuses.
-fn bad_address(
-    entry: &YamlMapping,
-    kind: ItemKind,
-    address: &str,
-    addressing: Addressing,
-    problem: &str,
+/// Why an address is refused under the demanded [`Addressing`]: what is wrong with it, and how to
+/// write it instead.
+struct AddressProblem {
+    problem: String,
     fix: String,
-) -> AmbitError {
+}
+
+/// The detail lines of a refused address: why the spelling is demanded, then the fix.
+fn address_detail(addressing: Addressing, fix: String) -> Vec<String> {
     let mut detail = match addressing {
         Addressing::Qualified => vec![format!(
             "a project selects from a catalog it listed in `catalogs:`, so an address is `<catalog>{CATALOG_SEPARATOR}<pattern>`"
@@ -353,12 +362,12 @@ fn bad_address(
     };
 
     detail.push(fix);
+    detail
+}
 
-    entry.key_error(
-        kind.as_str(),
-        &format!("`{REQUIRES_KEY}` entry \"{address}\" {problem}"),
-        detail,
-    )
+/// The summary line of a refused address, without a position.
+fn address_summary(address: &str, problem: &str) -> String {
+    format!("`{REQUIRES_KEY}` entry \"{address}\" {problem}")
 }
 
 /// The catalog and the pattern an address holds, under the spelling the document demands.
@@ -367,35 +376,33 @@ fn bad_address(
 /// downstream re-derives the halves. A `/` is refused inside the pattern half in both spellings: an
 /// item's name is a dotted path and holds none, so a second separator is a stray qualifier however
 /// it got there.
-fn split_address(
-    entry: &YamlMapping,
+///
+/// Positionless, so an address that never sat in a document ([`parse_address`]) is judged by the
+/// same rules as one that did ([`split_address`]).
+fn address_parts(
     kind: ItemKind,
     address: &str,
     addressing: Addressing,
-) -> Result<(Option<String>, String)> {
+) -> std::result::Result<(Option<String>, String), AddressProblem> {
     let parts: Vec<&str> = address.split(CATALOG_SEPARATOR).collect();
+    let refuse = |problem: &str, fix: String| AddressProblem {
+        problem: problem.to_owned(),
+        fix,
+    };
 
     if addressing == Addressing::Unqualified {
         if parts.len() == 1 {
             return Ok((None, address.to_owned()));
         }
 
-        return Err(bad_address(
-            entry,
-            kind,
-            address,
-            addressing,
+        return Err(refuse(
             "names a catalog, which a catalog's own `requires` may not",
             example(kind, address, addressing),
         ));
     }
 
     if parts.len() == 1 {
-        return Err(bad_address(
-            entry,
-            kind,
-            address,
-            addressing,
+        return Err(refuse(
             "names no catalog",
             format!(
                 "qualify it: `<catalog>{CATALOG_SEPARATOR}{address}`, using an alias from `catalogs:`"
@@ -404,11 +411,7 @@ fn split_address(
     }
 
     if parts.len() > 2 {
-        return Err(bad_address(
-            entry,
-            kind,
-            address,
-            addressing,
+        return Err(refuse(
             &format!("holds {} `{CATALOG_SEPARATOR}` separators", parts.len() - 1),
             "an item's name holds none, so remove all but the first".to_owned(),
         ));
@@ -417,28 +420,64 @@ fn split_address(
     let (catalog, pattern) = (parts[0], parts[1]);
 
     if catalog.is_empty() {
-        return Err(bad_address(
-            entry,
-            kind,
-            address,
-            addressing,
+        return Err(refuse(
             "names an empty catalog",
             format!("write the alias before the `{CATALOG_SEPARATOR}`"),
         ));
     }
 
     if pattern.is_empty() {
-        return Err(bad_address(
-            entry,
-            kind,
-            address,
-            addressing,
+        return Err(refuse(
             "names an empty pattern",
             format!("write `{catalog}{CATALOG_SEPARATOR}{WILDCARD}` for the whole catalog"),
         ));
     }
 
     Ok((Some(catalog.to_owned()), pattern.to_owned()))
+}
+
+/// [`address_parts`] for an address read from a document, refused with the key and line.
+fn split_address(
+    entry: &YamlMapping,
+    kind: ItemKind,
+    address: &str,
+    addressing: Addressing,
+) -> Result<(Option<String>, String)> {
+    address_parts(kind, address, addressing).map_err(|refused| {
+        entry.key_error(
+            kind.as_str(),
+            &address_summary(address, &refused.problem),
+            address_detail(addressing, refused.fix),
+        )
+    })
+}
+
+/// Parses one entry that was never written in a document, such as a rule typed into a form.
+///
+/// The same grammar and the same refusals as [`parse_entries`], minus the position: there is no
+/// file or line to name.
+///
+/// # Errors
+///
+/// Exit 2 for an address the spelling refuses.
+#[allow(dead_code)] // Reached by the desktop app's FFI layer, not by the CLI binary.
+pub fn parse_address(
+    kind: ItemKind,
+    address: &str,
+    addressing: Addressing,
+) -> Result<PatternEntry> {
+    let (catalog, pattern) = address_parts(kind, address, addressing).map_err(|refused| {
+        config_error(
+            address_summary(address, &refused.problem),
+            address_detail(addressing, refused.fix),
+        )
+    })?;
+
+    Ok(PatternEntry {
+        kind,
+        pattern,
+        catalog,
+    })
 }
 
 /// Parses one `requires` entry: a one-key mapping naming a namespace and carrying a pattern.

@@ -594,3 +594,43 @@ fn lists_the_namespaces_in_report_order_with_packs_first() {
         ["pack", "skill", "mcp", "hook"]
     );
 }
+
+mod an_address_outside_a_document {
+    use super::*;
+
+    #[test]
+    fn parses_by_the_same_grammar() {
+        assert_eq!(
+            parse_address(ItemKind::Skill, "company/core.*", Addressing::Qualified).unwrap(),
+            entry(ItemKind::Skill, "core.*", Some("company"))
+        );
+    }
+
+    #[test]
+    fn is_refused_with_the_same_message_and_no_position() {
+        let cases = [
+            ("core.*", "names no catalog"),
+            ("company/core/a", "holds 2 `/` separators"),
+            ("/core", "names an empty catalog"),
+            ("company/", "names an empty pattern"),
+        ];
+
+        for (address, problem) in cases {
+            let error = parse_address(ItemKind::Hook, address, Addressing::Qualified)
+                .expect_err("expected the address to be refused");
+
+            assert_eq!(error.code, ExitCode::Config);
+            assert_eq!(
+                error.message,
+                format!("`requires` entry \"{address}\" {problem}")
+            );
+        }
+    }
+
+    #[test]
+    fn tells_a_literal_from_a_rule() {
+        assert!(is_literal("core.a"));
+        assert!(!is_literal("core.*"));
+        assert!(!is_literal("*"));
+    }
+}
