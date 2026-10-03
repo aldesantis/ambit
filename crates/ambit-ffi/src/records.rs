@@ -4,7 +4,7 @@
 //! Records used by more than one ffi module live here. A record only one module returns may live
 //! in that module.
 
-use ambit_core::model::config::ProjectConfig;
+use ambit_core::model::config::{CatalogRef, ProjectConfig};
 use ambit_core::model::git::is_commit_sha;
 use ambit_core::model::pattern::PatternEntry;
 use ambit_core::model::requirement;
@@ -151,16 +151,7 @@ impl From<&ProjectConfig> for ConfigSummary {
     fn from(config: &ProjectConfig) -> Self {
         Self {
             harnesses: config.harnesses.clone(),
-            catalogs: config
-                .catalogs
-                .iter()
-                .map(|catalog| CatalogEntry {
-                    name: catalog.name.clone(),
-                    source: catalog.source.clone(),
-                    git_ref: catalog.r#ref.clone(),
-                    source_kind: source_kind(&catalog.source, catalog.r#ref.as_deref()),
-                })
-                .collect(),
+            catalogs: config.catalogs.iter().map(CatalogEntry::from).collect(),
             requires: config.requires.iter().map(SelectionEntry::from).collect(),
         }
     }
@@ -175,6 +166,17 @@ pub struct CatalogEntry {
     pub git_ref: Option<String>,
     /// Absent when `source` matches none of the accepted formats.
     pub source_kind: Option<SourceKind>,
+}
+
+impl From<&CatalogRef> for CatalogEntry {
+    fn from(catalog: &CatalogRef) -> Self {
+        Self {
+            name: catalog.name.clone(),
+            source: catalog.source.clone(),
+            git_ref: catalog.r#ref.clone(),
+            source_kind: source_kind(&catalog.source, catalog.r#ref.as_deref()),
+        }
+    }
 }
 
 /// What a `source` string names.
