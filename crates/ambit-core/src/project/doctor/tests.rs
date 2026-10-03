@@ -336,6 +336,8 @@ fn finding(check: DoctorCheck, severity: DoctorSeverity) -> DoctorFinding {
         severity,
         message: s("m"),
         detail: Vec::new(),
+        subjects: Vec::new(),
+        harness: None,
     }
 }
 
