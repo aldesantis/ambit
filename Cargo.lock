@@ -56,6 +56,9 @@ name = "ambit-ffi"
 version = "0.5.0"
 dependencies = [
  "ambit-core",
+ "pretty_assertions",
+ "regex",
+ "tempfile",
  "uniffi",
 ]
 
