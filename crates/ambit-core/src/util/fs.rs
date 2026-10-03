@@ -160,14 +160,14 @@ pub fn rename(from: &Path, to: &Path) -> io::Result<()> {
 /// without waiting.
 ///
 /// `Ok(None)` means another open file holds the lock: another process, or another handle in this
-/// one. The lock lasts as long as the returned file and is released by the OS if the process
-/// dies. The file is never truncated or deleted here: deleting a lock file while another process
-/// waits on it would let two holders each lock a different inode.
+/// one. The lock lasts as long as the returned [`FileLock`] and is released by the OS if the
+/// process dies. The file is never truncated or deleted here: deleting a lock file while another
+/// process waits on it would let two holders each lock a different inode.
 ///
 /// # Errors
 ///
 /// Any I/O error opening or locking the file.
-pub fn try_lock_file(p: &Path) -> io::Result<Option<fs::File>> {
+pub fn try_lock_file(p: &Path) -> io::Result<Option<FileLock>> {
     let file = fs::OpenOptions::new()
         .read(true)
         .write(true)
@@ -176,9 +176,27 @@ pub fn try_lock_file(p: &Path) -> io::Result<Option<fs::File>> {
         .open(p)?;
 
     match file.try_lock() {
-        Ok(()) => Ok(Some(file)),
+        Ok(()) => Ok(Some(FileLock { file })),
         Err(fs::TryLockError::WouldBlock) => Ok(None),
         Err(fs::TryLockError::Error(error)) => Err(error),
+    }
+}
+
+/// An OS lock taken by [`try_lock_file`], released when dropped.
+///
+/// Released by an explicit unlock rather than by closing the file. A `flock` lock belongs to the
+/// open file description, which a child forked by any thread of this process shares until its
+/// `exec` closes the descriptor; closing ours alone would leave the lock held for that window.
+/// `std::process::Command` forks rather than spawns whenever the child's `PATH` is overridden,
+/// which is how every git child is started.
+#[derive(Debug)]
+pub struct FileLock {
+    file: fs::File,
+}
+
+impl Drop for FileLock {
+    fn drop(&mut self) {
+        let _ = self.file.unlock();
     }
 }
 
@@ -533,5 +551,19 @@ mod tests {
 
         assert!(try_lock_file(&file).unwrap().is_some());
         assert!(file.exists(), "the lock file is never deleted");
+    }
+
+    #[test]
+    fn dropping_a_lock_releases_it_while_a_duplicate_descriptor_stays_open() {
+        let dir = tempdir();
+        let file = dir.path().join("lock");
+        let lock = try_lock_file(&file).unwrap().expect("the first lock");
+        // What a child forked between our open and its exec holds: the same open file description.
+        let inherited = lock.file.try_clone().unwrap();
+
+        drop(lock);
+
+        assert!(try_lock_file(&file).unwrap().is_some());
+        drop(inherited);
     }
 }

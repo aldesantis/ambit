@@ -887,8 +887,10 @@ mod operation_lock {
 
         drop(held);
 
-        assert_eq!(f.cli(&["prune"]).code, ExitCode::Success);
-        assert_eq!(f.cli(&["clean"]).code, ExitCode::Success);
+        let pruned = f.cli(&["prune"]);
+        assert_eq!(pruned.code, ExitCode::Success, "{}", pruned.stderr);
+        let cleaned = f.cli(&["clean"]);
+        assert_eq!(cleaned.code, ExitCode::Success, "{}", cleaned.stderr);
         assert!(!f.path_exists(STATE_DIRNAME));
     }
 

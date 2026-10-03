@@ -7,12 +7,11 @@
 //! lock a new file at the same path while the first still holds the old one. A contended lock fails
 //! at once rather than waiting, since the other operation may be a long install.
 
-use std::fs::File;
 use std::path::{Path, PathBuf};
 
 use crate::errors::{AmbitError, ExitCode, Result, config_error};
 use crate::model::state::STATE_DIRNAME;
-use crate::util::fs::{io_message, mkdir_p, try_lock_file};
+use crate::util::fs::{FileLock, io_message, mkdir_p, try_lock_file};
 use crate::util::path::join;
 
 /// The lock file's name inside `.ambit/`.
@@ -24,7 +23,7 @@ pub const OPERATION_IN_PROGRESS: &str = "another ambit operation is using";
 /// Proof that this process holds a project's operation lock. Released on drop.
 #[derive(Debug)]
 pub struct SetupLock {
-    _file: File,
+    _file: FileLock,
 }
 
 impl SetupLock {
