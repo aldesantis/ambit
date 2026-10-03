@@ -40,7 +40,7 @@ use crate::resolution::resolve::resolve_bundle;
 use crate::util::cmp::js_cmp;
 use crate::util::env::Env;
 use crate::util::fs::{EntryKind, io_message, lstat_kind, read_dir_names};
-use crate::util::path::{normalize, resolve};
+use crate::util::path::{normalize, resolve, to_slash};
 use crate::util::string_enum;
 
 #[cfg(test)]
@@ -286,9 +286,10 @@ fn first_difference(artifact: &PlannedCatalogDir) -> Result<Option<String>> {
 
 /// Compares one installed symlink against the source it should name.
 ///
-/// The link is read rather than followed, and reported as written: a relative link is what `apply`
-/// creates and what someone sees in `ls -l`, so that is what a detail line should say. Reporting
-/// the resolved absolute path would put a machine-specific string into `status --json`.
+/// The link is read rather than followed, and reported as written, with `/` separators: a relative
+/// link is what `apply` creates and what someone sees in `ls -l`, so that is what a detail line
+/// should say. Reporting the resolved absolute path would put a machine-specific string into
+/// `status --json`.
 ///
 /// # Errors
 ///
@@ -310,7 +311,10 @@ fn link_verdict(path: &str, target: &Path, source: &Path) -> Result<Verdict> {
 
     Ok(Verdict::new(
         ArtifactState::Modified,
-        format!("it points at {written}, not at its source"),
+        format!(
+            "it points at {}, not at its source",
+            to_slash(Path::new(&*written))
+        ),
     ))
 }
 

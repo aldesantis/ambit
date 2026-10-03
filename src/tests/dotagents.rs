@@ -87,7 +87,8 @@ struct ChildResult {
 /// The cache and user-level install directories are redirected into `home`, because dotagents
 /// defaults them under `$HOME` and a test that writes there is a test that changed the machine.
 fn dotagents(args: &[&str], cwd: &Path, home: &Path) -> ChildResult {
-    let mut command = Command::new("npx");
+    // npm ships npx as a batch file on Windows, and spawning resolves only `.exe` names itself.
+    let mut command = Command::new(if cfg!(windows) { "npx.cmd" } else { "npx" });
 
     command
         .arg("--yes")

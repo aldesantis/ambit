@@ -185,13 +185,15 @@ pub struct GitOutcome {
 ///
 /// Exit 4 when git is not on `PATH`, or cannot be spawned at all.
 pub fn run_git(args: &[&str], cwd: &Path, env: &Env) -> Result<GitOutcome> {
-    let spawned = Command::new("git")
-        .args(args)
-        .current_dir(cwd)
-        .env_clear()
-        .envs(git_environment(env))
-        .stdin(Stdio::null())
-        .output();
+    let spawned = git_program(env).and_then(|program| {
+        Command::new(program)
+            .args(args)
+            .current_dir(cwd)
+            .env_clear()
+            .envs(git_environment(env))
+            .stdin(Stdio::null())
+            .output()
+    });
 
     match spawned {
         Ok(output) => Ok(GitOutcome {
@@ -214,6 +216,35 @@ pub fn run_git(args: &[&str], cwd: &Path, env: &Env) -> Result<GitOutcome> {
             ],
         )),
     }
+}
+
+/// The program to spawn for git.
+///
+/// On Unix a bare `git` is looked up in the child's `PATH`, which is the one `env` carries. On
+/// Windows the standard library falls back to the system directories and this process's own `PATH`
+/// when the child's has no match, so git is looked up in `env`'s `PATH` here instead.
+///
+/// # Errors
+///
+/// `NotFound` on Windows when no directory on `env`'s `PATH` holds `git.exe`.
+#[cfg(windows)]
+fn git_program(env: &Env) -> std::io::Result<PathBuf> {
+    // Windows variable names are case-insensitive, and the process usually spells it `Path`.
+    let path = env
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case("PATH"))
+        .map_or("", |(_, value)| value.as_str());
+
+    std::env::split_paths(path)
+        .map(|dir| dir.join("git.exe"))
+        .find(|candidate| candidate.is_file())
+        .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::NotFound))
+}
+
+#[cfg(not(windows))]
+#[allow(clippy::unnecessary_wraps)] // Fallible on Windows.
+fn git_program(_env: &Env) -> std::io::Result<PathBuf> {
+    Ok(PathBuf::from("git"))
 }
 
 /// The environment git is run in: the caller's, minus anything that would redirect it.

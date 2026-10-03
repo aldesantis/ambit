@@ -18,7 +18,7 @@ use crate::test_support::fixture_catalog::build_fixture_catalog;
 use crate::test_support::{run_cli, tempdir, test_env};
 use crate::util::env::Env;
 use crate::util::fs::{self, EntryKind};
-use crate::util::path::{join, normalize, relative};
+use crate::util::path::{join, normalize, relative, to_slash};
 
 pub const CATALOG_NAME: &str = "company";
 pub const SKILLS_DIR: &str = ".agents/skills";
@@ -331,7 +331,7 @@ pub fn link_target(path: &Path) -> Option<String> {
 
     std::fs::read_link(path)
         .ok()
-        .map(|target| target.to_string_lossy().into_owned())
+        .map(|target| to_slash(&target))
 }
 
 fn walk_tree(current: &Path, within: &str, found: &mut Vec<String>) {

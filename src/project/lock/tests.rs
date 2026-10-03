@@ -496,7 +496,7 @@ fn refuses_a_missing_lock_naming_the_project() {
             "error: ambit.lock is out of date".to_owned(),
             format!(
                 "       `--frozen` compares against a committed lock, and {} has no ambit.lock",
-                project.dir.display()
+                crate::util::path::to_slash(&project.dir)
             ),
             "       run `ambit install` without `--frozen`, then commit the result".to_owned(),
         ]

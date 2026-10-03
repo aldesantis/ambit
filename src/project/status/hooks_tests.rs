@@ -35,7 +35,7 @@ use crate::test_support::{run_cli, tempdir, test_env};
 use crate::util::env::Env;
 use crate::util::fs::{EntryKind, lstat_kind, mkdir_p, read_text, rm_rf, write_text};
 use crate::util::json::{JsonValue, parse, stringify_pretty};
-use crate::util::path::join;
+use crate::util::path::{join, to_slash};
 
 /// The file Claude Code reads, and VS Code with it.
 const SETTINGS: &str = ".claude/settings.json";
@@ -252,7 +252,7 @@ impl Fixture {
     fn link_target(&self, relative: &str) -> Option<String> {
         std::fs::read_link(join(&self.project_dir, relative))
             .ok()
-            .map(|target| target.to_string_lossy().into_owned())
+            .map(|target| to_slash(&target))
     }
 }
 
@@ -1655,7 +1655,7 @@ mod script_hook {
 
             // The one path that reaches the script from every project, since it depends on none of
             // them.
-            let absolute = format!("{}/{HOOK_DIR}/{SCRIPT}", f.project_dir.display());
+            let absolute = format!("{}/{HOOK_DIR}/{SCRIPT}", to_slash(&f.project_dir));
 
             assert_eq!(
                 f.settings(),
@@ -1711,7 +1711,7 @@ mod script_hook {
                             "matcher": "Bash",
                             "hooks": [{
                                 "type": "command",
-                                "command": format!("{}/{HOOK_DIR}/{SCRIPT}", f.project_dir.display()),
+                                "command": format!("{}/{HOOK_DIR}/{SCRIPT}", to_slash(&f.project_dir)),
                             }],
                         }],
                         "Stop": [announce_entry()],

@@ -271,11 +271,26 @@ fn node_code(err: &io::Error) -> Option<(&'static str, &'static str)> {
 /// The canonical form of `p` when it exists, for comparing two paths that may differ only by a
 /// symlink (macOS's `/var` and `/private/var`).
 ///
+/// On Windows the verbatim `\\?\` prefix is dropped from a drive path. The plain spelling names the
+/// same file, is the one a user recognizes in a message, and is one git can work under.
+///
 /// # Errors
 ///
 /// Any I/O error.
 pub fn canonicalize(p: &Path) -> io::Result<PathBuf> {
-    fs::canonicalize(p)
+    let resolved = fs::canonicalize(p)?;
+
+    if cfg!(windows) {
+        let text = resolved.to_string_lossy();
+
+        if let Some(plain) = text.strip_prefix(r"\\?\")
+            && !plain.starts_with(r"UNC\")
+        {
+            return Ok(PathBuf::from(plain));
+        }
+    }
+
+    Ok(resolved)
 }
 
 /// The determinism hook: a per-thread permutation of [`read_dir_names`]'s result.
@@ -351,6 +366,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        windows,
+        ignore = "Windows has no ENOTDIR: a path under a file is ERROR_PATH_NOT_FOUND, which is absence"
+    )]
     fn treats_not_a_directory_as_an_error() {
         let dir = tempdir();
         let file = dir.path().join("f");

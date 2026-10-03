@@ -44,18 +44,7 @@ pub fn asset_name(os: &str, arch: &str) -> Option<&'static str> {
 /// Falls back to the unresolved path when the link cannot be read, so the caller reports a
 /// permission problem about a path the user recognizes rather than failing here.
 pub fn running_binary(exec_path: &Path) -> PathBuf {
-    let Ok(resolved) = crate::util::fs::canonicalize(exec_path) else {
-        return exec_path.to_path_buf();
-    };
-
-    // Windows canonicalizes to a verbatim `\\?\C:\…` path. The plain spelling names the same file
-    // and is the one a user recognizes in a message.
-    let text = resolved.to_string_lossy();
-
-    match text.strip_prefix(r"\\?\") {
-        Some(plain) if cfg!(windows) && !plain.starts_with(r"UNC\") => PathBuf::from(plain),
-        _ => resolved,
-    }
+    crate::util::fs::canonicalize(exec_path).unwrap_or_else(|_| exec_path.to_path_buf())
 }
 
 /// Whether the binary can be replaced in place.
