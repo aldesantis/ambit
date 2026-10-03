@@ -34,9 +34,10 @@ use crate::model::config::load_project_config;
 use crate::model::documents::{DocumentShape, driver_for, managed_key, read_document_text};
 use crate::model::sources::SourceContext;
 use crate::model::state::{ArtifactKind, State, owned_paths, read_state};
-use crate::project::install::{adapters_for, install_scope, plan_for};
+use crate::project::install::{PlannedInstall, adapters_for, install_scope, plan_for};
 use crate::project::ownership::owned_keys;
-use crate::resolution::resolve::resolve_bundle;
+use crate::resolution::resolve::{Bundle, BundleItem, ItemKind, resolve_bundle};
+use crate::resolution::routes::bundle_items;
 use crate::util::cmp::js_cmp;
 use crate::util::env::Env;
 use crate::util::fs::{EntryKind, io_message, lstat_kind, read_dir_names};
@@ -429,35 +430,9 @@ fn config_verdict(
     let text = read_document_text(target, file)?;
 
     for artifact in artifacts {
-        let driver = driver_for(
-            artifact.format,
-            artifact.shape.unwrap_or(DocumentShape::Map),
-            None,
-        )?;
-        let present = driver.section_keys(text.as_deref(), &artifact.section, file)?;
-
-        for entry in &artifact.entries {
-            let key = managed_key(&artifact.section, &entry.key);
-
-            if !present.contains(&entry.key) {
-                return Ok(Verdict::new(
-                    ArtifactState::Missing,
-                    format!("\"{key}\" is absent"),
-                ));
-            }
-
-            if !claimed.contains(&key) {
-                return Ok(Verdict::new(
-                    ArtifactState::Unowned,
-                    format!("\"{key}\" exists but ambit did not create it"),
-                ));
-            }
-
-            if !driver.entry_matches(text.as_deref(), &artifact.section, entry, file)? {
-                return Ok(Verdict::new(
-                    ArtifactState::Modified,
-                    format!("\"{key}\" is not what install would write"),
-                ));
+        for verdict in entry_verdicts(artifact, text.as_deref(), claimed)? {
+            if verdict.state != ArtifactState::Ok {
+                return Ok(verdict);
             }
         }
     }
@@ -470,6 +445,52 @@ fn config_verdict(
     }
 
     Ok(Verdict::OK)
+}
+
+/// One verdict per planned entry of a config artifact, in plan order, against the file's `text`.
+///
+/// `claimed` is the keys prior state records as ambit's in this file. An entry that is absent is
+/// `missing`, present but unclaimed is `unowned`, claimed but not what install would write is
+/// `modified`.
+///
+/// # Errors
+///
+/// Exit 2 if the file cannot be parsed.
+fn entry_verdicts(
+    artifact: &PlannedHarnessConfig,
+    text: Option<&str>,
+    claimed: &IndexSet<String>,
+) -> Result<Vec<Verdict>> {
+    let file = artifact.path.as_str();
+    let driver = driver_for(
+        artifact.format,
+        artifact.shape.unwrap_or(DocumentShape::Map),
+        None,
+    )?;
+    let present = driver.section_keys(text, &artifact.section, file)?;
+    let mut verdicts = Vec::with_capacity(artifact.entries.len());
+
+    for entry in &artifact.entries {
+        let key = managed_key(&artifact.section, &entry.key);
+
+        verdicts.push(if !present.contains(&entry.key) {
+            Verdict::new(ArtifactState::Missing, format!("\"{key}\" is absent"))
+        } else if !claimed.contains(&key) {
+            Verdict::new(
+                ArtifactState::Unowned,
+                format!("\"{key}\" exists but ambit did not create it"),
+            )
+        } else if !driver.entry_matches(text, &artifact.section, entry, file)? {
+            Verdict::new(
+                ArtifactState::Modified,
+                format!("\"{key}\" is not what install would write"),
+            )
+        } else {
+            Verdict::OK
+        });
+    }
+
+    Ok(verdicts)
 }
 
 /// The plan indexed by path, so a file two adapters write into is compared once.
@@ -641,4 +662,147 @@ pub fn project_status(
         .collect();
 
     status_of_plan(&plan, &read_state(project_dir)?)
+}
+
+/// One selected item, and where its installed artifacts stand.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ItemStatus {
+    pub item: BundleItem,
+    /// The catalog it was selected from.
+    pub catalog: String,
+    /// The worst state among `artifacts`: `unowned`, then `modified`, then `missing`, then `ok`.
+    pub state: ArtifactState,
+    /// Its directories, plus one row per config entry it writes, naming the entry's key in
+    /// `detail` unless it is `ok`. Deduplicated across harnesses sharing a target.
+    pub artifacts: Vec<StatusArtifact>,
+}
+
+/// How bad a state is, for picking an item's worst artifact.
+fn severity(state: ArtifactState) -> u8 {
+    match state {
+        ArtifactState::Ok => 0,
+        ArtifactState::Missing => 1,
+        ArtifactState::Stale | ArtifactState::Modified => 2,
+        ArtifactState::Unowned => 3,
+    }
+}
+
+/// The bundle holding `item` alone, which adapters plan into exactly that item's artifacts.
+fn bundle_of(bundle: &Bundle, item: &BundleItem) -> Bundle {
+    let mut single = Bundle::default();
+
+    match item.kind {
+        ItemKind::Skill => {
+            single.skills = bundle
+                .skills
+                .iter()
+                .filter(|skill| skill.name == item.name)
+                .cloned()
+                .collect();
+        }
+        ItemKind::Mcp => {
+            single.mcps = bundle
+                .mcps
+                .iter()
+                .filter(|mcp| mcp.name == item.name)
+                .cloned()
+                .collect();
+        }
+        ItemKind::Hook => {
+            single.hooks = bundle
+                .hooks
+                .iter()
+                .filter(|hook| hook.name == item.name)
+                .cloned()
+                .collect();
+        }
+        ItemKind::Pack => {}
+    }
+
+    single
+}
+
+/// Maps a project's status onto the items its bundle selects: skills, MCP servers and hooks.
+///
+/// An item's artifacts are found by planning a bundle holding only that item through the same
+/// adapters, so the mapping is the adapters' own and needs no reverse lookup from a path or a
+/// hook's content digest. A directory takes its row from `status`. A config file is judged per
+/// entry, since one file holds many items' entries and a `status` row covers the whole file. The
+/// skills link belongs to no item and packs install nothing, so neither appears; nor does an item
+/// every configured harness skips (see [`PlannedInstall::skipped`]).
+///
+/// `status` is [`status_of_plan`] over `planned`.
+///
+/// # Errors
+///
+/// Exit 2 for a config file that cannot be read or parsed.
+pub fn item_statuses(planned: &PlannedInstall, status: &ProjectStatus) -> Result<Vec<ItemStatus>> {
+    let rows: IndexMap<&str, &StatusArtifact> = status
+        .artifacts
+        .iter()
+        .map(|row| (row.path.as_str(), row))
+        .collect();
+    let mut texts: IndexMap<String, Option<String>> = IndexMap::new();
+    let mut items = Vec::new();
+
+    for (item, catalog) in bundle_items(&planned.bundle) {
+        if item.kind == ItemKind::Pack {
+            continue;
+        }
+
+        let single = bundle_of(&planned.bundle, &item);
+        let mut seen: IndexSet<String> = IndexSet::new();
+        let mut artifacts = Vec::new();
+
+        for adapter_plan in &planned.plans {
+            for artifact in adapter_plan.adapter.plan(&single, &planned.project) {
+                match &artifact {
+                    PlannedArtifact::SkillsLink(_) => {}
+                    PlannedArtifact::SkillDir(dir) | PlannedArtifact::HookDir(dir) => {
+                        if seen.insert(dir.path.clone())
+                            && let Some(row) = rows.get(dir.path.as_str())
+                        {
+                            artifacts.push((*row).clone());
+                        }
+                    }
+                    PlannedArtifact::HarnessConfig(config) => {
+                        let text = if let Some(text) = texts.get(&config.path) {
+                            text.clone()
+                        } else {
+                            let text = read_document_text(&config.target, &config.path)?;
+
+                            texts.insert(config.path.clone(), text.clone());
+                            text
+                        };
+                        let claimed = owned_keys(&planned.prior, &config.path);
+                        let verdicts = entry_verdicts(config, text.as_deref(), &claimed)?;
+
+                        for (key, verdict) in config.managed_keys.iter().zip(verdicts) {
+                            if seen.insert(format!("{}\n{key}", config.path)) {
+                                artifacts
+                                    .push(verdict.at(&config.path, ArtifactKind::HarnessConfig));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let Some(state) = artifacts
+            .iter()
+            .map(|artifact| artifact.state)
+            .max_by_key(|state| severity(*state))
+        else {
+            continue;
+        };
+
+        items.push(ItemStatus {
+            item,
+            catalog,
+            state,
+            artifacts,
+        });
+    }
+
+    Ok(items)
 }

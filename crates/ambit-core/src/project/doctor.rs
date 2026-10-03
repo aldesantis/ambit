@@ -34,9 +34,12 @@ use crate::model::lock_file::{LOCK_FILENAME, read_lock_text};
 use crate::model::mcp_entity::McpTransport;
 use crate::model::state::{ArtifactMode, OwnedArtifact};
 use crate::project::gitignore::gitignore_status;
+use crate::project::install::PlannedInstall;
 use crate::project::install::{InstallOptions, PlanContext, plan_install};
-use crate::project::status::{ArtifactState, StatusArtifact, status_of_plan};
-use crate::resolution::resolve::Bundle;
+use crate::project::status::{
+    ArtifactState, ItemStatus, StatusArtifact, item_statuses, status_of_plan,
+};
+use crate::resolution::resolve::{Bundle, BundleItem, ItemKind};
 use crate::util::cmp::js_cmp;
 use crate::util::env::Env;
 use crate::util::fs::{EntryKind, lstat_kind};
@@ -84,6 +87,12 @@ pub struct DoctorFinding {
     pub message: String,
     /// The remaining lines, ending in one concrete next step.
     pub detail: Vec<String>,
+    /// The selected items the finding is about, in bundle order: what wants an unset variable,
+    /// what installs a drifted or unowned path. Empty when it concerns the project as a whole.
+    /// Not rendered by the CLI.
+    pub subjects: Vec<BundleItem>,
+    /// The harness the finding is about, when one is. Not rendered by the CLI.
+    pub harness: Option<String>,
 }
 
 string_enum! {
@@ -153,6 +162,8 @@ fn fail(check: DoctorCheck, message: String, detail: Vec<String>) -> DoctorFindi
         severity: DoctorSeverity::Fail,
         message,
         detail,
+        subjects: Vec::new(),
+        harness: None,
     }
 }
 
@@ -162,12 +173,28 @@ fn warn(check: DoctorCheck, message: String, detail: Vec<String>) -> DoctorFindi
         severity: DoctorSeverity::Warn,
         message,
         detail,
+        subjects: Vec::new(),
+        harness: None,
+    }
+}
+
+impl DoctorFinding {
+    fn about(mut self, subjects: Vec<BundleItem>) -> Self {
+        self.subjects = subjects;
+        self
+    }
+}
+
+fn item(kind: ItemKind, name: &str) -> BundleItem {
+    BundleItem {
+        kind,
+        name: name.to_owned(),
     }
 }
 
 /// What wants each environment variable: one line per declarer, in a fixed order (skills, servers,
-/// hooks, then config references), keyed by variable.
-type EnvDemands = IndexMap<String, Vec<String>>;
+/// hooks, then config references), keyed by variable, each with the item that declares it.
+type EnvDemands = IndexMap<String, Vec<(String, BundleItem)>>;
 
 /// Every string inside a map of strings, in key order.
 ///
@@ -238,23 +265,37 @@ fn sorted_unique(values: Vec<String>) -> Vec<String> {
 /// harness's own reference syntax, so there is no reference in the file to find.
 fn env_demands(bundle: &Bundle, artifacts: &[PlannedArtifact]) -> EnvDemands {
     let mut demands = EnvDemands::new();
-    let mut want = |variable: String, line: String| demands.entry(variable).or_default().push(line);
+    let mut want = |variable: String, line: String, subject: BundleItem| {
+        demands.entry(variable).or_default().push((line, subject));
+    };
 
     for skill in &bundle.skills {
         for variable in expected_env(&skill.expects) {
-            want(variable, format!("skill \"{}\" expects it", skill.name));
+            want(
+                variable,
+                format!("skill \"{}\" expects it", skill.name),
+                item(ItemKind::Skill, &skill.name),
+            );
         }
     }
 
     for mcp in &bundle.mcps {
         for variable in expected_env(&mcp.expects) {
-            want(variable, format!("MCP server \"{}\" expects it", mcp.name));
+            want(
+                variable,
+                format!("MCP server \"{}\" expects it", mcp.name),
+                item(ItemKind::Mcp, &mcp.name),
+            );
         }
     }
 
     for hook in &bundle.hooks {
         for variable in expected_env(&hook.expects) {
-            want(variable, format!("hook \"{}\" expects it", hook.name));
+            want(
+                variable,
+                format!("hook \"{}\" expects it", hook.name),
+                item(ItemKind::Hook, &hook.name),
+            );
         }
     }
 
@@ -289,6 +330,7 @@ fn env_demands(bundle: &Bundle, artifacts: &[PlannedArtifact]) -> EnvDemands {
                     format!(
                         "\"{key}\" in {path} references it, for the harness to expand at spawn"
                     ),
+                    item(ItemKind::Mcp, &entry.key),
                 );
             }
         }
@@ -317,7 +359,17 @@ fn expect_findings(
         .into_iter()
         .filter(|variable| !env.contains_key(variable.as_str()))
         .map(|variable| {
-            let mut detail = demands[variable].clone();
+            let mut detail: Vec<String> = demands[variable]
+                .iter()
+                .map(|(line, _)| line.clone())
+                .collect();
+            let mut subjects: Vec<BundleItem> = Vec::new();
+
+            for (_, subject) in &demands[variable] {
+                if !subjects.contains(subject) {
+                    subjects.push(subject.clone());
+                }
+            }
 
             detail.push(format!(
                 "set {variable} in the environment the agent runs in"
@@ -327,6 +379,7 @@ fn expect_findings(
                 format!("unset environment variable \"{variable}\""),
                 detail,
             )
+            .about(subjects)
         })
         .collect()
 }
@@ -371,7 +424,7 @@ fn lock_findings(project_dir: &Path, expected: &str) -> Result<Vec<DoctorFinding
 /// State is written after the filesystem changes it describes, so an install that crashed leaves
 /// its own artifacts present-but-unowned, and the next plain install stops on them. The fix is
 /// `--adopt`.
-fn ownership_findings(artifacts: &[StatusArtifact]) -> Vec<DoctorFinding> {
+fn ownership_findings(artifacts: &[StatusArtifact], items: &PathItems) -> Vec<DoctorFinding> {
     artifacts
         .iter()
         .filter(|artifact| artifact.state == ArtifactState::Unowned)
@@ -385,6 +438,7 @@ fn ownership_findings(artifacts: &[StatusArtifact]) -> Vec<DoctorFinding> {
                     "move it aside, or run `ambit install --adopt` to take ownership".to_owned(),
                 ],
             )
+            .about(items.at(&artifact.path, true))
         })
         .collect()
 }
@@ -410,6 +464,7 @@ fn drift_findings(
     project_dir: &Path,
     artifacts: &[PlannedArtifact],
     status: &[StatusArtifact],
+    items: &PathItems,
 ) -> Result<Vec<DoctorFinding>> {
     let mut findings: Vec<DoctorFinding> = status
         .iter()
@@ -425,6 +480,7 @@ fn drift_findings(
                     drift_step(artifact.state).to_owned(),
                 ],
             )
+            .about(items.at(&artifact.path, true))
         })
         .collect();
 
@@ -470,7 +526,11 @@ fn installed_mode(target: &Path) -> Option<ArtifactMode> {
 ///
 /// Covers both directory kinds (skill and hook), since `status` is deliberately silent about mode
 /// and this is the only check that reports it.
-fn mode_findings(artifacts: &[PlannedArtifact], status: &[StatusArtifact]) -> Vec<DoctorFinding> {
+fn mode_findings(
+    artifacts: &[PlannedArtifact],
+    status: &[StatusArtifact],
+    items: &PathItems,
+) -> Vec<DoctorFinding> {
     let matching: BTreeSet<&str> = status
         .iter()
         .filter(|artifact| artifact.state == ArtifactState::Ok)
@@ -508,7 +568,8 @@ fn mode_findings(artifacts: &[PlannedArtifact], status: &[StatusArtifact]) -> Ve
                 },
                 format!("keep passing `--{found}` to `ambit install` to leave it as it is"),
             ],
-        ));
+        )
+        .about(items.at(&artifact.path, false)));
     }
 
     findings
@@ -523,7 +584,7 @@ fn mode_findings(artifacts: &[PlannedArtifact], status: &[StatusArtifact]) -> Ve
 /// A warning, not a failure: ambit cannot tell whether the flag is set, and failing would leave
 /// anyone on Codex with a `doctor` that can never pass. Only raised when the project selects a
 /// hook.
-fn harness_findings(bundle: &Bundle, harnesses: &[String]) -> Vec<DoctorFinding> {
+pub fn harness_findings(bundle: &Bundle, harnesses: &[String]) -> Vec<DoctorFinding> {
     let codex = &*CODEX;
     let Some(layout) = codex.hooks.as_ref() else {
         return Vec::new();
@@ -534,8 +595,7 @@ fn harness_findings(bundle: &Bundle, harnesses: &[String]) -> Vec<DoctorFinding>
     }
 
     let name = codex.name;
-
-    vec![warn(
+    let mut finding = warn(
         DoctorCheck::Harness,
         format!("{name} runs hooks only with `{CODEX_HOOKS_FEATURE}` set"),
         vec![
@@ -553,7 +613,17 @@ fn harness_findings(bundle: &Bundle, harnesses: &[String]) -> Vec<DoctorFinding>
             ),
             format!("set `{CODEX_HOOKS_FEATURE}` in your own {name} config to have them run"),
         ],
-    )]
+    )
+    .about(
+        bundle
+            .hooks
+            .iter()
+            .map(|hook| item(ItemKind::Hook, &hook.name))
+            .collect(),
+    );
+
+    finding.harness = Some(name.to_owned());
+    vec![finding]
 }
 
 /// Each check's verdict, derived from its findings so the two halves cannot disagree.
@@ -576,6 +646,26 @@ fn check_results(findings: &[DoctorFinding]) -> Vec<CheckResult> {
             CheckResult { check, status }
         })
         .collect()
+}
+
+/// Which selected items install each path, read off [`item_statuses`].
+struct PathItems(Vec<ItemStatus>);
+
+impl PathItems {
+    /// The items with an artifact at `path`. With `drifted`, only those whose artifact there is
+    /// not `ok`: a config file holds several items' entries, and a finding about it is about the
+    /// ones that differ.
+    fn at(&self, path: &str, drifted: bool) -> Vec<BundleItem> {
+        self.0
+            .iter()
+            .filter(|status| {
+                status.artifacts.iter().any(|artifact| {
+                    artifact.path == path && (!drifted || artifact.state != ArtifactState::Ok)
+                })
+            })
+            .map(|status| status.item.clone())
+            .collect()
+    }
 }
 
 /// Runs every check against a project.
@@ -602,18 +692,37 @@ pub fn diagnose_project(
         },
         &PlanContext::default(),
     )?;
+
+    diagnose_planned(project_dir, env, &planned)
+}
+
+/// Runs every check against a plan already made, for a caller that also needs the plan itself
+/// (the app's health view, which shows item statuses beside the findings).
+///
+/// `planned` must come from planning `project_dir` with no refresh, as [`diagnose_project`] does.
+///
+/// # Errors
+///
+/// Exit 2 for an unreadable lock, `.gitignore`, or an artifact that cannot be inspected.
+pub fn diagnose_planned(
+    project_dir: &Path,
+    env: &Env,
+    planned: &PlannedInstall,
+) -> Result<DoctorReport> {
     let status = status_of_plan(&planned.artifacts, &planned.prior)?;
+    let items = PathItems(item_statuses(planned, &status)?);
 
     let mut findings = expect_findings(&planned.bundle, &planned.artifacts, env);
 
     findings.extend(lock_findings(project_dir, &planned.lock_text)?);
-    findings.extend(ownership_findings(&status.artifacts));
+    findings.extend(ownership_findings(&status.artifacts, &items));
     findings.extend(drift_findings(
         project_dir,
         &planned.artifacts,
         &status.artifacts,
+        &items,
     )?);
-    findings.extend(mode_findings(&planned.artifacts, &status.artifacts));
+    findings.extend(mode_findings(&planned.artifacts, &status.artifacts, &items));
     findings.extend(harness_findings(&planned.bundle, &planned.harnesses));
 
     Ok(DoctorReport {
