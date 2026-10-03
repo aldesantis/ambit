@@ -625,6 +625,9 @@ pub fn install_project(
 }
 
 #[cfg(test)]
+pub(crate) mod fixture;
+
+#[cfg(test)]
 mod tests;
 
 #[cfg(test)]
