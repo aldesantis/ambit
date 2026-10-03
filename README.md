@@ -659,12 +659,18 @@ or other credentials are needed to build, test or package it locally.
 brew install xcodegen
 rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
-apps/macos/scripts/build-git.sh      # the git bundled in the app; slow once, cached afterwards
-apps/macos/scripts/build-engine.sh   # the Rust engine as an XCFramework
+apps/macos/scripts/build-git.sh      # optional: the git bundled in the app; slow once, cached afterwards
 cd apps/macos
 xcodegen generate                    # writes Ambit.xcodeproj, which is not committed
 open Ambit.xcodeproj
 ```
+
+The app links the Rust engine through the local Swift package `apps/macos/AmbitEngine`, which
+`scripts/build-engine.sh` generates. Xcode resolves that package before any build step runs, so on
+a fresh checkout `xcodegen generate` builds the engine once first (host architecture only). After
+that every Xcode build brings it up to date before compiling: Debug builds rebuild it for the host
+architecture, Release builds universal (arm64 and x86_64). Without the bundled git, the app runs
+`/usr/bin/git`.
 
 Run the unit and UI tests from the command line (inside `apps/macos`):
 
