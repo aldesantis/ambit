@@ -56,15 +56,16 @@ reader something the code cannot: keep the reasoning, cut the rhetoric.
 
 ### What to write
 
-- **Doc comments on exported symbols.** TSDoc (`/** */`), one-sentence summary first. Describe the
-  contract from the caller's side: constraints, return semantics, side effects, `@throws` with exit
-  codes. Skip the doc comment entirely when the name already says everything.
+- **Doc comments on public items.** Rustdoc (`///`), one-sentence summary first. Describe the
+  contract from the caller's side: constraints, return semantics, side effects, and an `# Errors`
+  section naming the exit code of each error the function returns. Skip the doc comment entirely
+  when the name already says everything.
 - **Why, not what.** Rationale for a non-obvious decision, ordering requirements, invariants,
   units, what a sentinel value means, why the obvious alternative was rejected.
 - **Negative information.** What is deliberately absent ("no lock here: callers already hold it"),
   so a future "fix" doesn't reintroduce a bug.
-- **File headers only for real design.** A short block stating the module's design decisions and
-  invariants, once. Most files need no header. Never repeat in the header what per-symbol docs
+- **Module headers only for real design.** A short `//!` block stating the module's design
+  decisions and invariants, once. Most files need no header. Never repeat in the header what per-symbol docs
   already say.
 
 ### What not to write
@@ -73,7 +74,7 @@ reader something the code cannot: keep the reasoning, cut the rhetoric.
   or persuasion ("that is the point", "a standing bet that...", "the kind of waste a cache exists
   to avoid"). If a comment reads like an essay, cut it to the fact it contains.
 - **Restating the code.** No doc comment that rephrases the symbol name
-  (`/** Where skills live. */` on `SKILLS_DIRNAME = "skills"`). Delete, don't decorate.
+  (`/// Where skills live.` on `SKILLS_DIRNAME: &str = "skills"`). Delete, don't decorate.
 - **Play-by-play.** Never narrate what the next line does.
 - **Reviewer-directed commentary.** No comments explaining why a change is correct or what the code
   did before. That belongs in the PR description.
@@ -83,7 +84,31 @@ reader something the code cannot: keep the reasoning, cut the rhetoric.
 
 - Short, plain, factual sentences. Capitalized and punctuated.
 - Prefer separate sentences over clauses chained with em dashes.
-- One canonical explanation per decision; elsewhere, point to it with `{@link}` instead of
-  retelling it.
-- Reference constants by name (`{@link STALE_THRESHOLD}`), never restate their value in prose.
+- One canonical explanation per decision; elsewhere, point to it with an intra-doc link
+  (``[`resolve`]``) instead of retelling it.
+- Reference constants by name (``[`STALE_THRESHOLD`]``), never restate their value in prose.
 - When changing code, update or delete every adjacent comment your change touches.
+
+## Rust conventions
+
+- **Checks.** Every change passes `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`
+  and `cargo test`, the same three CI runs on Linux, macOS and Windows. The toolchain is pinned in
+  `rust-toolchain.toml`.
+- **Formatting is rustfmt's.** Do not hand-format around it. Within what rustfmt leaves alone,
+  separate logically distinct steps in a function body with a blank line, and keep early returns
+  as their own `if` blocks rather than folding them into long expression chains.
+- **Lints.** Clippy runs with `pedantic` on. The few allowed pedantic lints are listed, with their
+  reason, under `[lints.clippy]` in `Cargo.toml`. Add to that list only for a lint that fires on
+  most of the codebase; otherwise fix the code, or put a local `#[allow]` with a comment on the item.
+- **Process state stays at the edge.** `clippy.toml` disallows reading or mutating environment
+  variables, changing the working directory, `std::process::exit`, `std::fs::read_dir` and
+  `std::fs::read_to_string`. `main.rs` reads the environment and cwd once and passes them down as
+  `util::env::Env` and a path; the filesystem is reached through `util::fs`, which keeps directory
+  listings permutable for the determinism tests. `#[allow(clippy::disallowed_methods)]` is allowed
+  only in `main.rs`, `src/util` and test code. Tests run in parallel threads, so nothing may mutate
+  process-wide state.
+- **Order is observable.** Use `IndexMap`/`IndexSet` wherever iteration order reaches output, and
+  `util::cmp::js_cmp` for every string sort, so output is identical on every machine.
+- **Tests.** Unit tests live next to their module (`mod tests` or a sibling `tests.rs`). CLI,
+  fixture and golden-file tests live in `tests/`. `UPDATE_GOLDEN=1 cargo test` regenerates
+  `tests/golden/`.
