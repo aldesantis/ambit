@@ -36,14 +36,14 @@ use std::path::Path;
 
 use serde_json::json;
 
-use crate::errors::{Result, config_error};
+use crate::errors::{AmbitError, Result, config_error};
 use crate::model::catalog::{HOOKS_DIRNAME, MCPS_DIRNAME, PACKS_DIRNAME, SKILLS_DIRNAME};
 use crate::model::config::{
     CONFIG_FILENAMES, CONFIG_VERSION, DEFAULT_HARNESSES, existing_config_files,
 };
 use crate::model::scaffold::{ScaffoldBlock, render_scaffold};
 use crate::util::cmp::js_cmp;
-use crate::util::fs::{io_message, mkdir_p, write_text};
+use crate::util::fs::{io_message, mkdir_p, write_new, write_text};
 use crate::util::json::{JsonObject, JsonValue};
 use crate::util::path::join;
 
@@ -255,7 +255,34 @@ fn write(project_dir: &Path, scaffolded: &ScaffoldedFile) -> Result<()> {
     };
 
     mkdir_p(parent).map_err(|error| fail(io_message(&error, "mkdir", parent)))?;
-    write_text(&target, &scaffolded.text).map_err(|error| fail(io_message(&error, "open", &target)))
+
+    if scaffolded.file != INIT_FILENAME {
+        return write_text(&target, &scaffolded.text)
+            .map_err(|error| fail(io_message(&error, "open", &target)));
+    }
+
+    // Created exclusively rather than checked and then written: a config that appeared since the
+    // check, from another `init` or the app saving a new setup, is refused instead of overwritten.
+    // This is what keeps `init` safe without the project's operation lock, which would leave an
+    // `.ambit/` directory in a project nothing has installed into.
+    write_new(&target, &scaffolded.text).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            refusing_to_overwrite(project_dir, &[INIT_FILENAME.to_owned()])
+        } else {
+            fail(io_message(&error, "open", &target))
+        }
+    })
+}
+
+/// The error for a directory that already holds an ambit config.
+fn refusing_to_overwrite(project_dir: &Path, present: &[String]) -> AmbitError {
+    config_error(
+        format!("refusing to overwrite {}", present.join(" and ")),
+        [
+            format!("{} already holds an ambit config", project_dir.display()),
+            "edit it, or delete it and run `ambit init` again".to_owned(),
+        ],
+    )
 }
 
 /// Scaffolds a project in `project_dir`: `ambit.yml`, and the item directories that make it a
@@ -273,13 +300,7 @@ pub fn init_project(project_dir: &Path, options: InitOptions) -> Result<InitResu
     let present = existing_config_files(project_dir)?;
 
     if !present.is_empty() {
-        return Err(config_error(
-            format!("refusing to overwrite {}", present.join(" and ")),
-            [
-                format!("{} already holds an ambit config", project_dir.display()),
-                "edit it, or delete it and run `ambit init` again".to_owned(),
-            ],
-        ));
+        return Err(refusing_to_overwrite(project_dir, &present));
     }
 
     // A missing root is refused rather than created: `--project` naming the wrong path shouldn't

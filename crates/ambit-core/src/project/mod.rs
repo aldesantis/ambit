@@ -8,6 +8,7 @@ pub mod gitignore;
 pub mod init;
 pub mod install;
 pub mod lock;
+pub mod operation_lock;
 pub mod ownership;
 pub mod prune;
 pub mod status;

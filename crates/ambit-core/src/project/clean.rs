@@ -35,6 +35,7 @@ use crate::project::gitignore::{
 };
 use crate::project::install::{InstallOptions, PlanContext, plan_install};
 use crate::project::lock::write_lock_text;
+use crate::project::operation_lock::SetupLock;
 use crate::project::prune::{PrunedArtifact, plan_prune, prune_artifacts, remaining_artifacts};
 use crate::util::env::Env;
 use crate::util::fs::{EntryKind, lstat_kind, rm_rf};
@@ -108,6 +109,10 @@ fn exists(target: &Path) -> bool {
 /// pruning removes only what state already claims, so a project whose next `install` would refuse
 /// an unowned target can still be pruned.
 ///
+/// Takes the project's [`SetupLock`] before writing anything, and plans again under it: the first
+/// plan only decides whether there is anything to do, so a run with nothing stale creates no lock
+/// file either. The second plan is offline, since the first already fetched what it needs.
+///
 /// Writes are ordered as install orders them: filesystem, then lock, then state, then the
 /// `.gitignore` block. A failure part way through leaves state still claiming what it was about to
 /// give up, so the next run prunes the same set again. A run with nothing stale writes nothing, so
@@ -118,16 +123,20 @@ fn exists(target: &Path) -> bool {
 /// Exit 2 for a malformed config or catalog, an unknown harness, an unreadable state file, a
 /// co-owned config file that cannot be parsed, or an ambiguous `.gitignore` block; exit 3 for a
 /// resolution error; exit 4 if a fetch fails, or under `--offline` when the cache cannot answer.
+/// Exit 2 as well when another operation holds the project's lock.
 pub fn prune_project(project_dir: &Path, env: &Env, options: PruneOptions) -> Result<PruneResult> {
-    let planned = plan_install(
-        project_dir,
-        env,
-        InstallOptions {
-            offline: options.offline,
-            ..InstallOptions::default()
-        },
-        &PlanContext::default(),
-    )?;
+    let plan = |offline: bool| {
+        plan_install(
+            project_dir,
+            env,
+            InstallOptions {
+                offline,
+                ..InstallOptions::default()
+            },
+            &PlanContext::default(),
+        )
+    };
+    let planned = plan(options.offline)?;
 
     // The planned removals, not the writes that happened: what state must stop claiming, even
     // where the file already lost the key by hand.
@@ -148,6 +157,18 @@ pub fn prune_project(project_dir: &Path, env: &Env, options: PruneOptions) -> Re
         });
     }
 
+    let _lock = SetupLock::acquire(project_dir)?;
+    let planned = plan(true)?;
+    let stale = plan_prune(&planned.artifacts, &planned.prior)?;
+
+    if stale.is_empty() {
+        return Ok(PruneResult {
+            pruned: Vec::new(),
+            remaining: planned.prior.artifacts,
+        });
+    }
+
+    let remaining = remaining_artifacts(&planned.prior, &stale);
     let pruned = prune_artifacts(project_dir, &planned.artifacts, &planned.prior)?;
 
     // The bundle install would resolve is, after this prune, also the bundle on disk, so the lock
@@ -177,16 +198,22 @@ pub fn prune_project(project_dir: &Path, env: &Env, options: PruneOptions) -> Re
 /// retryable once the file is fixed. Nothing else reads state afterwards, so removing it last costs
 /// nothing.
 ///
+/// Holds the project's [`SetupLock`] throughout, letting go just before `.ambit/` is removed:
+/// Windows cannot remove a directory holding an open file. A missing project directory has nothing
+/// to clean and takes no lock.
+///
 /// # Errors
 ///
 /// Exit 2 for an unreadable state file, a co-owned config file that cannot be parsed, a managed key
 /// state records in a form this build cannot act on, or a `.gitignore` whose markers are ambiguous.
-/// No catalog is read and nothing is resolved, so there is no exit 3 or 4.
+/// No catalog is read and nothing is resolved, so there is no exit 3 or 4. Exit 2 as well when
+/// another operation holds the project's lock.
 pub fn clean_project(project_dir: &Path, options: CleanOptions) -> Result<CleanResult> {
-    let prior = read_state(project_dir)?;
     let state_dir = join(project_dir, STATE_DIRNAME);
 
     if options.dry_run {
+        let prior = read_state(project_dir)?;
+
         return Ok(CleanResult {
             removed: plan_prune(&[], &prior)?,
             state_removed: exists(&state_file_path(project_dir)),
@@ -194,11 +221,18 @@ pub fn clean_project(project_dir: &Path, options: CleanOptions) -> Result<CleanR
         });
     }
 
+    let lock = if std::fs::metadata(project_dir).is_ok_and(|metadata| metadata.is_dir()) {
+        Some(SetupLock::acquire(project_dir)?)
+    } else {
+        None
+    };
+    let prior = read_state(project_dir)?;
     let removed = prune_artifacts(project_dir, &[], &prior)?;
     let gitignore_removed = remove_gitignore_blocks(project_dir)?;
 
     let state_removed = exists(&state_file_path(project_dir));
 
+    drop(lock);
     rm_rf(&state_dir)?;
 
     Ok(CleanResult {
