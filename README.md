@@ -608,7 +608,7 @@ when `AMBIT_NO_UPDATE_CHECK` is set to anything. It never delays or fails the co
 | ---- | --------------------------------------------------------------------------------------- |
 | 0    | Success                                                                                 |
 | 1    | Unexpected internal error                                                               |
-| 2    | Config, ownership, export compatibility, or usage error                                 |
+| 2    | Config, ownership, export compatibility, or usage error, or another ambit operation (a command or the Ambit app) is changing the same project |
 | 3    | Resolution error: a pattern matching nothing, missing requirement, cycle, name conflict |
 | 4    | Network or cache error                                                                  |
 | 5    | Drift detected (`status --check`, `install --frozen`, `export --check`)                 |
