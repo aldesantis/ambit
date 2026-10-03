@@ -183,7 +183,10 @@ fn keeps_the_entries_exactly_as_listed_adding_nothing() {
 
 #[test]
 fn reads_an_empty_requires_list_as_selecting_nothing() {
-    assert!(parse("version: 1\nrequires: []\n").requires.is_empty());
+    assert_eq!(
+        parse("version: 1\nrequires: []\n").requires,
+        Vec::<PatternEntry>::new()
+    );
 }
 
 #[test]

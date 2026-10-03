@@ -348,8 +348,14 @@ mod parsing_a_requires_list {
 
     #[test]
     fn treats_an_absent_key_as_no_entries_and_an_empty_list_as_exactly_that() {
-        assert!(parse("version: 1\n", Addressing::Qualified).is_empty());
-        assert!(parse("requires: []\n", Addressing::Qualified).is_empty());
+        assert_eq!(
+            parse("version: 1\n", Addressing::Qualified),
+            Vec::<PatternEntry>::new()
+        );
+        assert_eq!(
+            parse("requires: []\n", Addressing::Qualified),
+            Vec::<PatternEntry>::new()
+        );
     }
 
     #[test]
