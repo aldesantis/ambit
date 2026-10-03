@@ -19,24 +19,14 @@ use ambit_core::resolution::routes::bundle_catalog;
 use crate::engine::SetupSession;
 use crate::errors::{EngineError, guard};
 use crate::git::git_env;
-use crate::records::ItemKind;
+use crate::records::ItemRef;
 
-/// One selected capability, by namespace, catalog and name.
-#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ItemRef {
-    pub kind: ItemKind,
-    pub catalog: String,
-    pub name: String,
-}
-
-impl ItemRef {
-    /// `item` with the catalog `bundle` selected it from; empty when the bundle does not hold it.
-    pub fn of(item: &BundleItem, bundle: &Bundle) -> Self {
-        Self {
-            kind: item.kind.into(),
-            catalog: bundle_catalog(bundle, item).unwrap_or_default().to_owned(),
-            name: item.name.clone(),
-        }
+/// `item` with the catalog `bundle` selected it from; empty when the bundle does not hold it.
+pub fn item_ref(item: &BundleItem, bundle: &Bundle) -> ItemRef {
+    ItemRef {
+        kind: item.kind.into(),
+        catalog: bundle_catalog(bundle, item).unwrap_or_default().to_owned(),
+        name: item.name.clone(),
     }
 }
 
@@ -198,7 +188,7 @@ impl HealthFinding {
             subjects: finding
                 .subjects
                 .iter()
-                .map(|item| ItemRef::of(item, bundle))
+                .map(|item| item_ref(item, bundle))
                 .collect(),
             harness: finding.harness.clone(),
         }
