@@ -703,7 +703,7 @@ mod emitter {
         assert_eq!(emit_yaml(&document), emit_yaml(&document));
     }
 
-    /// Outputs recorded from the TypeScript build's `emitYaml`, byte for byte.
+    /// Emitted output must match the recorded corpus byte for byte, so locks stay stable.
     #[test]
     fn matches_the_recorded_corpus() {
         let corpus: Vec<JsonValue> =

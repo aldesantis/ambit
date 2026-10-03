@@ -111,8 +111,8 @@ impl Fixture {
         .unwrap();
     }
 
-    /// Runs the CLI against the project. Lines are joined with `\n` and the final newline dropped,
-    /// as the TS tests compared them.
+    /// Runs the CLI against the project. Lines are joined with `\n` and the final newline
+    /// dropped.
     fn cli(&self, args: &[&str]) -> CliResult {
         let project = self.project_dir.to_string_lossy().into_owned();
         let mut argv: Vec<&str> = args.to_vec();

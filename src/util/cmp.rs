@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 ///
 /// Differs from `str::cmp` (which orders by code point) only for characters above U+FFFF against
 /// characters in U+E000..=U+FFFF: a surrogate pair sorts before them in UTF-16. Every string sort
-/// in ambit goes through this, so output order matches the TypeScript build byte for byte.
+/// in ambit goes through this, so output order stays stable byte for byte across releases.
 pub fn js_cmp(a: &str, b: &str) -> Ordering {
     a.encode_utf16().cmp(b.encode_utf16())
 }

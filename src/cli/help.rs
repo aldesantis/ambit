@@ -1,4 +1,4 @@
-//! Usage output: a hand port of commander 15's `Help.formatHelp` and `wrap`, for a surface with no
+//! Usage output: commander 15's `Help.formatHelp` and `wrap` layout, for a surface with no
 //! colors, aliases, hidden items, option groups or sorting.
 
 use crate::cli::parser::{Command, HELP_DESCRIPTION, HELP_FLAG};
@@ -61,7 +61,7 @@ pub fn format_help(command: &Command, width: usize) -> String {
 
     let text = output.join("\n");
 
-    // The last list closes with a blank line, which the writer strips as commander's did.
+    // The last list closes with a blank line, which the writer strips as commander's does.
     text.strip_suffix('\n').map(str::to_owned).unwrap_or(text)
 }
 

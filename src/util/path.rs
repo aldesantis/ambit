@@ -1,8 +1,7 @@
 //! Node `path` semantics: lexical, with no filesystem access.
 //!
 //! `Path::join` neither normalizes `..` nor ignores an absolute second argument the way
-//! `path.join` does, so every place the TypeScript build called `path.join`, `path.resolve` or
-//! `path.relative` calls these instead.
+//! `path.join` does, so ambit joins, resolves and relativizes paths through these instead.
 
 use std::path::{Component, Path, PathBuf};
 

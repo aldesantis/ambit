@@ -2,8 +2,8 @@
 
 /// The length JavaScript reports for a string: UTF-16 code units.
 ///
-/// Used wherever the TypeScript build padded or measured with `.length`, so columns line up
-/// exactly as they did.
+/// Used wherever output is padded or measured, so column widths stay what they have always been
+/// for non-ASCII text.
 pub fn js_len(s: &str) -> usize {
     s.encode_utf16().count()
 }

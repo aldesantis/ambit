@@ -400,8 +400,7 @@ fn sorts_the_headers_it_writes_so_the_file_does_not_churn_on_the_catalogs_key_or
 
 #[test]
 fn resolves_no_variable_whatever_the_environment_holds() {
-    // No profile takes an environment, so there is nothing a value could be resolved from; the TS
-    // test stubbed `TOKEN` to prove the same.
+    // No profile takes an environment, so there is nothing a value could be resolved from.
     for case in cases() {
         let both = [
             stringify(&(case.profile.server_config)(&http(HEADERS, Some("TOKEN")))),
@@ -628,7 +627,7 @@ fn gives_claude_and_vscode_one_shared_file_and_codex_one_of_its_own() {
 
 #[test]
 fn leaves_opencode_without_hooks_which_is_what_makes_a_hook_for_it_a_skip() {
-    // The one harness with no declarative mechanism at all: it runs TypeScript plugins, which is
+    // The one harness with no declarative mechanism at all: it runs JavaScript plugins, which is
     // code rather than config. So the profile carries no layout and no renderer, and
     // `skipped_hooks` reads that absence as the reason.
     assert!(OPENCODE.hooks.is_none());
@@ -977,9 +976,8 @@ fn resolves_no_variable_in_a_command_and_rewrites_no_reference_either() {
 // One predicate answers both (a hook is planned for the array it belongs in, or skipped because
 // there is none), so these cases and the ones above partition every hook a bundle can hold.
 //
-// The TS case "skips a hook whose event a harness has no spelling for" is not ported: it built a
-// profile whose `events` map was partial, and `HookLayout::events` is a total function here, so
-// that profile cannot be written.
+// No case covers an event a harness has no spelling for: `HookLayout::events` is a total
+// function, so such a profile cannot be written.
 
 fn skip(harness: &str, hook: &str, event: HookEvent, reason: HookSkipReason) -> SkippedHook {
     SkippedHook {

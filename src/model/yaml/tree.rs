@@ -21,8 +21,8 @@ pub(super) enum NodeKind {
     Map(Vec<(NodeId, NodeId)>),
     Seq(Vec<NodeId>),
     Scalar(Scalar),
-    /// A `*name` reference. Not resolved: the TypeScript build read an alias node as no supported
-    /// value, so an accessor reports it rather than following it.
+    /// A `*name` reference. Not resolved: an alias is no supported value, so an accessor reports it
+    /// rather than following it.
     Alias,
 }
 

@@ -43,8 +43,7 @@ pub const PACKED_KEY_VAR: &str = "LINTER_API_KEY";
 /// three skills, the packed server, and both fixture hooks.
 pub const DEFAULT_PACKS: &[&str] = &["core", "function.engineering", "function.engineering.*"];
 
-/// What one CLI run printed, with lines joined by `\n` and no trailing newline, as the TS suite
-/// collected them.
+/// What one CLI run printed, with lines joined by `\n` and no trailing newline.
 pub struct Output {
     pub code: ExitCode,
     pub stdout: String,

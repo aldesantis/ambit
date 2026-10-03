@@ -40,8 +40,8 @@ static SHORTHAND: LazyLock<Regex> = LazyLock::new(|| {
 
 /// A scp-like git URL: `[user@]host:path`, the shape ssh remotes are written in.
 ///
-/// The TS pattern ended `:(?!\/)`; [`is_scp_like`] checks the "not followed by `/`" half, since the
-/// `regex` crate has no lookahead.
+/// The colon must not be followed by `/`. [`is_scp_like`] checks that half, since the `regex` crate
+/// has no lookahead.
 static SCP_LIKE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?:[^@/]+@)?[^@/:]+:").expect("a valid pattern"));
 

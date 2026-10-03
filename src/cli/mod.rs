@@ -1,8 +1,8 @@
 //! The program: parsing argv against the declared surface, dispatching to a handler, and turning
 //! every outcome into an exit code.
 //!
-//! The parser (`parser.rs`) and help renderer (`help.rs`) are a hand port of the subset of
-//! commander 15 the TypeScript build used, so usage output and error wording stay byte-identical.
+//! The parser (`parser.rs`) and help renderer (`help.rs`) follow commander 15's behaviour for the
+//! subset ambit uses, the layout and error wording ambit's usage text has always had.
 
 pub mod commands;
 pub mod handlers;

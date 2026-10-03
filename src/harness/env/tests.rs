@@ -63,8 +63,7 @@ fn is_a_no_op_for_a_harness_whose_syntax_already_is_the_catalogs() {
 #[test]
 fn never_resolves_a_variable_whatever_the_environment_holds() {
     // The whole point: a credential in `.mcp.json` would be committed by the next `git add -A`.
-    // `translate_refs` takes no environment at all, so there is nothing it could resolve from; the
-    // TS test stubbed one to prove the same.
+    // `translate_refs` takes no environment at all, so there is nothing it could resolve from.
     assert_eq!(
         translate_refs("Bearer ${AMBIT_TEST_TOKEN}", shell_ref),
         "Bearer ${AMBIT_TEST_TOKEN}"

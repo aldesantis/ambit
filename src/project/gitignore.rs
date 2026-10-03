@@ -339,7 +339,7 @@ pub fn remove_gitignore_text(existing: Option<&str>, file: &str) -> Result<Optio
 }
 
 /// Reads one of a project's `.gitignore` files, treating an absent one as a file ambit is about to
-/// create. `file` is the project-relative path; the TS default was [`GITIGNORE_FILENAME`].
+/// create. `file` is the project-relative path, usually [`GITIGNORE_FILENAME`].
 ///
 /// # Errors
 ///

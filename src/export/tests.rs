@@ -3,7 +3,7 @@
 //! The end-to-end cases need the config and catalog loaders (B1) and resolution (B2); the lock case
 //! also needs the lock writer (B4). The unit cases at the bottom pin the file collection, layout and
 //! comparison this module owns, and run on their own.
-#![allow(clippy::disallowed_methods)] // std::fs::read_dir lists the output, as the TS readdir did.
+#![allow(clippy::disallowed_methods)] // std::fs::read_dir lists the output in the OS's order.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

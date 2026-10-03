@@ -1,4 +1,5 @@
-//! YAML 1.2 core schema resolution, as yaml@2.9.0's `core` schema does it.
+//! YAML 1.2 core schema resolution, following yaml@2.9.0's `core` schema so files keep the types
+//! they have always read as.
 //!
 //! The same tests decide both halves: [`resolve_scalar`] types a plain scalar by the first test it
 //! passes, and the emitter quotes any string that passes one, so what ambit writes reads back as
@@ -24,8 +25,8 @@ pub(super) const CORE_TAGS: &[&str] = &[
     "tag:yaml.org,2002:str",
 ];
 
-/// A resolved scalar. Numbers are `f64` because the TypeScript build read them as JavaScript
-/// numbers: "is an integer" means a finite value with no fraction, as `Number.isInteger` has it.
+/// A resolved scalar. Numbers are `f64`, JavaScript's number type: "is an integer" means a finite
+/// value with no fraction, as `Number.isInteger` has it.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Scalar {
     Null,

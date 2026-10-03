@@ -99,8 +99,8 @@ const REDIRECTING_GIT_VARS: &[&str] = &["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_F
 
 /// A scp-like git URL, `git@github.com:acme/skills.git`, which is not a parseable URL.
 ///
-/// The TS pattern ended `:(?!\/)(.*)$`; the "not followed by `/`" half is checked in
-/// [`split_url`], since the `regex` crate has no lookahead.
+/// The colon must not be followed by `/`. That half is checked in [`split_url`], since the `regex`
+/// crate has no lookahead.
 static SCP_LIKE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?:[^@/]+@)?([^@/:]+):(.*)$").expect("a valid pattern"));
 

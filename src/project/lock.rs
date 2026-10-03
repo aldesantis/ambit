@@ -229,7 +229,7 @@ fn section<T>(entries: &IndexMap<String, T>, value: impl Fn(&T) -> JsonObject) -
     )
 }
 
-/// Inserts `key` only when there is a value for it, as a TS conditional spread did.
+/// Inserts `key` only when there is a value for it, so an absent value leaves no key in the lock.
 fn insert_some(object: &mut JsonObject, key: &str, value: Option<&String>) {
     if let Some(value) = value {
         object.insert(key.to_owned(), json!(value));
@@ -295,8 +295,7 @@ pub fn serialize_lock(lock: &Lock) -> String {
 ///
 /// # Errors
 ///
-/// Exit 1 when the file cannot be written: the TS let the write's rejection reach the catch-all,
-/// and this keeps that.
+/// Exit 1 when the file cannot be written, the catch-all code for an unanticipated failure.
 pub fn write_lock_text(project_dir: &Path, text: &str) -> Result<()> {
     fs::write_text(&lock_file_path(project_dir), text)?;
 

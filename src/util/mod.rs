@@ -1,9 +1,9 @@
 //! Shared low-level helpers: JavaScript string and JSON semantics, Node-style paths and
 //! filesystem calls, and the process environment as a value.
 //!
-//! Every module reaches the filesystem, the environment, and string ordering through here, so the
-//! behaviour the TypeScript build had (UTF-16 ordering, lossy UTF-8 reads, lexical path
-//! normalization, ENOENT-only absence) is decided once. `clippy.toml` forbids the std calls this
+//! Every module reaches the filesystem, the environment, and string ordering through here, so
+//! ambit's observable semantics (UTF-16 ordering, lossy UTF-8 reads, lexical path normalization,
+//! ENOENT-only absence) are decided once. `clippy.toml` forbids the std calls this
 //! module wraps everywhere else.
 
 pub mod cmp;
@@ -14,11 +14,11 @@ pub mod json;
 pub mod path;
 pub mod text;
 
-/// Declares an enum for a TypeScript string-literal union.
+/// Declares an enum whose variants each have one fixed spelling in ambit's files and output.
 ///
-/// Variants are listed in the TS array's order, which is also the derived `Ord`, so sorting by kind
-/// sorts as the reports list them. Each variant names its TS spelling once; `as_str`, `parse`,
-/// `Display` and serde all use it. `ALL` is the TS array (`ITEM_KINDS`, `HOOK_EVENTS`, …).
+/// Declaration order is the derived `Ord`, so sorting by kind sorts as the reports list them. Each
+/// variant names its spelling once; `as_str`, `parse`, `Display` and serde all use it. `ALL` lists
+/// the variants in that order.
 macro_rules! string_enum {
     (
         $(#[$meta:meta])*
@@ -40,7 +40,7 @@ macro_rules! string_enum {
             #[allow(dead_code)] // the macro serves every union; not each one is enumerated
             pub const ALL: &'static [Self] = &[$(Self::$variant),+];
 
-            /// The TypeScript spelling.
+            /// The variant's spelling in files and output.
             pub fn as_str(self) -> &'static str {
                 match self {
                     $(Self::$variant => $text),+

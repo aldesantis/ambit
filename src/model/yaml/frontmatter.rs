@@ -1,8 +1,8 @@
-//! Locating a Markdown document's frontmatter block: a hand port of gray-matter 4.0.3's.
+//! Locating a Markdown document's frontmatter block, following gray-matter 4.0.3.
 //!
-//! Only gray-matter's location logic is ported, quirks included, so a document splits where the
-//! TypeScript build split it. Its parsing is not: the block's contents go through ambit's own YAML
-//! rules, so no laxer parser ever sees ambit's YAML.
+//! The location logic matches gray-matter's, quirks included, so a document splits where it always
+//! has. Its parsing does not: the block's contents go through ambit's own YAML rules, so no laxer
+//! parser ever sees ambit's YAML.
 
 use crate::errors::{Result, config_error};
 use crate::util::text::{is_js_whitespace, js_trim};

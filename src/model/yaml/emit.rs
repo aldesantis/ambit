@@ -1,6 +1,7 @@
-//! The YAML emitter: a hand port of the subset of yaml@2.9.0's `stringify` ambit uses.
+//! The YAML emitter: yaml@2.9.0's `stringify` output for the subset ambit uses, so emitted files
+//! stay byte-identical across releases.
 //!
-//! The TypeScript build called `stringify` with these options, and each encodes a rule:
+//! It reproduces `stringify` with these options, and each encodes a rule:
 //!
 //! - `sortMapEntries` makes the byte order a function of the keys rather than of whichever order a
 //!   generator happened to build its object in: the property that lets a lock be diffed at all.
@@ -15,7 +16,7 @@
 //!   string needs quoting: an emitter on a laxer schema would leave `1e5` bare for a parser that
 //!   reads it as a float.
 //!
-//! Only the paths those options leave reachable are ported. A JSON value builds no flow
+//! Only the paths those options leave reachable are implemented. A JSON value builds no flow
 //! collection, carries no comments, and never needs a block scalar, so none of that is here.
 
 use std::sync::LazyLock;

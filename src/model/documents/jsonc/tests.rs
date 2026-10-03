@@ -343,11 +343,7 @@ mod what_it_refuses {
     }
 }
 
-/// Every input `jsonc.test.ts` fed the TypeScript driver, with the exact bytes this driver writes
-/// for it.
-///
-/// Recorded from the TypeScript driver, then updated where jsonc-parser's formatting differs from
-/// VS Code's `modify`; the PR description lists each difference.
+/// Every recorded input, with the exact bytes this driver writes for it.
 #[test]
 fn writes_the_recorded_bytes() {
     let corpus: JsonValue =

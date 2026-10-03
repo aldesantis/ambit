@@ -138,8 +138,8 @@ pub struct InstallResult {
     pub artifacts: Vec<AppliedArtifact>,
     /// Hooks a configured harness could not express, and so was not given.
     pub skipped: Vec<SkippedHook>,
-    /// What the previous install owned and this one does not, removed by path. No report prints it
-    /// (the TS result carried it for library callers); the tests read it.
+    /// What the previous install owned and this one does not, removed by path. No report prints
+    /// it; the tests read it.
     #[cfg_attr(not(test), allow(dead_code))]
     pub pruned: Vec<PrunedArtifact>,
 }

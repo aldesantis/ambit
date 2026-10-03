@@ -662,7 +662,7 @@ mod ambit_self_update {
     }
 }
 
-/// Help wraps to the width the output stream reports, as commander's did on a terminal.
+/// Help wraps to the width the output stream reports, as commander's does on a terminal.
 mod help_width {
     use super::*;
 

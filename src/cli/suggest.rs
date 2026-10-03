@@ -1,4 +1,4 @@
-//! "Did you mean …?" for an unknown command or flag: a port of commander 15's `suggestSimilar`.
+//! "Did you mean …?" for an unknown command or flag, matching commander 15's `suggestSimilar`.
 
 use crate::util::cmp::js_cmp;
 

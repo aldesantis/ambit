@@ -1,8 +1,8 @@
-//! Argv parsing: a hand port of the subset of commander 15's `_parseCommand` and `parseOptions`
-//! ambit uses, with commander's error precedence and wording.
+//! Argv parsing: the subset of commander 15's `_parseCommand` and `parseOptions` ambit uses, with
+//! commander's error precedence and wording, which ambit's usage errors have always followed.
 //!
 //! The surface is built once per run from [`CommandSpec`]s into a [`Command`] tree shaped the way
-//! commander's was: the program at the root with `--version` and positional options, one child per
+//! commander's is: the program at the root with `--version` and positional options, one child per
 //! spec, each with the help option, and a group's children below it.
 //!
 //! Precedence, as commander has it, for one command level:
@@ -15,7 +15,7 @@
 //! 6. Missing, then excess, positional arguments; or an unknown command at a level with no action.
 //!
 //! Short flags, option-argument variadics, environment-variable options and defaults are
-//! commander features ambit never declares, and are not ported.
+//! commander features ambit never declares, and are not implemented.
 
 use std::sync::LazyLock;
 

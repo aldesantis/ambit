@@ -2,7 +2,7 @@
 //!
 //! JSONC is JSON with comments and trailing commas, which makes a parse round-trip lossy: a
 //! person's comments would not survive it. So this driver never re-serializes the document. It
-//! edits jsonc-parser's concrete syntax tree, one key at a time, and renders the tree back, leaving
+//! edits the `jsonc_parser` crate's concrete syntax tree, one key at a time, and renders the tree back, leaving
 //! comments, blank lines, indentation and key order everywhere else untouched. Reads go through the
 //! crate's serde conversion, so a reformatted entry is not drift.
 

@@ -44,7 +44,7 @@ pub enum McpTransport {
 }
 
 impl McpTransport {
-    /// The transport's `kind`, as the TS discriminant spelled it.
+    /// The transport's `kind`.
     pub fn kind(&self) -> McpTransportKind {
         match self {
             Self::Stdio(_) => McpTransportKind::Stdio,
@@ -62,7 +62,7 @@ string_enum! {
     }
 }
 
-/// The transport kinds, in the order the TS listed them.
+/// The transport kinds, in declaration order.
 pub const MCP_TRANSPORT_KINDS: &[McpTransportKind] = McpTransportKind::ALL;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

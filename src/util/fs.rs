@@ -1,4 +1,4 @@
-//! Filesystem calls with the semantics the TypeScript build had on Node.
+//! Filesystem calls with Node's semantics, which ambit's behaviour and error text follow.
 //!
 //! - Only `NotFound` means "absent". Any other failure (`ENOTDIR`, `EACCES`) is an error, because
 //!   "I could not look" is not the same answer as "nothing is there".

@@ -3,8 +3,8 @@
 //! Every case runs against the fixture catalog, mutated in place for the malformed ones, so the
 //! subject is the same tree the rest of the suite resolves against.
 //!
-//! The CLI mechanism cases from the same TS suite (the command surface, the nested-command seam,
-//! usage errors, the flag rules) live in `src/cli/tests.rs`.
+//! The CLI mechanism cases (the command surface, the nested-command seam, usage errors, the flag
+//! rules) live in `src/cli/tests.rs`.
 
 use std::path::{Path, PathBuf};
 

@@ -22,7 +22,7 @@ pub struct PackageFile {
 pub type PackageFiles = IndexMap<String, PackageFile>;
 
 /// The error for a filesystem call that failed while exporting, worded as every unanticipated
-/// export failure is: exit 2, Node's message, and where to look.
+/// export failure is: exit 2, the Node-worded message from [`io_message`], and where to look.
 pub(crate) fn io_failed(error: &std::io::Error, syscall: &str, path: &Path) -> AmbitError {
     config_error(
         "cannot export Claude plugins",
@@ -65,8 +65,7 @@ pub(crate) fn mode_of(metadata: &std::fs::Metadata) -> u32 {
     }
 }
 
-/// Adds one package file, refusing collisions instead of overwriting another component. The TS
-/// default `mode` was `0o644`.
+/// Adds one package file, refusing collisions instead of overwriting another component.
 ///
 /// # Errors
 ///
