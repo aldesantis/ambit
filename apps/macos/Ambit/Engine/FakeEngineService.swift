@@ -1,8 +1,8 @@
 // An in-memory engine for previews, unit tests of UI state, and UI tests until the UniFFI-backed
 // `LiveEngineService` is wired in. Setups come from `fixtures`; a root without a fixture has no
-// config. Nothing here writes to disk: apply stores the draft as the fixture's valid config.
-// `canonicalPath` is the one call that reads the real filesystem, because project registration
-// needs real folders.
+// config, unless the root holds an `ambit.yml` in the fake's format, which UI tests write to seed a
+// setup. Nothing here writes to disk: apply stores the draft as the fixture's valid config.
+// `canonicalPath` and that fallback are the only calls that read the real filesystem.
 //
 // Configs use a small YAML subset of the fake's own (see `FakeConfigText`). Edits re-render the
 // whole file, so the fake does not preserve comments; that guarantee belongs to the real engine.
@@ -33,6 +33,15 @@ final class FakeEngineService: EngineService {
         var saveCount = 0
         /// How many applies and retries ran, including failed ones.
         var applyCount = 0
+        /// What `status()` reports. `nil` reports no items.
+        var status: SetupStatus?
+        /// What `health()` reports. `nil` reports every check passing, with `status`'s items.
+        var health: HealthReport?
+        /// Thrown by `status()` and `health()` instead of a result.
+        var statusFailure: EngineError?
+        /// How many times `status()` and `health()` ran.
+        var statusReads = 0
+        var healthChecks = 0
     }
 
     private let state: Mutex<[String: Fixture]>
@@ -50,6 +59,10 @@ final class FakeEngineService: EngineService {
 
     func fixture(root: String) -> Fixture {
         state.withLock { $0[root] ?? Fixture() }
+    }
+
+    func hasFixture(root: String) -> Bool {
+        state.withLock { $0[root] != nil }
     }
 
     func updateFixture(root: String, _ change: (inout Fixture) -> Void) {
@@ -140,14 +153,29 @@ final class FakeEngineService: EngineService {
         return SourceInfo(kind: .local(path: source), proposedName: name)
     }
 
-    /// The real tool names with made-up file locations.
+    /// The five tools as the engine describes them, with an abridged set of limitations.
     func supportedAgentTools() -> [AgentToolInfo] {
-        [("claude", "Claude Code"), ("codex", "Codex"), ("cursor", "Cursor"), ("opencode", "OpenCode"), ("vscode", "VS Code")]
-            .map { id, name in
-                AgentToolInfo(
-                    id: id, displayName: name, skillsDir: ".\(id)/skills", mcpFile: ".\(id)/mcp.json",
-                    personalMcpFile: ".\(id)/mcp.json", hooksFile: nil, limitations: [])
-            }
+        [
+            AgentToolInfo(
+                id: "claude", displayName: "Claude Code", skillsDir: ".claude/skills", mcpFile: ".mcp.json",
+                personalMcpFile: ".claude.json", hooksFile: ".claude/settings.json", limitations: []),
+            AgentToolInfo(
+                id: "codex", displayName: "Codex", skillsDir: ".agents/skills", mcpFile: ".codex/config.toml",
+                personalMcpFile: ".codex/config.toml", hooksFile: ".codex/hooks.json",
+                limitations: ["In a project, hook scripts are found only when Codex runs from the project folder."]),
+            AgentToolInfo(
+                id: "cursor", displayName: "Cursor", skillsDir: ".claude/skills", mcpFile: ".cursor/mcp.json",
+                personalMcpFile: ".cursor/mcp.json", hooksFile: ".cursor/hooks.json",
+                limitations: ["In a project, hook scripts are found only when Cursor runs from the project folder."]),
+            AgentToolInfo(
+                id: "opencode", displayName: "OpenCode", skillsDir: ".agents/skills",
+                mcpFile: ".opencode/opencode.jsonc", personalMcpFile: ".opencode/opencode.jsonc", hooksFile: nil,
+                limitations: ["Hooks are not supported. Hooks you select are skipped for OpenCode."]),
+            AgentToolInfo(
+                id: "vscode", displayName: "VS Code", skillsDir: ".agents/skills", mcpFile: ".vscode/mcp.json",
+                personalMcpFile: ".vscode/mcp.json", hooksFile: ".claude/settings.json",
+                limitations: ["Hooks are written to Claude Code's settings file, which VS Code also reads."]),
+        ]
     }
 }
 
@@ -165,7 +193,14 @@ private struct FakeSetupSession: SetupSessionService {
     private var fixture: FakeEngineService.Fixture { engine.fixture(root: root) }
 
     func snapshot() async throws -> SetupSnapshot {
-        SetupSnapshot(root: root, config: fixture.config)
+        if !engine.hasFixture(root: root) {
+            let file = URL(fileURLWithPath: root).appending(path: DraftModel.newFileName)
+            if let text = try? String(contentsOf: file, encoding: .utf8) {
+                engine.setFixture(
+                    FakeEngineService.Fixture(config: try FakeEngineService.validConfig(text, root: root)), root: root)
+            }
+        }
+        return SetupSnapshot(root: root, config: fixture.config)
     }
 
     func loadCatalogs(draftText: String?, policy: FetchPolicy, progress: ProgressHandler?) async throws -> CatalogsState {
@@ -278,11 +313,27 @@ private struct FakeSetupSession: SetupSessionService {
     }
 
     func status() async throws -> SetupStatus {
-        SetupStatus(items: [], artifacts: [])
+        engine.updateFixture(root: root) { $0.statusReads += 1 }
+        let fixture = fixture
+        if let error = fixture.statusFailure {
+            throw error
+        }
+        return fixture.status ?? SetupStatus(items: [], artifacts: [])
     }
 
     func health() async throws -> HealthReport {
-        HealthReport(checks: [], findings: [], items: [])
+        engine.updateFixture(root: root) { $0.healthChecks += 1 }
+        let fixture = fixture
+        if let error = fixture.statusFailure {
+            throw error
+        }
+        if let health = fixture.health {
+            return health
+        }
+        let checks = ["expects", "lock", "ownership", "drift", "mode", "harness"].map {
+            HealthCheck(name: $0, passed: true, message: "")
+        }
+        return HealthReport(checks: checks, findings: [], items: fixture.status?.items ?? [])
     }
 
     /// Sleeps for `delay`, translating task cancellation into the engine's error.
