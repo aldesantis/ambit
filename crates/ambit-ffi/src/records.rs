@@ -252,6 +252,14 @@ impl From<&PatternEntry> for SelectionEntry {
     }
 }
 
+/// One item of one catalog.
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ItemRef {
+    pub kind: ItemKind,
+    pub catalog: String,
+    pub name: String,
+}
+
 /// What a source the user typed names, and the catalog name to suggest for it.
 #[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
 pub struct SourceInfo {
