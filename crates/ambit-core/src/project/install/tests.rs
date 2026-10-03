@@ -1955,6 +1955,11 @@ fn exits_2_rather_than_guessing_at_a_managed_key_that_names_no_section() {
 fn project_files() -> Vec<String> {
     let mut files = vec![
         STATE_FILE.to_owned(),
+        // The operation lock, taken before the first write and left in place for the next run.
+        format!(
+            ".ambit/{}",
+            crate::project::operation_lock::OPERATION_LOCK_FILENAME
+        ),
         format!("{}/SKILL.md", skill(ENGINEERING_SKILL)),
         format!("{}/SKILL.md", skill(CORE_SKILL)),
         format!("{}/SKILL.md", skill(FRONTEND_SKILL)),
