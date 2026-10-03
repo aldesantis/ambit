@@ -855,3 +855,50 @@ mod ambit_clean {
         );
     }
 }
+
+mod operation_lock {
+    use super::*;
+    use crate::project::operation_lock::{OPERATION_IN_PROGRESS, SetupLock};
+
+    #[test]
+    fn prune_and_clean_refuse_while_another_operation_holds_the_project() {
+        let f = installed();
+        f.write_profile(&["core"]);
+        let held = SetupLock::acquire(&f.project_dir).unwrap();
+        let before = f.snapshot();
+
+        for command in ["prune", "clean"] {
+            let result = f.cli(&[command]);
+
+            assert_eq!(
+                result.code,
+                ExitCode::Config,
+                "{command}: {}",
+                result.stderr
+            );
+            assert!(
+                result.stderr.contains(OPERATION_IN_PROGRESS),
+                "{command}: {}",
+                result.stderr
+            );
+        }
+
+        assert_eq!(f.snapshot(), before);
+
+        drop(held);
+
+        assert_eq!(f.cli(&["prune"]).code, ExitCode::Success);
+        assert_eq!(f.cli(&["clean"]).code, ExitCode::Success);
+        assert!(!f.path_exists(STATE_DIRNAME));
+    }
+
+    #[test]
+    fn a_prune_with_nothing_to_do_takes_no_lock_and_writes_nothing() {
+        let f = installed();
+        let _held = SetupLock::acquire(&f.project_dir).unwrap();
+        let before = f.snapshot();
+
+        assert_eq!(f.cli(&["prune"]).code, ExitCode::Success);
+        assert_eq!(f.snapshot(), before);
+    }
+}
