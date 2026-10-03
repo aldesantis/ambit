@@ -1,0 +1,16 @@
+Usage: ambit update [options] [catalog...]
+
+move catalog pins forward, then install
+
+Arguments:
+  catalog          catalogs to update; every one of them when none is named
+
+Options:
+  --adopt          take ownership of existing unowned artifacts
+  --copy           copy local-source skills instead of symlinking
+  --link           symlink skills instead of copying
+  --dry-run        print the plan without touching disk
+  --project <dir>  project directory
+  --json           machine-readable output
+  --offline        use only cached catalogs
+  --help           show usage
