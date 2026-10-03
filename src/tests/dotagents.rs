@@ -87,8 +87,7 @@ struct ChildResult {
 /// The cache and user-level install directories are redirected into `home`, because dotagents
 /// defaults them under `$HOME` and a test that writes there is a test that changed the machine.
 fn dotagents(args: &[&str], cwd: &Path, home: &Path) -> ChildResult {
-    // npm ships npx as a batch file on Windows, and spawning resolves only `.exe` names itself.
-    let mut command = Command::new(if cfg!(windows) { "npx.cmd" } else { "npx" });
+    let mut command = Command::new("npx");
 
     command
         .arg("--yes")
@@ -218,6 +217,10 @@ fn probe(home: &Path) -> Option<String> {
 }
 
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "dotagents refuses every `path:` source on Windows: it checks containment with a hard-coded `/`"
+)]
 fn installs_every_skill_in_the_hand_written_fixture_catalog_ignoring_ambits_additions() {
     let home = tempdir();
 
@@ -230,11 +233,7 @@ fn installs_every_skill_in_the_hand_written_fixture_catalog_ignoring_ambits_addi
     }
 
     let root = tempdir();
-    // Canonical, because dotagents compares the catalog's resolved path against the project's
-    // path as given, and Windows hands out the temp directory under its 8.3 short name.
-    let project = crate::util::fs::canonicalize(root.path())
-        .expect("resolve the tempdir")
-        .join("project");
+    let project = root.path().join("project");
     let catalog_dir = project.join(CATALOG_DIRNAME);
 
     write_dotagents_project(&project);
