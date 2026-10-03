@@ -19,7 +19,7 @@
         }
       ],
       "result": {
-        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    },\n  },\n}\n"
+        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\"npx\", \"-y\", \"@acme/fixture-mcp\"],\n    },\n  },\n}\n"
       }
     },
     {
@@ -39,7 +39,7 @@
         }
       ],
       "result": {
-        "ok": "{\n  \"mcp\": {\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    }\n  }\n}\n"
+        "ok": "{\n  \"mcp\": {\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\"npx\", \"-y\", \"@acme/fixture-mcp\"]\n    }\n  }\n}\n"
       }
     },
     {
@@ -59,7 +59,7 @@
         }
       ],
       "result": {
-        "ok": "{\n  // just a model\n  \"model\": \"x\",\n  \"mcp\": {\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    }\n  }\n}\n"
+        "ok": "{\n  // just a model\n  \"model\": \"x\",\n  \"mcp\": {\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\"npx\", \"-y\", \"@acme/fixture-mcp\"]\n    }\n  }\n}\n"
       }
     },
     {
@@ -86,7 +86,7 @@
         }
       ],
       "result": {
-        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    },\n    \"other\": {\n      \"type\": \"remote\",\n      \"url\": \"https://other.invalid/mcp\"\n    },\n  },\n}\n"
+        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\"npx\", \"-y\", \"@acme/fixture-mcp\"],\n    },\n    \"other\": {\n      \"type\": \"remote\",\n      \"url\": \"https://other.invalid/mcp\",\n    },\n  },\n}\n"
       }
     },
     {
@@ -106,7 +106,7 @@
         }
       ],
       "result": {
-        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    },\n  },\n}\n"
+        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\"npx\", \"-y\", \"@acme/fixture-mcp\"]\n    },\n  },\n}\n"
       }
     },
     {
@@ -124,7 +124,7 @@
         }
       ],
       "result": {
-        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"old\"\n      ]\n    },\n  },\n}\n"
+        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\"old\"],\n    },\n  },\n}\n"
       }
     },
     {
@@ -144,7 +144,7 @@
         }
       ],
       "result": {
-        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    },\n  },\n}\n"
+        "ok": "{\n  // The model I actually use.\n  \"model\": \"anthropic/claude-opus-4\",\n\n  /* Servers I added myself, long before ambit ran here. */\n  \"mcp\": {\n    \"handmade\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"./scripts/local-mcp.js\"],\n    },\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\"npx\", \"-y\", \"@acme/fixture-mcp\"]\n    },\n  },\n}\n"
       }
     },
     {
@@ -164,7 +164,7 @@
         }
       ],
       "result": {
-        "ok": "{\n  // mine\n  \"model\": \"x\",\n  \"mcp\": {\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\n        \"npx\",\n        \"-y\",\n        \"@acme/fixture-mcp\"\n      ]\n    }\n  }\n}\n"
+        "ok": "{\n  // mine\n  \"model\": \"x\",\n  \"mcp\": {\n    \"fixture\": {\n      \"type\": \"local\",\n      \"command\": [\"npx\", \"-y\", \"@acme/fixture-mcp\"]\n    }\n  }\n}\n"
       }
     },
     {
@@ -265,7 +265,7 @@
         "fixture"
       ],
       "result": {
-        "ok": "{\n  // mine\n  \"model\": \"x\",\n  \"mcp\": {\n  }\n}\n"
+        "ok": "{\n  // mine\n  \"model\": \"x\",\n  \"mcp\": {}\n}\n"
       }
     },
     {
