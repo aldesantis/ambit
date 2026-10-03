@@ -138,6 +138,7 @@ impl World {
             project_dir: self.git_project.clone(),
             env: self.env.clone(),
             offline: false,
+            ..SourceContext::default()
         };
         let catalogs = load_catalogs(&config, &context, &mut CatalogLoadOptions::default())
             .expect("load the catalogs");

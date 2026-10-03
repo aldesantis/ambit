@@ -620,6 +620,7 @@ pub fn project_status(
         project_dir: project_dir.to_path_buf(),
         env: env.clone(),
         offline: options.offline,
+        ..SourceContext::default()
     };
     let catalogs = load_catalogs(&config, &context, &mut CatalogLoadOptions::default())?;
     let bundle = resolve_bundle(&config, &merge_catalogs(&catalogs))?;

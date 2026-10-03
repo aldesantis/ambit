@@ -315,6 +315,7 @@ impl Fixture {
             project_dir: self.project_dir.clone(),
             env: self.env.clone(),
             offline: false,
+            ..SourceContext::default()
         }
     }
 

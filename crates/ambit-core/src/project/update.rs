@@ -364,6 +364,7 @@ fn plan_update(
         project_dir: project_dir.to_path_buf(),
         env: env.clone(),
         offline: false,
+        ..SourceContext::default()
     };
     let pins = read_catalog_pins(project_dir, &config)?;
 

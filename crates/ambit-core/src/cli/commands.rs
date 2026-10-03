@@ -404,6 +404,7 @@ pub fn source_context_of(ctx: &CommandContext<'_>) -> SourceContext {
         project_dir: project_dir_of(ctx),
         env: ctx.env.clone(),
         offline: offline_requested(ctx),
+        ..SourceContext::default()
     }
 }
 

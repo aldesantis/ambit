@@ -32,6 +32,7 @@ impl Fixture {
             project_dir: self.source.clone(),
             env: self.env.clone(),
             offline: true,
+            ..SourceContext::default()
         }
     }
 
@@ -545,6 +546,7 @@ fn uses_locked_git_revisions_reproducibly_including_metadata_when_offline() {
         project_dir: project.clone(),
         env: f.env.clone(),
         offline: false,
+        ..SourceContext::default()
     };
     let config = load_project_config(&project).expect("load the config");
     let catalogs = load_catalogs(&config, &remote, &mut CatalogLoadOptions::default())

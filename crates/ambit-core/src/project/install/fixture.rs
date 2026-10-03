@@ -281,6 +281,7 @@ impl Project {
             project_dir: self.dir.clone(),
             env: self.env.clone(),
             offline: false,
+            ..SourceContext::default()
         };
         let config = load_project_config(&self.dir).expect("a valid config");
         let catalogs = load_catalogs(&config, &context, &mut CatalogLoadOptions::default())
