@@ -236,9 +236,13 @@ struct SkillDocument: Sendable, Hashable {
     var path: String
 }
 
+/// The live engine reports review and update diffs by kind and name, so their items carry an
+/// empty `catalog`.
 struct BundleDiff: Sendable, Hashable {
     var added: [ItemRef] = []
     var removed: [ItemRef] = []
+    /// Still selected, with different contents.
+    var changed: [ItemRef] = []
 }
 
 struct SustainingEntry: Sendable, Hashable {
@@ -313,6 +317,16 @@ struct ReviewSummary: Sendable, Hashable {
     var lockChanged: Bool
     var blockers: [Blocker]
     var canApply: Bool
+    /// Catalogs whose installed commit applying moves.
+    var revisions: [RevisionChange] = []
+}
+
+struct RevisionChange: Sendable, Hashable {
+    var catalog: String
+    /// Installed now; `nil` when nothing is recorded.
+    var before: String?
+    /// Installed by applying; `nil` for a removed catalog.
+    var after: String?
 }
 
 /// An opaque reviewed plan. Only the engine that produced it can apply it.
@@ -357,7 +371,8 @@ struct ReviewedRevision: Sendable, Hashable {
 
 /// Ordered by severity, so the worst of several states is their maximum.
 enum ArtifactState: Int, Sendable, Hashable, Comparable {
-    case ok, missing, modified, unowned
+    /// `stale`: installed by ambit and no longer selected; the next apply removes it.
+    case ok, stale, missing, modified, unowned
 
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
 }
@@ -390,4 +405,8 @@ struct HealthReport: Sendable, Hashable {
     var checks: [HealthCheck]
     var findings: [Finding]
     var items: [ItemStatus]
+    /// Installed as planned and still waiting on a prerequisite: "Installed; setup required".
+    var setupRequired: [ItemRef] = []
+    /// What the prerequisite check can and cannot see, shown beside its findings.
+    var environmentNote: String = ""
 }

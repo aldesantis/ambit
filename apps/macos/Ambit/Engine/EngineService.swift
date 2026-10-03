@@ -19,8 +19,13 @@ protocol EngineService: Sendable {
 
     /// Resolves symlinks and relative components of an existing path.
     ///
-    /// Throws `EngineError.config` when the path does not exist.
+    /// Throws `EngineError.io` when the path does not exist.
     func canonicalPath(_ path: String) async throws -> String
+
+    /// What `git --version` prints for the git the engine runs: the bundled one when present.
+    ///
+    /// Throws `EngineError.network` when that git cannot be started.
+    func gitVersion() async throws -> String
 
     /// A new config with `harnesses` and empty `catalogs` and `requires`.
     func newConfigText(harnesses: [String]) -> String

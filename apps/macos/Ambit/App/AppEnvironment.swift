@@ -30,8 +30,16 @@ struct AppEnvironment {
         let folderPicker: any FolderPicker =
             if let hooks { FixedFolderPicker(folder: hooks.pickFolder) } else { OpenPanelFolderPicker() }
 
-        // Replaced by LiveEngineService once the UniFFI engine is linked.
-        let engine: any EngineService = FakeEngineService.scenario(hooks?.engineScenario, home: home)
+        // UI tests run a seeded fake engine (`AMBIT_TEST_ENGINE=<scenario>`), or the real one on the
+        // test home with `AMBIT_TEST_ENGINE=live`.
+        let engine: any EngineService =
+            if let hooks, hooks.engineScenario != "live" {
+                FakeEngineService.scenario(hooks.engineScenario, home: home)
+            } else {
+                // Under UI testing every location derives from the test home, never the developer's.
+                LiveEngineService(
+                    environment: LiveEngineEnvironment.make(home: home, forwardProcess: hooks == nil))
+            }
 
         return AppEnvironment(
             launch: launch, engine: engine, stateStore: AppStateStore(directory: stateDirectory),

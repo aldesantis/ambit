@@ -1,5 +1,5 @@
-// An in-memory engine for previews, unit tests of UI state, and UI tests until the UniFFI-backed
-// `LiveEngineService` is wired in. Setups come from `fixtures`; a root without a fixture has no
+// An in-memory engine for previews, unit tests of UI state, and UI tests that ask for it
+// with `AMBIT_TEST_ENGINE=fake`. Setups come from `fixtures`; a root without a fixture has no
 // config. Nothing here writes to disk: apply stores the draft as the fixture's valid config.
 // `canonicalPath` reads the real filesystem, because project registration needs real folders, and
 // so does the first `snapshot()` of a root without a fixture: it takes an `ambit.yml` found there
@@ -108,11 +108,15 @@ final class FakeEngineService: EngineService {
 
     func canonicalPath(_ path: String) async throws -> String {
         guard let resolved = realpath(path, nil) else {
-            throw EngineError.config(
-                message: String(localized: "The folder \(path) does not exist."), detail: [], path: path, line: nil)
+            throw EngineError.io(
+                message: String(localized: "The folder \(path) does not exist."), detail: [], path: path)
         }
         defer { free(resolved) }
         return String(cString: resolved)
+    }
+
+    func gitVersion() async throws -> String {
+        "git version 0.0.0 (fake)"
     }
 
     func newConfigText(harnesses: [String]) -> String {
