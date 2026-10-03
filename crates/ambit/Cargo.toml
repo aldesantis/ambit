@@ -1,0 +1,33 @@
+[package]
+name = "ambit"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+description = "A deterministic dependency manager for AI-agent capabilities: skills, MCP servers and hooks, selected by name or tag."
+readme = "../../README.md"
+
+[[bin]]
+name = "ambit"
+path = "src/main.rs"
+
+[dependencies]
+ambit-core = { workspace = true, features = ["cli"] }
+
+[dev-dependencies]
+assert_cmd.workspace = true
+pretty_assertions.workspace = true
+serde_json.workspace = true
+# Reads the fixture catalog in tests independently of ambit's own YAML reader.
+saphyr.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true
+
+# `publish = false` keeps ambit off crates.io, which dist reads as "do not release" unless told
+# otherwise. Releases are built by dist; see dist-workspace.toml.
+[package.metadata.dist]
+dist = true

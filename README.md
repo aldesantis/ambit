@@ -12,6 +12,7 @@ You write a few lines of config. ambit fetches, resolves, and writes the files.
 ## Table of contents
 
 - [Install](#install)
+- [macOS app](#macos-app)
 - [Quick start](#quick-start)
 - [What you can select](#what-you-can-select)
 - [Configuring your project](#configuring-your-project)
@@ -61,7 +62,7 @@ has a `.sha256` file beside it.
 With a Rust toolchain you can build it from source instead:
 
 ```
-cargo install --locked --git https://github.com/aldesantis/ambit
+cargo install --locked --git https://github.com/aldesantis/ambit ambit
 ```
 
 If you have ambit 0.4 or older, `ambit self-update` cannot find newer releases. Run the install
@@ -69,6 +70,32 @@ command above once, and `self-update` works from then on.
 
 To upgrade a binary later, run `ambit self-update`. See
 [Updating ambit itself](#updating-ambit-itself).
+
+## macOS app
+
+The Ambit app gives you a visual way to choose and install skills, MCP servers, hooks, and packs.
+It requires macOS 26 or newer. For a release that includes the app, download `Ambit-<version>.dmg`
+from the [releases page](https://github.com/aldesantis/ambit/releases), open it, and drag Ambit to
+Applications. The app includes the engine it needs; you do not need to install the CLI separately.
+
+On first launch, choose **Personal setup** in the sidebar to manage capabilities available across
+your projects. Select **Add Project…** to open a project folder and manage that project's
+capabilities. Each setup has its own catalogs and selections, so choose the setup you want to change
+before adding anything.
+
+In **Catalogs**, select **Add Catalog…** and enter a Git repository or choose a local folder. You
+can use public GitHub repositories without signing in. To use private GitHub repositories, sign in
+under **Settings > Account**. In **Capabilities**, browse what your catalogs offer and select what
+you want. Select **Apply Changes…** to review the files Ambit will install or remove, then confirm the
+changes. Until you apply, your selections remain pending.
+
+Catalogs do not advance automatically. Use the catalog update check when you want to see whether a
+Git repository has changed, review the resulting capability changes, and apply the updates you
+choose. Local folders use their current contents.
+
+App updates are separate from catalog updates. The app checks for new releases when it opens and
+periodically while running. When an update has downloaded, choose **Restart to Update** to install
+it. You can also check from the app menu.
 
 ## Quick start
 
@@ -608,7 +635,7 @@ when `AMBIT_NO_UPDATE_CHECK` is set to anything. It never delays or fails the co
 | ---- | --------------------------------------------------------------------------------------- |
 | 0    | Success                                                                                 |
 | 1    | Unexpected internal error                                                               |
-| 2    | Config, ownership, export compatibility, or usage error                                 |
+| 2    | Config, ownership, export compatibility, or usage error, or another ambit operation (a command or the Ambit app) is changing the same project |
 | 3    | Resolution error: a pattern matching nothing, missing requirement, cycle, name conflict |
 | 4    | Network or cache error                                                                  |
 | 5    | Drift detected (`status --check`, `install --frozen`, `export --check`)                 |
@@ -638,15 +665,124 @@ cargo fmt                # `cargo fmt --check` is the CI variant
 cargo build --release
 ```
 
-`cargo run -- <args>` is the CLI.
+`cargo run -p ambit -- <args>` is the CLI.
 
-`tests/golden/` holds recorded program output. Regenerate it with `UPDATE_GOLDEN=1 cargo test` and
+`crates/ambit/tests/golden/` holds recorded program output. Regenerate it with `UPDATE_GOLDEN=1 cargo test` and
 read the diff.
 
 Releases are built by [cargo-dist](https://github.com/axodotdev/cargo-dist) from
-`dist-workspace.toml`. To cut one, set `version` in `Cargo.toml`, commit it, and push a matching
+`dist-workspace.toml`. To cut one, set `version` under `[workspace.package]` in `Cargo.toml`, commit it, and push a matching
 tag: `git tag v0.5.1 && git push --tags`. The release workflow runs the CI checks first and refuses
-a tag that does not match the version.
+a tag that does not match the version. The same tag also releases the macOS app (see
+[Releasing the macOS app](#releasing-the-macos-app)).
+
+### The macOS app
+
+The app lives in `apps/macos`. You need macOS 26, Xcode with the macOS 26 SDK or newer,
+[XcodeGen](https://github.com/yonaskolb/XcodeGen), and both macOS Rust targets. No Apple account
+or other credentials are needed to build, test or package it locally.
+
+```
+brew install xcodegen
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+apps/macos/scripts/build-git.sh      # optional: the git bundled in the app; slow once, cached afterwards
+cd apps/macos
+xcodegen generate                    # writes Ambit.xcodeproj, which is not committed
+open Ambit.xcodeproj
+```
+
+The app links the Rust engine through the local Swift package `apps/macos/AmbitEngine`, which
+`scripts/build-engine.sh` generates. Xcode resolves that package before any build step runs, so on
+a fresh checkout `xcodegen generate` builds the engine once first (host architecture only). After
+that every Xcode build brings it up to date before compiling: Debug builds rebuild it for the host
+architecture, Release builds universal (arm64 and x86_64). Without the bundled git, the app runs
+`/usr/bin/git`.
+
+Run the unit and UI tests from the command line (inside `apps/macos`):
+
+```
+xcodebuild test -project Ambit.xcodeproj -scheme Ambit -destination 'platform=macOS' \
+  CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
+```
+
+Build an unsigned universal DMG and ZIP into `apps/macos/build/dist`:
+
+```
+scripts/set-version.sh --xcconfig build/Version.xcconfig
+xcodebuild build -project Ambit.xcodeproj -scheme Ambit -configuration Release \
+  -destination 'generic/platform=macOS' -derivedDataPath build/DerivedData \
+  -xcconfig build/Version.xcconfig ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+  CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
+scripts/package.sh --app build/DerivedData/Build/Products/Release/Ambit.app
+```
+
+The app's version is always `version` under `[workspace.package]` in `Cargo.toml`.
+
+A local build has no GitHub OAuth client ID, so **Sign in with GitHub** is unavailable in it. To try
+sign-in, add `AMBIT_GITHUB_CLIENT_ID=<client id>` to the `xcodebuild` command.
+
+CI builds the app, runs both test suites and uploads the unsigned DMG as the
+`Ambit-macos-unsigned` artifact on every pull request.
+
+### Releasing the macOS app
+
+Pushing a release tag publishes the CLI first. A second job then builds the app, signs it with a
+Developer ID certificate, notarizes it with Apple, and adds three files to the same GitHub release:
+
+| File | Purpose |
+| --- | --- |
+| `Ambit-<version>.dmg` | The download for new installs. One universal build for Apple silicon and Intel. |
+| `Ambit-<version>.zip` | The update that installed copies download. |
+| `appcast.xml` | The update feed, signed with the Sparkle key. |
+
+Installed copies read the feed from
+`https://github.com/aldesantis/ambit/releases/latest/download/appcast.xml`, so they only update to
+the newest release that is not a prerelease.
+
+The job stops before building, naming each missing input, unless all of these are set under
+**Settings > Secrets and variables > Actions** in the repository:
+
+| Name | Kind | Value |
+| --- | --- | --- |
+| `APPLE_DEVELOPER_ID_CERT_P12` | secret | The Developer ID Application certificate and its private key as a `.p12`, base64-encoded. |
+| `APPLE_DEVELOPER_ID_CERT_PASSWORD` | secret | The password of that `.p12`. |
+| `APPLE_TEAM_ID` | secret | The 10-character Apple Developer team ID. |
+| `APPLE_NOTARY_KEY_ID` | secret | The key ID of an App Store Connect API key. |
+| `APPLE_NOTARY_ISSUER_ID` | secret | The issuer ID shown above the App Store Connect API keys. |
+| `APPLE_NOTARY_KEY_P8` | secret | The full text of that key's `AuthKey_<key id>.p8` file. |
+| `SPARKLE_ED_PRIVATE_KEY` | secret | The Sparkle EdDSA private key. |
+| `SPARKLE_PUBLIC_ED_KEY` | variable | The matching public key. Builds embed it to verify updates. |
+| `AMBIT_GITHUB_CLIENT_ID` | variable | The client ID of the Ambit GitHub OAuth app. |
+
+To create them:
+
+1. **Developer ID certificate.** In Xcode, open **Settings > Accounts**, select the team, choose
+   **Manage Certificates**, and add a **Developer ID Application** certificate. In Keychain Access,
+   export it with its private key as a `.p12` and set a password. Store `base64 -i cert.p12` as
+   `APPLE_DEVELOPER_ID_CERT_P12`.
+2. **Notarization key.** In App Store Connect, open **Users and Access > Integrations > App Store
+   Connect API**, create a team key with the **Developer** role, and download the `.p8` file. It can
+   be downloaded only once.
+3. **Sparkle keys.** Download a [Sparkle 2 release](https://github.com/sparkle-project/Sparkle/releases)
+   and run `./bin/generate_keys`. It prints the public key. Run `./bin/generate_keys -x sparkle.key`
+   to export the private key into `sparkle.key`. Keep a copy offline: losing it means installed
+   copies can no longer verify updates.
+4. **GitHub OAuth app.** Under the account or organization that publishes Ambit, open **Settings >
+   Developer settings > OAuth Apps > New OAuth App**. Use `Ambit` as the name and
+   `https://github.com/aldesantis/ambit` as both the homepage and the authorization callback URL
+   (device flow does not use the callback). Check **Enable Device Flow** and register the app. Copy
+   the **Client ID**. Do not generate a client secret: the app does not use one.
+
+Then cut a release as above:
+
+```
+git tag v0.5.1 && git push --tags
+```
+
+If the app job fails after the CLI is published, fix the cause and re-run the failed
+`custom-macos-release` job from the release workflow run. It replaces any app files it uploaded
+before.
 
 ## License
 

@@ -1,0 +1,5 @@
+// The app's version. It must equal `version` under [workspace.package] in the root Cargo.toml;
+// `scripts/set-version.sh --xcconfig Config/Version.xcconfig` rewrites it from there, and release
+// builds pass the same settings with -xcconfig.
+MARKETING_VERSION = 0.5.0
+CURRENT_PROJECT_VERSION = 0.5.0

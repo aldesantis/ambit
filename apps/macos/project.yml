@@ -1,0 +1,135 @@
+name: Ambit
+
+options:
+  bundleIdPrefix: com.nebulab
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  # Xcode resolves the local AmbitEngine package before any build phase runs, and the package
+  # needs the generated engine, so a fresh checkout builds it once here.
+  preGenCommand: scripts/bootstrap-engine.sh
+
+configFiles:
+  Debug: Config/Version.xcconfig
+  Release: Config/Version.xcconfig
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    # Ad-hoc signing by default, so local and CI builds need no credentials.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    # Info.plist values. Empty in local builds; the release workflow passes real ones.
+    AMBIT_GITHUB_CLIENT_ID: ""
+    SPARKLE_PUBLIC_ED_KEY: ""
+    SPARKLE_FEED_URL: https://github.com/aldesantis/ambit/releases/latest/download/appcast.xml
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+
+packages:
+  AmbitEngine:
+    path: AmbitEngine
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.10.0
+  Markdown:
+    url: https://github.com/swiftlang/swift-markdown
+    exactVersion: 0.9.0
+
+targets:
+  Ambit:
+    type: application
+    platform: macOS
+    sources:
+      - path: Ambit
+    dependencies:
+      - package: AmbitEngine
+      - package: Sparkle
+      - package: Markdown
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nebulab.ambit
+        PRODUCT_NAME: Ambit
+        INFOPLIST_FILE: Ambit/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Ambit/Resources/Ambit.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        COMBINE_HIDPI_IMAGES: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        # embed-git.sh writes into the built bundle and reads build/git, outside the sandbox.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+    preBuildScripts:
+      # The scheme's pre-action normally rebuilt the engine already, so this is a no-op; it is here
+      # because Xcode ignores a failing pre-action, and this phase fails the build instead.
+      - name: Build engine
+        basedOnDependencyAnalysis: false
+        script: |
+          "$SRCROOT/scripts/build-engine-for-xcode.sh"
+    postBuildScripts:
+      - name: Embed bundled git
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ ! -x "$SRCROOT/scripts/embed-git.sh" ]; then
+            echo "warning: scripts/embed-git.sh is missing; the app is built without the bundled git."
+            exit 0
+          fi
+          if [ ! -d "${AMBIT_GIT_OUT:-$SRCROOT/build/git}" ]; then
+            echo "warning: build/git does not exist; run scripts/build-git.sh to bundle git."
+            exit 0
+          fi
+          "$SRCROOT/scripts/embed-git.sh"
+
+  AmbitTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: AmbitTests
+    dependencies:
+      - target: Ambit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nebulab.ambit.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Ambit.app/Contents/MacOS/Ambit
+        BUNDLE_LOADER: $(TEST_HOST)
+
+  AmbitUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: AmbitUITests
+    dependencies:
+      - target: Ambit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nebulab.ambit.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Ambit
+
+schemes:
+  Ambit:
+    build:
+      # Rebuilds the engine before Xcode compiles the AmbitEngine package against it.
+      preActions:
+        - name: Build engine
+          settingsTarget: Ambit
+          script: |
+            mkdir -p "$OBJROOT" && "$SRCROOT/scripts/build-engine-for-xcode.sh" > "$OBJROOT/build-engine.log" 2>&1
+      targets:
+        Ambit: all
+        AmbitTests: [test]
+        AmbitUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - AmbitTests
+        - AmbitUITests
+    archive:
+      config: Release

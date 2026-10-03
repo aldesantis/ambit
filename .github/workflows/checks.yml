@@ -45,6 +45,11 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets --locked -- -D warnings
 
+      # The FFI library links ambit-core without its `cli` feature, a build the step above never
+      # makes.
+      - name: Clippy without the CLI
+        run: cargo clippy -p ambit-core --no-default-features --all-targets --locked -- -D warnings
+
   test:
     name: test on ${{ matrix.os }}
     if: github.workflow != 'Release' || github.event_name != 'pull_request'

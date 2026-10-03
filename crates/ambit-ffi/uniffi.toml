@@ -1,0 +1,6 @@
+# Names for the Swift bindings: the app imports `AmbitEngine`, which wraps the C module
+# `AmbitEngineFFI` shipped inside AmbitEngineFFI.xcframework (apps/macos/scripts/build-engine.sh).
+[bindings.swift]
+module_name = "AmbitEngine"
+ffi_module_name = "AmbitEngineFFI"
+ffi_module_filename = "AmbitEngineFFI"

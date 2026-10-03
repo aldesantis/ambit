@@ -1,6 +1,7 @@
 # Process state is read once, in main.rs, and passed down; the filesystem is reached through
 # util::fs so Node's semantics (ENOENT-only absence, lossy UTF-8, one permutable directory listing)
-# hold everywhere. Allowed with #[allow(clippy::disallowed_methods)] in main.rs and src/util only.
+# hold everywhere. Allowed with #[allow(clippy::disallowed_methods)] in crates/ambit/src/main.rs and
+# crates/ambit-core/src/util only.
 disallowed-methods = [
     { path = "std::env::var", reason = "read the environment once in main.rs and pass util::env::Env down" },
     { path = "std::env::vars", reason = "read the environment once in main.rs and pass util::env::Env down" },

@@ -1,0 +1,173 @@
+# Builds the macOS app for a release tag, signs it with the Developer ID certificate, notarizes and
+# staples it, and uploads Ambit-<version>.dmg, Ambit-<version>.zip and appcast.xml to the GitHub
+# release dist created for the same tag.
+#
+# release.yml calls this after the CLI release is announced (`post-announce-jobs` in
+# dist-workspace.toml) and passes dist's plan manifest as `plan`. A failure here leaves the CLI
+# release intact; fix the cause and re-run this job from the Actions page.
+#
+# The first step fails, naming each one, when a required secret or variable is missing. The names
+# and how to create them are in the README's development section.
+name: macos-release
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  app:
+    name: sign, notarize and upload the macOS app
+    runs-on: macos-26
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: apps/macos
+    env:
+      TAG: ${{ fromJson(inputs.plan).announcement_tag }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Check the release secrets and variables
+        env:
+          APPLE_DEVELOPER_ID_CERT_P12: ${{ secrets.APPLE_DEVELOPER_ID_CERT_P12 }}
+          APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          APPLE_NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          AMBIT_GITHUB_CLIENT_ID: ${{ vars.AMBIT_GITHUB_CLIENT_ID }}
+          SPARKLE_PUBLIC_ED_KEY: ${{ vars.SPARKLE_PUBLIC_ED_KEY }}
+        run: scripts/check-release-secrets.sh
+
+      # dist already refuses a tag that does not match the workspace version; this keeps the app
+      # from being uploaded under a version its Info.plist does not carry.
+      - name: Check the tag against the workspace version
+        id: version
+        run: |
+          version="$(scripts/set-version.sh --version)"
+          [[ "$TAG" == *"$version" ]] || { echo "::error::tag $TAG does not match workspace version $version"; exit 1; }
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+
+      - name: Show the Xcode version
+        run: |
+          xcodebuild -version
+          sdk="$(xcrun --sdk macosx --show-sdk-version)"
+          [[ "${sdk%%.*}" -ge 26 ]] || { echo "::error::the macOS 26 SDK or newer is required, found $sdk"; exit 1; }
+
+      - name: Install the pinned toolchain and both macOS targets
+        run: |
+          rustup toolchain install
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Restore the bundled git
+        id: git-cache
+        uses: actions/cache@v6
+        with:
+          path: apps/macos/build/git
+          key: bundled-git-${{ runner.os }}-${{ hashFiles('apps/macos/scripts/build-git.sh') }}
+
+      - name: Build the bundled git
+        if: steps.git-cache.outputs.cache-hit != 'true'
+        run: scripts/build-git.sh
+
+      - name: Build the engine XCFramework
+        run: scripts/build-engine.sh
+
+      - name: Generate the Xcode project
+        run: |
+          xcodegen generate
+          scripts/set-version.sh --xcconfig build/Version.xcconfig
+
+      # A throwaway keychain holds the certificate for this job only and is deleted at the end.
+      - name: Import the Developer ID certificate
+        id: identity
+        env:
+          APPLE_DEVELOPER_ID_CERT_P12: ${{ secrets.APPLE_DEVELOPER_ID_CERT_P12 }}
+          APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          keychain="$RUNNER_TEMP/ambit-release.keychain-db"
+          password="$(uuidgen)"
+          security create-keychain -p "$password" "$keychain"
+          echo "keychain=$keychain" >>"$GITHUB_OUTPUT"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          printf '%s' "$APPLE_DEVELOPER_ID_CERT_P12" | base64 --decode >"$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -f pkcs12 \
+            -P "$APPLE_DEVELOPER_ID_CERT_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" >/dev/null
+          read -r -a existing < <(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
+          security list-keychains -d user -s "$keychain" "${existing[@]}"
+          identity="$(security find-identity -v -p codesigning "$keychain" \
+            | grep "Developer ID Application" | grep "($APPLE_TEAM_ID)" | head -n 1 | awk '{print $2}')"
+          if [[ -z "$identity" ]]; then
+            echo "::error::APPLE_DEVELOPER_ID_CERT_P12 holds no Developer ID Application identity for team $APPLE_TEAM_ID"
+            exit 1
+          fi
+          echo "identity=$identity" >>"$GITHUB_OUTPUT"
+
+      # Built ad-hoc like CI; package.sh then re-signs every piece with the Developer ID.
+      - name: Build the universal release app
+        env:
+          AMBIT_GITHUB_CLIENT_ID: ${{ vars.AMBIT_GITHUB_CLIENT_ID }}
+          SPARKLE_PUBLIC_ED_KEY: ${{ vars.SPARKLE_PUBLIC_ED_KEY }}
+          SPARKLE_FEED_URL: https://github.com/${{ github.repository }}/releases/latest/download/appcast.xml
+        run: |
+          xcodebuild build \
+            -project Ambit.xcodeproj -scheme Ambit -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build/DerivedData -clonedSourcePackagesDirPath build/SourcePackages \
+            -xcconfig build/Version.xcconfig \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= \
+            AMBIT_GITHUB_CLIENT_ID="$AMBIT_GITHUB_CLIENT_ID" \
+            SPARKLE_PUBLIC_ED_KEY="$SPARKLE_PUBLIC_ED_KEY" \
+            SPARKLE_FEED_URL="$SPARKLE_FEED_URL"
+
+      - name: Sign, notarize and package
+        env:
+          IDENTITY: ${{ steps.identity.outputs.identity }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          APPLE_NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          scripts/package.sh \
+            --app build/DerivedData/Build/Products/Release/Ambit.app \
+            --out build/dist \
+            --identity "$IDENTITY" \
+            --notarize \
+            --appcast "https://github.com/${{ github.repository }}/releases/download/$TAG"
+
+      # --clobber makes a re-run replace the files it uploaded before.
+      - name: Upload to the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release upload "$TAG" --repo "${{ github.repository }}" --clobber \
+            "build/dist/Ambit-$VERSION.dmg" \
+            "build/dist/Ambit-$VERSION.zip" \
+            build/dist/appcast.xml
+
+      - name: Delete the signing keychain
+        if: always() && steps.identity.outputs.keychain != ''
+        env:
+          KEYCHAIN: ${{ steps.identity.outputs.keychain }}
+        run: security delete-keychain "$KEYCHAIN"
