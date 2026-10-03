@@ -24,3 +24,9 @@ pr-run-mode = "plan"
 # Runs .github/workflows/checks.yml (fmt, clippy, tests) on the tagged commit before any binary is
 # built. A tag can point at a commit CI never saw, and a published release cannot be taken back.
 plan-jobs = ["./checks"]
+
+# The Linux binaries link against the build runner's glibc, which sets the oldest distro they run
+# on. Pinned here so a dist upgrade or an `ubuntu-latest` move cannot raise that floor unnoticed.
+[dist.github-custom-runners]
+x86_64-unknown-linux-gnu = "ubuntu-22.04"
+aarch64-unknown-linux-gnu = "ubuntu-22.04-arm"
