@@ -12,9 +12,7 @@ struct AmbitApp: App {
         let environment = AppEnvironment.make(for: .current)
         let model = AppModel(environment: environment)
         let lifecycle = AppLifecycle(environment: environment)
-        // Pending drafts and running applies guard Quit, window close and Restart to update.
-        // Until AppModel conforms to PendingChangesGuard this stays `NoPendingChanges`; then:
-        // lifecycle.pendingChanges = model
+        lifecycle.pendingChanges = model
         _model = State(initialValue: model)
         _lifecycle = State(initialValue: lifecycle)
         AppDelegate.lifecycle = lifecycle
@@ -28,10 +26,10 @@ struct AmbitApp: App {
                 .background(WindowAccessor { window in appDelegate.attach(mainWindow: window) })
         }
         .defaultSize(width: 1080, height: 720)
-        // A normal launch always opens the window and a login launch starts in the menu bar only,
-        // so whether the window was open when the app last quit must not matter.
         .restorationBehavior(.disabled)
         .defaultLaunchBehavior(LaunchContext.current.isLoginLaunch ? .suppressed : .presented)
+        // A normal launch always opens the window and a login launch starts in the menu bar only,
+        // so whether the window was open when the app last quit must not matter.
         .commands {
             SidebarCommands()
             CommandGroup(replacing: .newItem) {

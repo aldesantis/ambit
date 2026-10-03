@@ -12,6 +12,7 @@ You write a few lines of config. ambit fetches, resolves, and writes the files.
 ## Table of contents
 
 - [Install](#install)
+- [macOS app](#macos-app)
 - [Quick start](#quick-start)
 - [What you can select](#what-you-can-select)
 - [Configuring your project](#configuring-your-project)
@@ -69,6 +70,32 @@ command above once, and `self-update` works from then on.
 
 To upgrade a binary later, run `ambit self-update`. See
 [Updating ambit itself](#updating-ambit-itself).
+
+## macOS app
+
+The Ambit app gives you a visual way to choose and install skills, MCP servers, hooks, and packs.
+It requires macOS 26 or newer. For a release that includes the app, download `Ambit-<version>.dmg`
+from the [releases page](https://github.com/aldesantis/ambit/releases), open it, and drag Ambit to
+Applications. The app includes the engine it needs; you do not need to install the CLI separately.
+
+On first launch, choose **Personal setup** in the sidebar to manage capabilities available across
+your projects. Select **Add Project…** to open a project folder and manage that project's
+capabilities. Each setup has its own catalogs and selections, so choose the setup you want to change
+before adding anything.
+
+In **Catalogs**, select **Add Catalog…** and enter a Git repository or choose a local folder. You
+can use public GitHub repositories without signing in. To use private GitHub repositories, sign in
+under **Settings > Account**. In **Capabilities**, browse what your catalogs offer and select what
+you want. Select **Apply Changes…** to review the files Ambit will install or remove, then confirm the
+changes. Until you apply, your selections remain pending.
+
+Catalogs do not advance automatically. Use the catalog update check when you want to see whether a
+Git repository has changed, review the resulting capability changes, and apply the updates you
+choose. Local folders use their current contents.
+
+App updates are separate from catalog updates. The app checks for new releases when it opens and
+periodically while running. When an update has downloaded, choose **Restart to Update** to install
+it. You can also check from the app menu.
 
 ## Quick start
 

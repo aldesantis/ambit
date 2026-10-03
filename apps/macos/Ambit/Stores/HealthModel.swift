@@ -38,6 +38,15 @@ final class HealthModel {
     /// Re-reads the config and the installation state. Never fetches or checks for newer catalog
     /// revisions.
     func refreshStatus() async {
+        guard let setup else {
+            return
+        }
+
+        await setup.refresh()
+    }
+
+    /// Reads installation state after the setup's saved configuration has been refreshed.
+    func readSavedStatus() async {
         guard let setup, !isRefreshing else {
             return
         }
@@ -45,7 +54,6 @@ final class HealthModel {
         isRefreshing = true
         defer { isRefreshing = false }
 
-        await setup.refresh()
         guard hasSavedConfig else {
             status = nil
             report = nil
@@ -164,7 +172,7 @@ final class HealthModel {
         switch status.state {
         case .unowned:
             return .ownershipProblem
-        case .modified:
+        case .modified, .stale:
             return .drifted
         case .missing:
             let present = status.artifacts.contains { $0.state != .missing }

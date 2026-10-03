@@ -2,12 +2,7 @@ import SwiftUI
 
 struct CapabilitiesView: View {
     let setup: SetupModel
-    @State private var model: CapabilitiesModel
-
-    init(setup: SetupModel) {
-        self.setup = setup
-        _model = State(initialValue: CapabilitiesModel(setup: setup))
-    }
+    private var model: CapabilitiesModel { setup.capabilities }
 
     var body: some View {
         @Bindable var model = model

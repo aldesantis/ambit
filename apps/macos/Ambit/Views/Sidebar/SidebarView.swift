@@ -84,8 +84,5 @@ private struct ProjectRow: View {
                 .foregroundStyle(isAvailable ? AnyShapeStyle(.tint) : AnyShapeStyle(.orange))
         }
         .help(project.path)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(project.name)
-        .accessibilityValue(isAvailable ? project.path : String(localized: "Folder unavailable, \(project.path)"))
     }
 }

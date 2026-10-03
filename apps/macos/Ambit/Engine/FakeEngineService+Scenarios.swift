@@ -4,18 +4,6 @@
 import Foundation
 
 extension FakeEngineService {
-    /// The scenario that `AMBIT_TEST_ENGINE` names, or an empty fake.
-    static func scenario(_ name: String?, home: URL) -> FakeEngineService {
-        let engine = FakeEngineService()
-        switch name {
-        case "catalogUpdates":
-            engine.setFixture(catalogUpdatesFixture(root: home.path), root: home.path)
-        default:
-            break
-        }
-        return engine
-    }
-
     /// A setup with an outdated GitHub catalog, a commit-pinned one, an unreachable one, a current
     /// one and a local folder.
     static func catalogUpdatesFixture(root: String) -> Fixture {

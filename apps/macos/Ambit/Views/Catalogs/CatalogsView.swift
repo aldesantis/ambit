@@ -35,6 +35,7 @@ struct CatalogsView: View {
                     Text("Add a local folder or a Git repository to take capabilities from.")
                 } actions: {
                     Button("Add Catalog…") { model.startAdding() }
+                        .accessibilityIdentifier("catalogs.add")
                 }
             } else {
                 List {
@@ -76,9 +77,11 @@ struct CatalogsView: View {
                     .accessibilityIdentifier("catalogs.load")
             }
 
-            Button("Add Catalog…", systemImage: "plus") { model.startAdding() }
-                .disabled(setup.configSummary == nil)
-                .accessibilityIdentifier("catalogs.add")
+            if !model.rows.isEmpty {
+                Button("Add Catalog…", systemImage: "plus") { model.startAdding() }
+                    .disabled(setup.configSummary == nil)
+                    .accessibilityIdentifier("catalogs.add")
+            }
         }
     }
 }

@@ -11,7 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lifecycle: AppLifecycle? { Self.lifecycle }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
-        guard !LaunchContext.current.isUnitTestHost else {
+        // XCTest can keep its hosted copy alive while UI tests launch the same bundle.
+        guard !LaunchContext.current.isUnitTestHost, !LaunchContext.current.isUITesting else {
             return
         }
 
@@ -92,7 +93,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }) {
             closeGuard = installed
         }
-        updateActivationPolicy()
+        // The view attaches before SwiftUI makes the window visible. The window notification
+        // updates Dock presence once it appears.
     }
 
     private func updateActivationPolicy() {

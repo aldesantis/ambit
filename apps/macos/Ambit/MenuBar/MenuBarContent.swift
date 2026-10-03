@@ -56,6 +56,10 @@ struct MenuBarLabel: View {
             .accessibilityLabel("Ambit")
             .onAppear {
                 lifecycle.openMainWindowAction = { openWindow(id: AmbitApp.mainWindowID) }
+                let launch = LaunchContext.current
+                if !launch.isLoginLaunch && (launch.isUITesting || !LoginLaunch.isCurrentAppleEventLoginLaunch()) {
+                    openWindow(id: AmbitApp.mainWindowID)
+                }
             }
     }
 }

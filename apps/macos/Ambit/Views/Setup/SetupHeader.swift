@@ -90,6 +90,7 @@ struct SetupBadgeView: View {
         case .pendingChanges: String(localized: "Pending changes")
         case .installing: String(localized: "Installing")
         case .installed: String(localized: "Installed")
+        case .setupRequired: String(localized: "Setup required")
         case .notFullyInstalled: String(localized: "Not fully installed")
         case .folderUnavailable: String(localized: "Folder unavailable")
         case .error: String(localized: "Needs attention")
@@ -102,6 +103,7 @@ struct SetupBadgeView: View {
         case .pendingChanges: "pencil.circle"
         case .installing: "arrow.down.circle"
         case .installed: "checkmark.circle"
+        case .setupRequired: "gearshape.badge.questionmark"
         case .notFullyInstalled: "exclamationmark.circle"
         case .folderUnavailable: "folder.badge.questionmark"
         case .error: "xmark.octagon"
@@ -113,7 +115,7 @@ struct SetupBadgeView: View {
         case .unconfigured: .secondary
         case .pendingChanges, .installing: .blue
         case .installed: .green
-        case .notFullyInstalled, .folderUnavailable: .orange
+        case .setupRequired, .notFullyInstalled, .folderUnavailable: .orange
         case .error: .red
         }
     }

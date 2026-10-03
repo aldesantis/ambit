@@ -92,7 +92,7 @@ final class CapabilitiesModel {
         }
     }
 
-    let setup: SetupModel
+    unowned let setup: SetupModel
 
     private(set) var catalogs: [CatalogLoadState] = []
     private(set) var items: [BrowseItem] = []

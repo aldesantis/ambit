@@ -247,6 +247,22 @@ final class AppModel {
     }
 }
 
+extension AppModel: PendingChangesGuard {
+    var hasPendingChanges: Bool { !setupsWithPendingChanges.isEmpty }
+
+    var isApplying: Bool { operations.isBusy }
+
+    func resolvePendingChangesForLeaving(_ reason: LeaveReason) async -> Bool {
+        let pendingReason: PendingChangeReason =
+            switch reason {
+            case .quit: .quit
+            case .restartToUpdate: .restartToUpdate
+            case .closeWindow: .closeWindow
+            }
+        return await resolvePendingChanges(for: pendingReason)
+    }
+}
+
 struct PresentedError: Identifiable, Equatable {
     let id = UUID()
     var title: String

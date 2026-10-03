@@ -77,7 +77,8 @@ struct CapabilitiesModelTests {
     // MARK: Browsing and filters
 
     @Test func listsEveryKindIncludingUnselected() async throws {
-        let (model, _) = try await makeModel(requires: [])
+        let (model, setup) = try await makeModel(requires: [])
+        defer { withExtendedLifetime(setup) {} }
 
         #expect(model.items.count == Self.items.count)
         #expect(Set(model.items.map(\.item.kind)) == Set(ItemKind.allCases))
@@ -86,7 +87,8 @@ struct CapabilitiesModelTests {
     }
 
     @Test func searchMatchesNamesAndDescriptions() async throws {
-        let (model, _) = try await makeModel(requires: [])
+        let (model, setup) = try await makeModel(requires: [])
+        defer { withExtendedLifetime(setup) {} }
 
         model.searchText = "pull request"
         #expect(model.filteredItems.map(\.item.name) == ["review"])
@@ -96,7 +98,8 @@ struct CapabilitiesModelTests {
     }
 
     @Test func filtersByCatalogKindAndSelection() async throws {
-        let (model, _) = try await makeModel(requires: [Self.entry(.skill, "review")])
+        let (model, setup) = try await makeModel(requires: [Self.entry(.skill, "review")])
+        defer { withExtendedLifetime(setup) {} }
 
         model.catalogFilter = "other"
         #expect(model.filteredItems.map(\.item.name) == ["deploy"])
@@ -114,9 +117,10 @@ struct CapabilitiesModelTests {
     }
 
     @Test func showsEveryReasonOfAnItem() async throws {
-        let (model, _) = try await makeModel(requires: [
+        let (model, setup) = try await makeModel(requires: [
             Self.entry(.skill, "review"), Self.entry(.pack, "starter"), Self.entry(.skill, "l*"),
         ])
+        defer { withExtendedLifetime(setup) {} }
 
         let review = try #require(model.item(for: Self.ref(.skill, "review")))
         #expect(CapabilitiesModel.reasons(of: review) == [.direct, .pack])
@@ -126,13 +130,14 @@ struct CapabilitiesModelTests {
     }
 
     @Test func notCachedCatalogsAreReported() async throws {
-        let (model, _) = try await makeModel(
+        let (model, setup) = try await makeModel(
             requires: [],
             catalogs: [
                 CatalogLoadState(name: "team", availability: .available(commit: nil, local: true)),
                 CatalogLoadState(name: "other", availability: .notCached),
             ],
             items: Self.items.filter { $0.item.catalog == "team" })
+        defer { withExtendedLifetime(setup) {} }
 
         #expect(model.unavailableCatalogs.map(\.name) == ["other"])
         #expect(!model.items.contains { $0.item.catalog == "other" })
@@ -246,7 +251,8 @@ struct CapabilitiesModelTests {
     // MARK: Rules
 
     @Test func rulePreviewShowsMatchesOrTheEngineError() async throws {
-        let (model, _) = try await makeModel(requires: [])
+        let (model, setup) = try await makeModel(requires: [])
+        defer { withExtendedLifetime(setup) {} }
 
         model.startNewRule()
         model.ruleDraft?.catalog = "team"
@@ -300,20 +306,22 @@ struct CapabilitiesModelTests {
     }
 
     @Test func unmatchedEntriesAreReported() async throws {
-        let (model, _) = try await makeModel(requires: [Self.entry(.skill, "gone*"), Self.entry(.skill, "notes")])
+        let (model, setup) = try await makeModel(requires: [Self.entry(.skill, "gone*"), Self.entry(.skill, "notes")])
+        defer { withExtendedLifetime(setup) {} }
 
         #expect(model.unmatched.map(\.entry) == [Self.entry(.skill, "gone*")])
         #expect(model.unmatchedError(for: Self.entry(.skill, "gone*")) != nil)
     }
 
     @Test func entriesOfUnloadedCatalogsAreNotJudged() async throws {
-        let (model, _) = try await makeModel(
+        let (model, setup) = try await makeModel(
             requires: [Self.entry(.skill, "deploy", catalog: "other")],
             catalogs: [
                 CatalogLoadState(name: "team", availability: .available(commit: nil, local: true)),
                 CatalogLoadState(name: "other", availability: .notCached),
             ],
             items: Self.items.filter { $0.item.catalog == "team" })
+        defer { withExtendedLifetime(setup) {} }
 
         #expect(model.unmatched.isEmpty)
     }

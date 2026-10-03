@@ -293,6 +293,7 @@ extension ArtifactState {
         switch self {
         case .ok: String(localized: "installed")
         case .missing: String(localized: "missing")
+        case .stale: String(localized: "out of date")
         case .modified: String(localized: "changed")
         case .unowned: String(localized: "not owned by Ambit")
         }

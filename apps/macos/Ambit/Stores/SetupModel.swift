@@ -21,6 +21,7 @@ final class SetupModel {
         case pendingChanges
         case installing
         case installed
+        case setupRequired
         case notFullyInstalled
         case folderUnavailable
         case error
@@ -38,6 +39,11 @@ final class SetupModel {
     @ObservationIgnored let engine: any EngineService
     @ObservationIgnored let session: any SetupSessionService
     @ObservationIgnored let operations: OperationRunner
+    @ObservationIgnored lazy var catalogs = CatalogsModel(setup: self)
+    @ObservationIgnored lazy var capabilities = CapabilitiesModel(setup: self)
+    @ObservationIgnored lazy var agentTools = AgentToolsModel(setup: self)
+    @ObservationIgnored lazy var health = HealthModel(setup: self)
+    @ObservationIgnored var updatesModel: CatalogUpdatesModel?
 
     private(set) var snapshot: SetupSnapshot?
     /// Why the last `refresh` could not read the setup root.
@@ -137,7 +143,20 @@ final class SetupModel {
         switch snapshot.config {
         case .missing: return .unconfigured
         case .ambiguous, .invalid: return .error
-        case .valid: return installFailure == nil ? .installed : .notFullyInstalled
+        case .valid:
+            if installFailure != nil {
+                return .notFullyInstalled
+            }
+            if health.error != nil {
+                return .error
+            }
+            switch health.summary?.level {
+            case .installed: return .installed
+            case .setupRequired: return .setupRequired
+            case .notFullyInstalled: return .notFullyInstalled
+            case .needsAttention: return .error
+            case nil: return nil
+            }
         }
     }
 
@@ -146,7 +165,9 @@ final class SetupModel {
     /// Re-reads the config. Never fetches catalogs. With unapplied edits and a changed file, asks
     /// the user through `externalChange` unless they already chose to keep editing past it.
     func refresh() async {
-        _ = await read(forcePrompt: false)
+        if await read(forcePrompt: false) {
+            await health.readSavedStatus()
+        }
     }
 
     /// Re-reads the config before a review. Returns false when the file no longer matches the

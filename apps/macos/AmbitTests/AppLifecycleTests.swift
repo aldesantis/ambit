@@ -12,7 +12,7 @@ final class FakePendingChanges: PendingChangesGuard {
     var answer = true
     private(set) var asked: [LeaveReason] = []
 
-    func resolvePendingChanges(for reason: LeaveReason) async -> Bool {
+    func resolvePendingChangesForLeaving(_ reason: LeaveReason) async -> Bool {
         asked.append(reason)
         if answer {
             hasPendingChanges = false

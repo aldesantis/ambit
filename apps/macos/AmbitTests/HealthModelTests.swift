@@ -61,10 +61,11 @@ struct HealthModelTests {
 
     @Test func refreshStatusReadsLocalStatusOnly() async throws {
         let (setup, engine) = try await setup { $0.status = SetupStatus(items: [self.item(self.review, .ok)], artifacts: []) }
+        let previousReads = engine.fixture(root: root).statusReads
 
         await setup.health.refreshStatus()
 
-        #expect(engine.fixture(root: root).statusReads == 1)
+        #expect(engine.fixture(root: root).statusReads == previousReads + 1)
         #expect(engine.fixture(root: root).healthChecks == 0)
         #expect(setup.health.items.map(\.category) == [.installed])
         #expect(setup.healthSummary?.level == .installed)

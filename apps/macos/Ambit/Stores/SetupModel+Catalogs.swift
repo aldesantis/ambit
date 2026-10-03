@@ -1,23 +1,8 @@
-// The Catalogs area's hooks into `SetupModel`. The area keeps its state in `CatalogsModel`, one
-// per setup, created on first use and kept for as long as the setup model lives.
+// The Catalogs area's hooks into `SetupModel`.
 
 import Foundation
 
-@MainActor
-private let catalogsModels = NSMapTable<SetupModel, CatalogsModel>.weakToStrongObjects()
-
 extension SetupModel {
-    /// The setup's Catalogs area.
-    var catalogs: CatalogsModel {
-        if let model = catalogsModels.object(forKey: self) {
-            return model
-        }
-
-        let model = CatalogsModel(setup: self)
-        catalogsModels.setObject(model, forKey: self)
-        return model
-    }
-
     /// The config text the next edit applies to: the draft's, otherwise the saved file's. `nil`
     /// when the setup has no usable config.
     var currentConfigText: String? {

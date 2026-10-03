@@ -31,7 +31,7 @@ protocol PendingChangesGuard: AnyObject {
     var isApplying: Bool { get }
     /// Offers Apply / Discard / Cancel for every pending draft. True when the caller may go on
     /// (applied successfully or discarded); false on Cancel or a failed apply.
-    func resolvePendingChanges(for reason: LeaveReason) async -> Bool
+    func resolvePendingChangesForLeaving(_ reason: LeaveReason) async -> Bool
     /// Returns once `isApplying` is false.
     func waitWhileApplying() async
 }
@@ -49,7 +49,7 @@ extension PendingChangesGuard {
 final class NoPendingChanges: PendingChangesGuard {
     var hasPendingChanges: Bool { false }
     var isApplying: Bool { false }
-    func resolvePendingChanges(for reason: LeaveReason) async -> Bool { true }
+    func resolvePendingChangesForLeaving(_ reason: LeaveReason) async -> Bool { true }
 }
 
 @MainActor
@@ -123,7 +123,7 @@ final class AppLifecycle {
         Task {
             leaving = .closeWindow
             defer { leaving = nil }
-            if await pendingChanges.resolvePendingChanges(for: .closeWindow) {
+            if await pendingChanges.resolvePendingChangesForLeaving(.closeWindow) {
                 close()
             }
         }
@@ -172,7 +172,7 @@ final class AppLifecycle {
         await waitForOperation()
         if pendingChanges.hasPendingChanges {
             openMainWindow()
-            guard await pendingChanges.resolvePendingChanges(for: reason) else {
+            guard await pendingChanges.resolvePendingChangesForLeaving(reason) else {
                 return false
             }
             // Apply from the question runs an operation; let it finish.

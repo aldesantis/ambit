@@ -39,7 +39,7 @@ final class CatalogUpdatesUITests: XCTestCase {
     func testCheckReviewAndApplyAnUpdate() throws {
         let app = launch()
 
-        let catalogsTab = app.radioButtons["Catalogs"].firstMatch
+        let catalogsTab = app.windows.firstMatch.tabs["Catalogs"]
         XCTAssertTrue(catalogsTab.waitForExistence(timeout: 10))
         catalogsTab.click()
 
@@ -67,7 +67,7 @@ final class CatalogUpdatesUITests: XCTestCase {
 
         let apply = element("updateReview.apply", in: app)
         XCTAssertTrue(apply.waitForExistence(timeout: 10))
-        XCTAssertTrue(element("triage (skill, team)", in: app).exists)
+        XCTAssertTrue(element("updateReview.capabilities", in: app).exists)
         apply.click()
 
         XCTAssertTrue(element("updateReview.installed", in: app).waitForExistence(timeout: 10))

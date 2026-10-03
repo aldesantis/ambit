@@ -283,6 +283,10 @@ final class CatalogUpdatesModel {
         let checks = SetupCatalogChecks(lastCheckedAt: lastCheckedAt, results: records)
         do {
             try store?.update { $0.catalogChecks[key] = checks }
+            if let saved = store?.state.catalogChecks[key] {
+                records = saved.results
+                lastCheckedAt = saved.lastCheckedAt
+            }
         } catch {
             presentedError = PresentedError(title: String(localized: "Could not save Ambit's settings."), error: error)
         }

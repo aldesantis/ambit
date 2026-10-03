@@ -8,6 +8,8 @@ extension FakeEngineService {
         switch name {
         case "capabilities":
             FakeEngineService(fixtures: [home.path: capabilitiesFixture(root: home.path)])
+        case "catalogUpdates":
+            FakeEngineService(fixtures: [home.path: catalogUpdatesFixture(root: home.path)])
         default:
             FakeEngineService()
         }
