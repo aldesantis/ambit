@@ -1,0 +1,120 @@
+# Builds the macOS app, runs its unit and UI tests, and uploads an unsigned universal DMG. Called by
+# ci.yml on pull requests and pushes to `main`. It uses no secrets: the app is signed ad-hoc and
+# carries no OAuth client ID or Sparkle key, so forks and local builds behave the same way.
+#
+# macos-release.yml does the signed, notarized build on a release tag.
+name: macos-app
+
+on:
+  workflow_call:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  app:
+    name: macOS app
+    runs-on: macos-26
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: apps/macos
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # The app targets macOS 26, so the selected Xcode must ship that SDK or newer.
+      - name: Show the Xcode version
+        run: |
+          xcodebuild -version
+          sdk="$(xcrun --sdk macosx --show-sdk-version)"
+          echo "macOS SDK $sdk"
+          [[ "${sdk%%.*}" -ge 26 ]] || { echo "::error::the macOS 26 SDK or newer is required, found $sdk"; exit 1; }
+
+      - name: Install the pinned toolchain and both macOS targets
+        run: |
+          rustup toolchain install
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: macos-app
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # Building git for two architectures takes minutes. build-git.sh pins the version and every
+      # flag, so its hash identifies the output.
+      - name: Restore the bundled git
+        id: git-cache
+        uses: actions/cache@v6
+        with:
+          path: apps/macos/build/git
+          key: bundled-git-${{ runner.os }}-${{ hashFiles('apps/macos/scripts/build-git.sh') }}
+
+      - name: Build the bundled git
+        if: steps.git-cache.outputs.cache-hit != 'true'
+        run: scripts/build-git.sh
+
+      - name: Build the engine XCFramework
+        run: scripts/build-engine.sh
+
+      - name: Generate the Xcode project
+        run: |
+          xcodegen generate
+          scripts/set-version.sh --xcconfig build/Version.xcconfig
+
+      - name: Unit tests
+        run: >-
+          xcodebuild test
+          -project Ambit.xcodeproj -scheme Ambit -destination 'platform=macOS'
+          -derivedDataPath build/DerivedData -clonedSourcePackagesDirPath build/SourcePackages
+          -xcconfig build/Version.xcconfig -resultBundlePath build/results/unit.xcresult
+          -only-testing:AmbitTests
+          CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
+
+      - name: UI tests
+        run: >-
+          xcodebuild test
+          -project Ambit.xcodeproj -scheme Ambit -destination 'platform=macOS'
+          -derivedDataPath build/DerivedData -clonedSourcePackagesDirPath build/SourcePackages
+          -xcconfig build/Version.xcconfig -resultBundlePath build/results/ui.xcresult
+          -only-testing:AmbitUITests
+          CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
+
+      - name: Build the universal release app
+        run: |
+          xcodebuild build \
+            -project Ambit.xcodeproj -scheme Ambit -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build/DerivedData -clonedSourcePackagesDirPath build/SourcePackages \
+            -xcconfig build/Version.xcconfig \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
+          app=build/DerivedData/Build/Products/Release/Ambit.app
+          for arch in arm64 x86_64; do
+            lipo "$app/Contents/MacOS/Ambit" -verify_arch "$arch"
+            lipo "$app/Contents/Resources/git/bin/git" -verify_arch "$arch"
+          done
+          codesign --verify --deep --strict "$app"
+
+      - name: Package the unsigned DMG
+        run: scripts/package.sh --app build/DerivedData/Build/Products/Release/Ambit.app --out build/dist
+
+      - name: Upload the unsigned DMG
+        uses: actions/upload-artifact@v7
+        with:
+          name: Ambit-macos-unsigned
+          path: apps/macos/build/dist/*.dmg
+          if-no-files-found: error
+
+      - name: Upload the test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Ambit-macos-test-results
+          path: apps/macos/build/results
+          if-no-files-found: ignore

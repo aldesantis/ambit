@@ -17,3 +17,6 @@ concurrency:
 jobs:
   checks:
     uses: ./.github/workflows/checks.yml
+
+  macos-app:
+    uses: ./.github/workflows/macos-app.yml
