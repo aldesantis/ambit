@@ -7,3 +7,6 @@ test/tmp/
 # Scratch files `bun build --compile` writes beside the output and does not always clean up.
 .*.bun-build
 .DS_Store
+
+# Rust build output.
+/target

@@ -1,0 +1,13 @@
+# Process state is read once, in main.rs, and passed down; the filesystem is reached through
+# util::fs so Node's semantics (ENOENT-only absence, lossy UTF-8, one permutable directory listing)
+# hold everywhere. Allowed with #[allow(clippy::disallowed_methods)] in main.rs and src/util only.
+disallowed-methods = [
+    { path = "std::env::var", reason = "read the environment once in main.rs and pass util::env::Env down" },
+    { path = "std::env::vars", reason = "read the environment once in main.rs and pass util::env::Env down" },
+    { path = "std::env::set_var", reason = "tests run in parallel threads; never mutate the process environment" },
+    { path = "std::env::remove_var", reason = "tests run in parallel threads; never mutate the process environment" },
+    { path = "std::env::set_current_dir", reason = "tests run in parallel threads; pass the cwd down instead" },
+    { path = "std::process::exit", reason = "only main.rs exits; return an ExitCode" },
+    { path = "std::fs::read_dir", reason = "use util::fs::read_dir_names, which the determinism suite permutes" },
+    { path = "std::fs::read_to_string", reason = "use util::fs::read_text, which decodes lossily like Node" },
+]
