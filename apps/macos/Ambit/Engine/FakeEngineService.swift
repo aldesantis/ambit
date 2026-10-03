@@ -48,6 +48,15 @@ final class FakeEngineService: EngineService {
         var saveCount = 0
         /// How many applies and retries ran, including failed ones.
         var applyCount = 0
+        /// What `status()` reports. `nil` reports no items.
+        var status: SetupStatus?
+        /// What `health()` reports. `nil` reports every check passing, with `status`'s items.
+        var health: HealthReport?
+        /// Thrown by `status()` and `health()` instead of a result.
+        var statusFailure: EngineError?
+        /// How many times `status()` and `health()` ran.
+        var statusReads = 0
+        var healthChecks = 0
     }
 
     private let state: Mutex<[String: Fixture]>
@@ -191,14 +200,29 @@ final class FakeEngineService: EngineService {
         return SourceInfo(kind: FakeConfigText.sourceKind(trimmed, gitRef: gitRef), proposedName: name)
     }
 
-    /// The real tool names with made-up file locations.
+    /// The five tools as the engine describes them, with an abridged set of limitations.
     func supportedAgentTools() -> [AgentToolInfo] {
-        [("claude", "Claude Code"), ("codex", "Codex"), ("cursor", "Cursor"), ("opencode", "OpenCode"), ("vscode", "VS Code")]
-            .map { id, name in
-                AgentToolInfo(
-                    id: id, displayName: name, skillsDir: ".\(id)/skills", mcpFile: ".\(id)/mcp.json",
-                    personalMcpFile: ".\(id)/mcp.json", hooksFile: nil, limitations: [])
-            }
+        [
+            AgentToolInfo(
+                id: "claude", displayName: "Claude Code", skillsDir: ".claude/skills", mcpFile: ".mcp.json",
+                personalMcpFile: ".claude.json", hooksFile: ".claude/settings.json", limitations: []),
+            AgentToolInfo(
+                id: "codex", displayName: "Codex", skillsDir: ".agents/skills", mcpFile: ".codex/config.toml",
+                personalMcpFile: ".codex/config.toml", hooksFile: ".codex/hooks.json",
+                limitations: ["In a project, hook scripts are found only when Codex runs from the project folder."]),
+            AgentToolInfo(
+                id: "cursor", displayName: "Cursor", skillsDir: ".claude/skills", mcpFile: ".cursor/mcp.json",
+                personalMcpFile: ".cursor/mcp.json", hooksFile: ".cursor/hooks.json",
+                limitations: ["In a project, hook scripts are found only when Cursor runs from the project folder."]),
+            AgentToolInfo(
+                id: "opencode", displayName: "OpenCode", skillsDir: ".agents/skills",
+                mcpFile: ".opencode/opencode.jsonc", personalMcpFile: ".opencode/opencode.jsonc", hooksFile: nil,
+                limitations: ["Hooks are not supported. Hooks you select are skipped for OpenCode."]),
+            AgentToolInfo(
+                id: "vscode", displayName: "VS Code", skillsDir: ".agents/skills", mcpFile: ".vscode/mcp.json",
+                personalMcpFile: ".vscode/mcp.json", hooksFile: ".claude/settings.json",
+                limitations: ["Hooks are written to Claude Code's settings file, which VS Code also reads."]),
+        ]
     }
 }
 
@@ -446,11 +470,27 @@ private struct FakeSetupSession: SetupSessionService {
     }
 
     func status() async throws -> SetupStatus {
-        SetupStatus(items: [], artifacts: [])
+        engine.updateFixture(root: root) { $0.statusReads += 1 }
+        let fixture = fixture
+        if let error = fixture.statusFailure {
+            throw error
+        }
+        return fixture.status ?? SetupStatus(items: [], artifacts: [])
     }
 
     func health() async throws -> HealthReport {
-        HealthReport(checks: [], findings: [], items: [])
+        engine.updateFixture(root: root) { $0.healthChecks += 1 }
+        let fixture = fixture
+        if let error = fixture.statusFailure {
+            throw error
+        }
+        if let health = fixture.health {
+            return health
+        }
+        let checks = ["expects", "lock", "ownership", "drift", "mode", "harness"].map {
+            HealthCheck(name: $0, passed: true, message: "")
+        }
+        return HealthReport(checks: checks, findings: [], items: fixture.status?.items ?? [])
     }
 
     /// Sleeps for `delay`, translating task cancellation into the engine's error.
