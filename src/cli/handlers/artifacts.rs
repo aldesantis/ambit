@@ -8,7 +8,7 @@
 use crate::harness::adapter::PlannedArtifact;
 use crate::model::state::{ArtifactKind, ArtifactMode, OwnedArtifact};
 use crate::project::prune::PrunedArtifact;
-use crate::util::json::JsonObject;
+use crate::util::json::{JsonObject, JsonValue};
 
 /// Stands in for a cell an artifact kind has nothing to put in: a config file's mode, a
 /// directory's keys.
@@ -16,7 +16,8 @@ pub const NO_DETAIL: &str = "-";
 
 /// The part of an artifact a report shows, which owned, planned and pruned artifacts all carry.
 ///
-/// A `target` is absolute and an `entries` list is the harness's business, so neither is here.
+/// It is the owned shape: all three carry it, and it's the only part a report should show. A
+/// `target` is absolute and an `entries` list is the harness's business, so neither is here.
 pub trait ReportedArtifact {
     fn path(&self) -> &str;
     fn kind(&self) -> ArtifactKind;
@@ -84,21 +85,67 @@ impl ReportedArtifact for PlannedArtifact {
 /// One artifact as a JSON record, with the keys in a fixed order: `kind`, `managedKeys`, `mode`,
 /// `path`.
 pub fn artifact_json(artifact: &dyn ReportedArtifact) -> JsonObject {
-    let _ = artifact;
-    todo!("port cli/handlers/artifacts.ts:artifactJson")
+    let mut record = JsonObject::new();
+
+    record.insert(
+        "kind".to_owned(),
+        JsonValue::String(artifact.kind().as_str().to_owned()),
+    );
+
+    if let Some(keys) = artifact.managed_keys() {
+        record.insert(
+            "managedKeys".to_owned(),
+            JsonValue::Array(keys.iter().cloned().map(JsonValue::String).collect()),
+        );
+    }
+
+    if let Some(mode) = artifact.mode() {
+        record.insert(
+            "mode".to_owned(),
+            JsonValue::String(mode.as_str().to_owned()),
+        );
+    }
+
+    record.insert(
+        "path".to_owned(),
+        JsonValue::String(artifact.path().to_owned()),
+    );
+    record
 }
 
 /// One row per artifact written: path, kind, and the mode a skill directory was materialized in.
 pub fn artifact_rows<A: ReportedArtifact>(artifacts: &[A]) -> Vec<Vec<String>> {
-    let _ = artifacts;
-    todo!("port cli/handlers/artifacts.ts:artifactRows")
+    artifacts
+        .iter()
+        .map(|artifact| {
+            vec![
+                artifact.path().to_owned(),
+                artifact.kind().as_str().to_owned(),
+                artifact
+                    .mode()
+                    .map_or(NO_DETAIL, ArtifactMode::as_str)
+                    .to_owned(),
+            ]
+        })
+        .collect()
 }
 
 /// One row per artifact removed: path, kind, and the keys taken out of a co-owned config file.
 ///
-/// The third column carries keys rather than a mode: a config file loses keys and stays where it
-/// is, while a skill directory goes whole.
+/// The third column carries keys rather than a mode: a removal needs to say how much of a co-owned
+/// file went, since a config file loses keys and stays where it is, while a skill directory goes
+/// whole.
 pub fn removal_rows<A: ReportedArtifact>(artifacts: &[A]) -> Vec<Vec<String>> {
-    let _ = artifacts;
-    todo!("port cli/handlers/artifacts.ts:removalRows")
+    artifacts
+        .iter()
+        .map(|artifact| {
+            vec![
+                artifact.path().to_owned(),
+                artifact.kind().as_str().to_owned(),
+                artifact
+                    .managed_keys()
+                    .map_or_else(|| NO_DETAIL.to_owned(), |keys| keys.join(", ")),
+            ]
+        })
+        .collect()
 }
