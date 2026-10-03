@@ -385,6 +385,13 @@ pub fn build_fixture_git_catalog(dir: &Path) -> io::Result<FixtureGitCatalog> {
         &work,
     )?;
     git(&["add", "--all"], &work)?;
+
+    // Set in the index, not only on disk: git on Windows does not read the exec bit from the
+    // filesystem, and the commit must be the same on every machine.
+    for executable in FIXTURE_EXECUTABLE_FILES {
+        git(&["update-index", "--chmod=+x", "--", executable], &work)?;
+    }
+
     git(
         &["commit", "--quiet", "--message", "the fixture catalog"],
         &work,
