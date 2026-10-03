@@ -75,14 +75,14 @@ final class FakeEngineService: EngineService {
         return SourceInfo(kind: .local(path: source), proposedName: name)
     }
 
+    /// The real tool names with made-up file locations.
     func supportedAgentTools() -> [AgentToolInfo] {
-        [
-            AgentToolInfo(id: "claude", displayName: "Claude Code", limitations: []),
-            AgentToolInfo(id: "codex", displayName: "Codex", limitations: []),
-            AgentToolInfo(id: "cursor", displayName: "Cursor", limitations: []),
-            AgentToolInfo(id: "opencode", displayName: "OpenCode", limitations: []),
-            AgentToolInfo(id: "vscode", displayName: "VS Code", limitations: []),
-        ]
+        [("claude", "Claude Code"), ("codex", "Codex"), ("cursor", "Cursor"), ("opencode", "OpenCode"), ("vscode", "VS Code")]
+            .map { id, name in
+                AgentToolInfo(
+                    id: id, displayName: name, skillsDir: ".\(id)/skills", mcpFile: ".\(id)/mcp.json",
+                    personalMcpFile: ".\(id)/mcp.json", hooksFile: nil, limitations: [])
+            }
     }
 
     private static let unsupported = EngineError.internal(
@@ -95,7 +95,7 @@ private struct FakeSetupSession: SetupSessionService {
 
     private var fixture: FakeEngineService.Fixture { engine.fixture(root: root) }
 
-    func snapshot() async -> SetupSnapshot {
+    func snapshot() async throws -> SetupSnapshot {
         SetupSnapshot(root: root, config: fixture.config)
     }
 
