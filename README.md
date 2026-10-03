@@ -25,28 +25,47 @@ You write a few lines of config. ambit fetches, resolves, and writes the files.
 
 ambit is a single binary with nothing under it. You need `git` on your `PATH` and nothing else.
 
+On macOS and Linux:
+
 ```
 curl -fsSL https://raw.githubusercontent.com/nebulab/ambit/main/install.sh | sh
 ```
 
-That puts `ambit` in `~/.local/bin`. Set `AMBIT_INSTALL_DIR` to put it somewhere else, or download
-the binary for your machine straight from the
-[releases page](https://github.com/nebulab/ambit/releases).
-
-| Binary                  | For                    |
-| ----------------------- | ---------------------- |
-| `ambit-darwin-arm64`    | macOS, Apple silicon   |
-| `ambit-darwin-x64`      | macOS, Intel           |
-| `ambit-linux-x64`       | Linux, Intel and AMD   |
-| `ambit-linux-arm64`     | Linux, ARM             |
-| `ambit-windows-x64.exe` | Windows, Intel and AMD |
-
-On Windows the install script needs a POSIX shell, so run it from Git Bash. Anywhere else, run ambit
-from npm. That needs Node 22.12+:
+On Windows, in PowerShell:
 
 ```
-npx @teamnebulab/ambit --help
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/nebulab/ambit/releases/latest/download/ambit-installer.ps1 | iex"
 ```
+
+Both put `ambit` in `~/.local/bin` and add that directory to your `PATH`. The installer checks the
+download against its SHA-256 checksum before installing it.
+
+| Variable               | Effect                                                                     |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `AMBIT_INSTALL_DIR`    | Install somewhere else.                                                    |
+| `AMBIT_NO_MODIFY_PATH` | Set to `1` to leave your shell profile alone.                              |
+| `AMBIT_VERSION`        | A tag like `v0.5.0` to install instead of the latest. `install.sh` only.   |
+
+You can also download an archive for your machine from the
+[releases page](https://github.com/nebulab/ambit/releases). Each one holds the `ambit` binary and
+has a `.sha256` file beside it.
+
+| Archive                                  | For                    |
+| ---------------------------------------- | ---------------------- |
+| `ambit-aarch64-apple-darwin.tar.xz`      | macOS, Apple silicon   |
+| `ambit-x86_64-apple-darwin.tar.xz`       | macOS, Intel           |
+| `ambit-x86_64-unknown-linux-gnu.tar.xz`  | Linux, Intel and AMD   |
+| `ambit-aarch64-unknown-linux-gnu.tar.xz` | Linux, ARM             |
+| `ambit-x86_64-pc-windows-msvc.zip`       | Windows, Intel and AMD |
+
+With a Rust toolchain you can build it from source instead:
+
+```
+cargo install --locked --git https://github.com/nebulab/ambit
+```
+
+If you have ambit 0.4 or older, `ambit self-update` cannot find newer releases. Run the install
+command above once, and `self-update` works from then on.
 
 To upgrade a binary later, run `ambit self-update`. See
 [Updating ambit itself](#updating-ambit-itself).
@@ -522,35 +541,30 @@ without touching anything you selected reports a moved commit and an empty diff.
 
 ```
 $ ambit self-update
-current  0.2.0
-target   v0.3.1
-asset    ambit-darwin-arm64
+current  0.5.0
+target   v0.5.1
+asset    ambit-aarch64-apple-darwin.tar.xz
 binary   /Users/you/.local/bin/ambit
 
-installed ambit v0.3.1
+installed ambit v0.5.1
 ```
 
-The download is checked against the release's `checksums.txt` before it is installed, the same file
-`install.sh` checks against. A mismatch leaves the binary you already have alone, and there is no
-flag to skip the check.
+The download is checked against the release's `<asset>.sha256` file before it is installed. A
+mismatch leaves the binary you already have alone, and there is no flag to skip the check.
 
 Name a release to install that one instead, which is also how you go back after a bad release:
 
 ```
-ambit self-update v0.2.0
+ambit self-update v0.5.0
 ```
 
 `--dry-run` prints the same report and installs nothing.
-
-This command replaces a binary, so it only works on one. Run ambit from npm and it says so and
-names the command that does work: `npm i -g @teamnebulab/ambit@latest`, or nothing at all for `npx`,
-which fetches the newest version every time it runs.
 
 Once a day, other commands check whether a newer release exists and print one line to stderr when
 there is:
 
 ```
-ambit v0.3.1 is available; you are on 0.2.0. To upgrade, run `ambit self-update`.
+ambit v0.5.1 is available; you are on 0.5.0. To upgrade, run `ambit self-update`.
 ```
 
 The check is skipped when stderr is not a terminal, under CI, with `--json`, with `--offline`, and
@@ -614,30 +628,25 @@ error: refusing to overwrite unowned path
 
 ## Development
 
-ambit is built with [Bun](https://bun.com). You need Bun 1.3 or newer, and `git`.
+ambit is written in Rust. You need the toolchain pinned in `rust-toolchain.toml` (rustup installs
+it on first use) and `git`.
 
 ```
-bun install
-bun test                # offline apart from the one compatibility test
-bun run typecheck
-bun run lint
-bun run format          # prettier --write; `format:check` is the CI variant
-bun run build           # dist/, the npm package, bundled for Node
-bun run build:binaries  # release/, one executable per platform
+cargo test
+cargo clippy --all-targets -- -D warnings
+cargo fmt                # `cargo fmt --check` is the CI variant
+cargo build --release
 ```
 
-There is no build step between an edit and a run: `bun run src/cli.ts <args>` is the CLI.
+`cargo run -- <args>` is the CLI.
 
-The npm package is bundled for **Node**, because `npx @teamnebulab/ambit` runs under Node. That is
-why `src/` uses `node:` APIs and no Bun globals, and why `bun run scripts/smoke.ts` exists: it
-installs a fixture project with `node dist/cli.js`, which is the one thing `bun test` cannot check.
+`tests/golden/` holds recorded program output. Regenerate it with `UPDATE_GOLDEN=1 cargo test` and
+read the diff.
 
-`test/golden/` holds recorded program output and is exempt from Prettier. Regenerate it with
-`UPDATE_GOLDEN=1 bun test` and read the diff.
-
-`bun run fixture` builds the fixture catalog the suite resolves against.
-
-`AMBIT_SKIP_NETWORK_TESTS=1` skips the dotagents compatibility test.
+Releases are built by [cargo-dist](https://github.com/axodotdev/cargo-dist) from
+`dist-workspace.toml`. To cut one, set `version` in `Cargo.toml`, commit it, and push a matching
+tag: `git tag v0.5.1 && git push --tags`. The release workflow runs the CI checks first and refuses
+a tag that does not match the version.
 
 ## License
 
