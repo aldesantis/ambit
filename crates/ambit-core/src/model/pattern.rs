@@ -149,7 +149,6 @@ pub fn matches_pattern(pattern: &str, text: &str) -> bool {
 ///
 /// An entry with a literal pattern selects at most one item per catalog; anything else is a rule
 /// whose matches can change whenever the catalog does.
-#[allow(dead_code)] // Reached by the desktop app's FFI layer, not by the CLI binary.
 pub fn is_literal(pattern: &str) -> bool {
     !pattern.contains(WILDCARD)
 }
@@ -460,7 +459,6 @@ fn split_address(
 /// # Errors
 ///
 /// Exit 2 for an address the spelling refuses.
-#[allow(dead_code)] // Reached by the desktop app's FFI layer, not by the CLI binary.
 pub fn parse_address(
     kind: ItemKind,
     address: &str,
