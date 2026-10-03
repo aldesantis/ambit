@@ -105,7 +105,7 @@ pub fn plan_self_update(
             ),
             [
                 "this build cannot replace itself with one that does not exist",
-                "build it from source: `cargo install --locked --git https://github.com/nebulab/ambit`",
+                "build it from source: `cargo install --locked --git https://github.com/aldesantis/ambit`",
             ],
         ));
     };
@@ -118,7 +118,7 @@ pub fn plan_self_update(
             [
                 "self-update replaces the binary in place, and that needs write access to its directory",
                 "reinstall it somewhere writable, or run the install script with the permissions it needs:",
-                "curl -fsSL https://raw.githubusercontent.com/nebulab/ambit/main/install.sh | sh",
+                "curl -fsSL https://raw.githubusercontent.com/aldesantis/ambit/main/install.sh | sh",
             ],
         ));
     }
@@ -174,7 +174,7 @@ fn missing_binary(asset: &str, reason: impl Into<String>) -> AmbitError {
         format!("{asset} does not contain the ambit binary"),
         [
             reason.into(),
-            "report it at https://github.com/nebulab/ambit/issues".to_owned(),
+            "report it at https://github.com/aldesantis/ambit/issues".to_owned(),
         ],
     )
 }
@@ -300,7 +300,7 @@ pub fn apply_self_update(plan: &SelfUpdatePlan, context: &SelfContext<'_>) -> Re
                 [
                     format!("expected {expected}, got {actual}"),
                     "the download was discarded and the installed ambit was left alone".to_owned(),
-                    "try again; if it keeps happening, report it at https://github.com/nebulab/ambit/issues"
+                    "try again; if it keeps happening, report it at https://github.com/aldesantis/ambit/issues"
                         .to_owned(),
                 ],
             ));

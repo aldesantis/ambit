@@ -113,14 +113,14 @@ fn adds_the_leading_v_a_tag_has_and_a_package_version_does_not() {
 fn builds_the_download_url_install_sh_uses() {
     assert_eq!(
         asset_url(TAG, ASSET),
-        format!("https://github.com/nebulab/ambit/releases/download/{TAG}/{ASSET}")
+        format!("https://github.com/aldesantis/ambit/releases/download/{TAG}/{ASSET}")
     );
 }
 
 #[test]
 fn reads_the_tag_out_of_the_redirect() {
     let http =
-        answering(|| Canned::redirect("https://github.com/nebulab/ambit/releases/tag/v0.4.1"));
+        answering(|| Canned::redirect("https://github.com/aldesantis/ambit/releases/tag/v0.4.1"));
 
     assert_eq!(
         latest_tag(&http, METADATA_TIMEOUT).expect("a tag"),
@@ -128,14 +128,14 @@ fn reads_the_tag_out_of_the_redirect() {
     );
     assert_eq!(
         http.urls.borrow().as_slice(),
-        ["https://github.com/nebulab/ambit/releases/latest"]
+        ["https://github.com/aldesantis/ambit/releases/latest"]
     );
 }
 
 #[test]
 fn decodes_a_percent_encoded_tag() {
     let http = answering(|| {
-        Canned::redirect("https://github.com/nebulab/ambit/releases/tag/v1.0.0%2Bbuild")
+        Canned::redirect("https://github.com/aldesantis/ambit/releases/tag/v1.0.0%2Bbuild")
     });
 
     assert_eq!(
@@ -146,7 +146,7 @@ fn decodes_a_percent_encoded_tag() {
 
 #[test]
 fn refuses_when_the_redirect_names_no_tag_which_is_a_repository_with_no_release() {
-    let http = answering(|| Canned::redirect("https://github.com/nebulab/ambit/releases"));
+    let http = answering(|| Canned::redirect("https://github.com/aldesantis/ambit/releases"));
     let error = latest_tag(&http, METADATA_TIMEOUT).expect_err("no tag");
 
     assert_eq!(error.code, ExitCode::Network);
@@ -157,7 +157,7 @@ fn refuses_when_the_redirect_names_no_tag_which_is_a_repository_with_no_release(
     );
     assert_eq!(
         error.detail[0],
-        "https://github.com/nebulab/ambit/releases/latest answered 302 pointing at \"https://github.com/nebulab/ambit/releases\""
+        "https://github.com/aldesantis/ambit/releases/latest answered 302 pointing at \"https://github.com/aldesantis/ambit/releases\""
     );
 }
 

@@ -24,7 +24,7 @@ fn release(tag: &'static str) -> FakeHttp {
     FakeHttp::new(move |url| {
         if url.ends_with("/releases/latest") {
             Ok(Canned::redirect(&format!(
-                "https://github.com/nebulab/ambit/releases/tag/{tag}"
+                "https://github.com/aldesantis/ambit/releases/tag/{tag}"
             )))
         } else if url.ends_with(".sha256") {
             Ok(Canned::ok(format!("{checksum}  {ASSET}\n")))

@@ -75,7 +75,7 @@ fn release_server(asset: &'static str, archive: Vec<u8>, checksum: Option<String
     FakeHttp::new(move |url| {
         if url.ends_with("/releases/latest") {
             return Ok(Canned::redirect(&format!(
-                "https://github.com/nebulab/ambit/releases/tag/{LATEST}"
+                "https://github.com/aldesantis/ambit/releases/tag/{LATEST}"
             )));
         }
 
@@ -217,9 +217,9 @@ fn installs_the_verified_binary_over_the_running_one() {
         urls[1..],
         [
             format!(
-                "https://github.com/nebulab/ambit/releases/download/{LATEST}/{LINUX_ASSET}.sha256"
+                "https://github.com/aldesantis/ambit/releases/download/{LATEST}/{LINUX_ASSET}.sha256"
             ),
-            format!("https://github.com/nebulab/ambit/releases/download/{LATEST}/{LINUX_ASSET}"),
+            format!("https://github.com/aldesantis/ambit/releases/download/{LATEST}/{LINUX_ASSET}"),
         ]
     );
 }

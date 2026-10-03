@@ -1,7 +1,7 @@
 #!/bin/sh
 # Installs ambit by running the shell installer that dist attaches to every GitHub Release
 # (`ambit-installer.sh`). This file exists so the long-standing
-# `curl -fsSL https://raw.githubusercontent.com/nebulab/ambit/main/install.sh | sh` keeps working
+# `curl -fsSL https://raw.githubusercontent.com/aldesantis/ambit/main/install.sh | sh` keeps working
 # and so a version can be picked by tag; the installer itself does the platform detection, the
 # download and the checksum check.
 #
@@ -13,7 +13,7 @@
 # The last two are read by the dist installer directly.
 set -eu
 
-REPO="nebulab/ambit"
+REPO="aldesantis/ambit"
 VERSION="${AMBIT_VERSION:-latest}"
 
 if [ "$VERSION" = "latest" ]; then

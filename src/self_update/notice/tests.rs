@@ -26,7 +26,7 @@ fn counting() -> FakeHttp {
         }
 
         Ok(Canned::redirect(&format!(
-            "https://github.com/nebulab/ambit/releases/tag/{NEWER}"
+            "https://github.com/aldesantis/ambit/releases/tag/{NEWER}"
         )))
     })
 }
@@ -99,7 +99,7 @@ fn says_nothing_when_the_latest_release_is_the_one_running() {
     let args = argv(&["status"]);
     let http = FakeHttp::new(|_| {
         Ok(Canned::redirect(&format!(
-            "https://github.com/nebulab/ambit/releases/tag/v{VERSION}"
+            "https://github.com/aldesantis/ambit/releases/tag/v{VERSION}"
         )))
     });
 

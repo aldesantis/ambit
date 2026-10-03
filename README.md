@@ -28,13 +28,13 @@ ambit is a single binary with nothing under it. You need `git` on your `PATH` an
 On macOS and Linux:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/nebulab/ambit/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/aldesantis/ambit/main/install.sh | sh
 ```
 
 On Windows, in PowerShell:
 
 ```
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/nebulab/ambit/releases/latest/download/ambit-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/aldesantis/ambit/releases/latest/download/ambit-installer.ps1 | iex"
 ```
 
 Both put `ambit` in `~/.local/bin` and add that directory to your `PATH`. The installer checks the
@@ -47,7 +47,7 @@ download against its SHA-256 checksum before installing it.
 | `AMBIT_VERSION`        | A tag like `v0.5.0` to install instead of the latest. `install.sh` only.   |
 
 You can also download an archive for your machine from the
-[releases page](https://github.com/nebulab/ambit/releases). Each one holds the `ambit` binary and
+[releases page](https://github.com/aldesantis/ambit/releases). Each one holds the `ambit` binary and
 has a `.sha256` file beside it.
 
 | Archive                                  | For                    |
@@ -61,7 +61,7 @@ has a `.sha256` file beside it.
 With a Rust toolchain you can build it from source instead:
 
 ```
-cargo install --locked --git https://github.com/nebulab/ambit
+cargo install --locked --git https://github.com/aldesantis/ambit
 ```
 
 If you have ambit 0.4 or older, `ambit self-update` cannot find newer releases. Run the install

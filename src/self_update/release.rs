@@ -26,7 +26,7 @@ use crate::util::hash::hex;
 use crate::util::text::js_trim;
 
 /// The repository releases are published from. Matches `REPO` in `install.sh`.
-const REPO: &str = "nebulab/ambit";
+const REPO: &str = "aldesantis/ambit";
 
 static RELEASES_URL: LazyLock<String> =
     LazyLock::new(|| format!("https://github.com/{REPO}/releases"));
@@ -365,7 +365,7 @@ pub fn checksum_for(checksums: &str, asset: &str) -> Result<String> {
         format!("{asset}{CHECKSUM_SUFFIX} lists no entry for {asset}"),
         [
             "the release is incomplete, so the download cannot be verified",
-            "report it at https://github.com/nebulab/ambit/issues",
+            "report it at https://github.com/aldesantis/ambit/issues",
         ],
     ))
 }
