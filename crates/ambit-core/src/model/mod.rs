@@ -2,6 +2,9 @@
 
 pub mod catalog;
 pub mod config;
+// The app's FFI layer calls this; the CLI binary does not.
+#[allow(dead_code)]
+pub mod config_edit;
 pub mod documents;
 pub mod expectation;
 pub mod git;
