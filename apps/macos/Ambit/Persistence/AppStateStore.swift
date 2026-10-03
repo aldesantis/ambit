@@ -31,6 +31,8 @@ struct AppState: Codable, Equatable, Sendable {
     var lastActiveSetup: SetupID?
     /// True once the first launch registered the login item, so a later opt-out sticks.
     var launchAtLoginInitialized = false
+    /// The last catalog update check of each setup, by setup root path.
+    var catalogChecks: [String: SetupCatalogChecks] = [:]
 
     init() {}
 
@@ -40,6 +42,7 @@ struct AppState: Codable, Equatable, Sendable {
         projects = try container.decodeIfPresent([RememberedProject].self, forKey: .projects) ?? []
         lastActiveSetup = try? container.decodeIfPresent(SetupID.self, forKey: .lastActiveSetup)
         launchAtLoginInitialized = try container.decodeIfPresent(Bool.self, forKey: .launchAtLoginInitialized) ?? false
+        catalogChecks = (try? container.decodeIfPresent([String: SetupCatalogChecks].self, forKey: .catalogChecks)) ?? [:]
     }
 }
 

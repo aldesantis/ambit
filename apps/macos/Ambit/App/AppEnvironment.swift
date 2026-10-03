@@ -31,7 +31,7 @@ struct AppEnvironment {
             if let hooks { FixedFolderPicker(folder: hooks.pickFolder) } else { OpenPanelFolderPicker() }
 
         // Replaced by LiveEngineService once the UniFFI engine is linked.
-        let engine: any EngineService = FakeEngineService()
+        let engine: any EngineService = FakeEngineService.scenario(hooks?.engineScenario, home: home)
 
         return AppEnvironment(
             launch: launch, engine: engine, stateStore: AppStateStore(directory: stateDirectory),
