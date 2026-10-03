@@ -21,18 +21,31 @@
 //!   ([`RefreshMode::Probe`]), which ref resolution never reads.
 //! - git runs as a child process ([`run_git`]) with a cleared environment rebuilt from the [`Env`]
 //!   the command was given, so the cache location and git's own configuration are a function of
-//!   the call, not of the process.
+//!   the call, not of the process. [`GIT_PROGRAM_VAR`] in that environment names the executable;
+//!   credentials arrive the same way ([`credentials`]), and what git prints is redacted before
+//!   anything can quote it.
+//! - Every process sharing a cache serializes clone, fetch and checkout through an OS lock on
+//!   [`CACHE_LOCK_FILENAME`] in the cache root. Without it, two processes could both find a clone
+//!   missing and race to rename theirs into place.
+
+pub mod credentials;
 
 use std::fmt::Write as _;
+use std::fs::File;
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::LazyLock;
+use std::thread;
+use std::time::Duration;
 
 use regex::Regex;
 
 use crate::errors::{AmbitError, Result, config_error, network_error};
+use crate::model::git::credentials::{deciding_line, redact};
+use crate::util::control::{Control, Progress, Stage, canceled};
 use crate::util::env::Env;
-use crate::util::fs::{EntryKind, mkdir_p, rm_rf, write_text};
+use crate::util::fs::{EntryKind, mkdir_p, rename, rm_rf, try_lock_file, write_text};
 use crate::util::path::join;
 use crate::util::string_enum;
 use crate::util::text::{is_js_whitespace, js_trim};
@@ -45,6 +58,17 @@ pub const REPOS_DIRNAME: &str = "repos";
 
 /// Checkouts within the cache, keyed by host/owner/repo and then commit.
 pub const SOURCES_DIRNAME: &str = "sources";
+
+/// The variable naming the git executable to run, for a library caller that ships its own git.
+///
+/// The CLI removes it from its environment and always runs the `git` on `PATH`.
+pub const GIT_PROGRAM_VAR: &str = "AMBIT_GIT_PROGRAM";
+
+/// The lock file in the cache root that clone, fetch and checkout hold.
+pub const CACHE_LOCK_FILENAME: &str = "cache.lock";
+
+/// How often a cancelable wait looks at the cancel flag: a running git, or a held cache lock.
+const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Suffix of the file written beside a checkout once it is complete.
 const READY_SUFFIX: &str = ".ready";
@@ -147,6 +171,8 @@ pub struct GitFetchRequest {
     pub offline: bool,
     /// How much of the remote this fetch may consult. Absent means [`RefreshMode::None`].
     pub refresh: Option<RefreshMode>,
+    /// Cancellation and progress. A cancel stops the running git and leaves the cache as it was.
+    pub control: Control,
 }
 
 /// A fetched source: a directory to read, and the commit its contents are.
@@ -175,16 +201,45 @@ pub struct GitOutcome {
 }
 
 /// Runs `git <args>` in `cwd` with exactly the environment `env` describes, minus `GIT_DIR`,
-/// `GIT_WORK_TREE` and `GIT_INDEX_FILE`, plus `GIT_TERMINAL_PROMPT=0`. Stdin is closed so git never
-/// waits on input.
+/// `GIT_WORK_TREE`, `GIT_INDEX_FILE` and [`GIT_PROGRAM_VAR`], plus `GIT_TERMINAL_PROMPT=0`. Stdin
+/// is closed so git never waits on input. Credentials in what git prints are redacted
+/// ([`redact`]).
 ///
 /// A non-zero exit is data rather than an error: `rev-parse` failing is how ambit asks whether the
 /// cache already knows a ref. Only a git that cannot start at all fails.
 ///
 /// # Errors
 ///
-/// Exit 4 when git is not on `PATH`, or cannot be spawned at all.
+/// Exit 4 when git is not on `PATH` (or not at [`GIT_PROGRAM_VAR`]), or cannot be spawned at all.
 pub fn run_git(args: &[&str], cwd: &Path, env: &Env) -> Result<GitOutcome> {
+    run_git_controlled(args, cwd, env, &Control::default())
+}
+
+/// [`run_git`], stopping the child when `control` is canceled.
+///
+/// # Errors
+///
+/// As [`run_git`]; [`canceled`] once the cancel flag is set, before git starts or while it runs.
+pub fn run_git_controlled(
+    args: &[&str],
+    cwd: &Path,
+    env: &Env,
+    control: &Control,
+) -> Result<GitOutcome> {
+    run_git_reporting(args, cwd, env, control, None)
+}
+
+/// [`run_git_controlled`], turning git's `--progress` lines into reports about `subject` when one
+/// is given.
+fn run_git_reporting(
+    args: &[&str],
+    cwd: &Path,
+    env: &Env,
+    control: &Control,
+    subject: Option<&str>,
+) -> Result<GitOutcome> {
+    control.check()?;
+
     let spawned = git_program(env).and_then(|program| {
         Command::new(program)
             .args(args)
@@ -192,33 +247,179 @@ pub fn run_git(args: &[&str], cwd: &Path, env: &Env) -> Result<GitOutcome> {
             .env_clear()
             .envs(git_environment(env))
             .stdin(Stdio::null())
-            .output()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
     });
 
-    match spawned {
-        Ok(output) => Ok(GitOutcome {
-            ok: output.status.success(),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-        }),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Err(network_error(
+    let mut child = match spawned {
+        Ok(child) => child,
+        Err(error) => return Err(cannot_start(&error, env)),
+    };
+
+    // Both pipes drain on their own threads, so a child filling one cannot block on it while this
+    // thread waits for it to exit.
+    let stdout = child.stdout.take().map(|mut pipe| {
+        thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = pipe.read_to_end(&mut bytes);
+            bytes
+        })
+    });
+    let reporter = subject.map(|subject| (control.clone(), subject.to_owned()));
+    let stderr = child
+        .stderr
+        .take()
+        .map(|pipe| thread::spawn(move || read_stderr(pipe, reporter.as_ref())));
+
+    let status = wait(&mut child, control)?;
+    let collect = |handle: Option<thread::JoinHandle<Vec<u8>>>| {
+        let bytes = handle
+            .and_then(|handle| handle.join().ok())
+            .unwrap_or_default();
+
+        redact(&String::from_utf8_lossy(&bytes), env)
+    };
+
+    Ok(GitOutcome {
+        ok: status.success(),
+        stdout: collect(stdout),
+        stderr: collect(stderr),
+    })
+}
+
+/// Waits for `child`, killing it if `control` is canceled first.
+///
+/// A canceled run does not wait for the pipe readers: a helper git started (`git-remote-https`,
+/// `ssh`) can hold the pipes a little longer than git itself, and nothing is read from them.
+///
+/// # Errors
+///
+/// [`canceled`] when the flag is set; exit 1 if the child cannot be waited on.
+fn wait(child: &mut Child, control: &Control) -> Result<ExitStatus> {
+    if !control.is_cancelable() {
+        return Ok(child.wait()?);
+    }
+
+    // Starts short, since most git calls are a `rev-parse` that finishes in milliseconds.
+    let mut interval = Duration::from_millis(2);
+
+    loop {
+        if let Some(status) = child.try_wait()? {
+            return Ok(status);
+        }
+
+        if control.is_canceled() {
+            let _ = child.kill();
+            let _ = child.wait();
+
+            return Err(canceled());
+        }
+
+        thread::sleep(interval);
+        interval = (interval * 2).min(POLL_INTERVAL);
+    }
+}
+
+/// `<phase>: NN% (current/total)`, as `--progress` writes it.
+static PROGRESS_LINE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(?:remote: )?([A-Za-z][A-Za-z ]*):\s+\d+% \((\d+)/(\d+)\)")
+        .expect("a valid pattern")
+});
+
+/// Reads git's standard error to the end, reporting each progress line as it arrives.
+fn read_stderr(mut pipe: impl Read, reporter: Option<&(Control, String)>) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    let mut buffer = [0; 4096];
+    let mut line_start = 0;
+
+    loop {
+        let read = match pipe.read(&mut buffer) {
+            Ok(0) | Err(_) => break,
+            Ok(read) => read,
+        };
+
+        bytes.extend_from_slice(&buffer[..read]);
+
+        let Some((control, subject)) = reporter else {
+            continue;
+        };
+
+        // A progress line ends in `\r` while it updates and in `\n` once done.
+        while let Some(offset) = bytes[line_start..]
+            .iter()
+            .position(|byte| matches!(byte, b'\r' | b'\n'))
+        {
+            let line = String::from_utf8_lossy(&bytes[line_start..line_start + offset]);
+
+            if let Some(progress) = progress_of(&line, subject) {
+                control.report(&progress);
+            }
+
+            line_start += offset + 1;
+        }
+    }
+
+    bytes
+}
+
+/// The report one `--progress` line amounts to, if it is one.
+fn progress_of(line: &str, subject: &str) -> Option<Progress> {
+    let captures = PROGRESS_LINE.captures(js_trim(line))?;
+
+    Some(Progress {
+        stage: Stage::Fetching,
+        subject: format!("{subject}: {}", js_trim(&captures[1])),
+        current: captures[2].parse().ok()?,
+        total: captures[3].parse().ok()?,
+    })
+}
+
+/// The error for a git that could not be started.
+fn cannot_start(error: &std::io::Error, env: &Env) -> AmbitError {
+    let missing = error.kind() == std::io::ErrorKind::NotFound;
+
+    match configured_program(env) {
+        Some(program) if missing => network_error(
+            format!("git is not at {program}"),
+            [
+                "ambit fetches catalogs by running git, and could not start it".to_owned(),
+                format!("check {GIT_PROGRAM_VAR}, or install git there"),
+            ],
+        ),
+        Some(program) => network_error(
+            format!("cannot run git at {program}"),
+            [
+                error.to_string(),
+                format!("check {GIT_PROGRAM_VAR}, or install git there"),
+            ],
+        ),
+        None if missing => network_error(
             "git is not on PATH",
             [
                 "ambit fetches catalogs by running git, and could not start it",
                 "install git, or add it to PATH",
             ],
-        )),
-        Err(error) => Err(network_error(
+        ),
+        None => network_error(
             "cannot run git",
             [
                 error.to_string(),
                 "install git, or add it to PATH".to_owned(),
             ],
-        )),
+        ),
     }
 }
 
-/// The program to spawn for git.
+/// The git executable [`GIT_PROGRAM_VAR`] names, when it names one.
+fn configured_program(env: &Env) -> Option<&str> {
+    env.get(GIT_PROGRAM_VAR)
+        .map(String::as_str)
+        .filter(|program| !js_trim(program).is_empty())
+}
+
+/// The program to spawn for git: [`GIT_PROGRAM_VAR`] when set, otherwise `git` from `env`'s
+/// `PATH`.
 ///
 /// On Unix a bare `git` is looked up in the child's `PATH`, which is the one `env` carries. On
 /// Windows the standard library falls back to the system directories and this process's own `PATH`
@@ -229,6 +430,10 @@ pub fn run_git(args: &[&str], cwd: &Path, env: &Env) -> Result<GitOutcome> {
 /// `NotFound` on Windows when no directory on `env`'s `PATH` holds `git.exe`.
 #[cfg(windows)]
 fn git_program(env: &Env) -> std::io::Result<PathBuf> {
+    if let Some(program) = configured_program(env) {
+        return Ok(PathBuf::from(program));
+    }
+
     // Windows variable names are case-insensitive, and the process usually spells it `Path`.
     let path = env
         .iter()
@@ -243,8 +448,8 @@ fn git_program(env: &Env) -> std::io::Result<PathBuf> {
 
 #[cfg(not(windows))]
 #[allow(clippy::unnecessary_wraps)] // Fallible on Windows.
-fn git_program(_env: &Env) -> std::io::Result<PathBuf> {
-    Ok(PathBuf::from("git"))
+fn git_program(env: &Env) -> std::io::Result<PathBuf> {
+    Ok(PathBuf::from(configured_program(env).unwrap_or("git")))
 }
 
 /// The environment git is run in: the caller's, minus anything that would redirect it.
@@ -258,6 +463,9 @@ fn git_environment(env: &Env) -> Env {
     for name in REDIRECTING_GIT_VARS {
         copy.remove(*name);
     }
+
+    // Read by ambit, not by git.
+    copy.remove(GIT_PROGRAM_VAR);
 
     copy
 }
@@ -443,7 +651,7 @@ fn is_file(target: &Path) -> bool {
 
 /// What git said last, which is where its `fatal:` line lands.
 fn last_line(text: &str) -> String {
-    text.split('\n')
+    text.split(['\n', '\r'])
         .map(js_trim)
         .rfind(|line| !line.is_empty())
         .unwrap_or("")
@@ -454,14 +662,45 @@ fn path_arg(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
-/// Runs git for one request, in its `cwd` and environment.
+/// Runs git for one request, in its `cwd` and environment, under its control.
 fn git(args: &[&str], request: &GitFetchRequest) -> Result<GitOutcome> {
-    run_git(args, &request.cwd, &request.env)
+    run_git_controlled(args, &request.cwd, &request.env, &request.control)
 }
 
-/// The error for a git command that failed, carrying git's own last word.
+/// Runs a git command that talks to the remote, reporting its progress when anything listens.
+///
+/// `--progress` replaces `--quiet` only then, so the output the CLI sees is unchanged.
+fn git_remote(args: &[&str], request: &GitFetchRequest) -> Result<GitOutcome> {
+    if !request.control.is_reporting() {
+        return git(args, request);
+    }
+
+    request.control.report(&Progress {
+        stage: Stage::Fetching,
+        subject: request.subject.clone(),
+        current: 0,
+        total: 0,
+    });
+
+    let args: Vec<&str> = args
+        .iter()
+        .map(|&arg| if arg == "--quiet" { "--progress" } else { arg })
+        .collect();
+
+    run_git_reporting(
+        &args,
+        &request.cwd,
+        &request.env,
+        &request.control,
+        Some(&request.subject),
+    )
+}
+
+/// The error for a git command that failed, carrying git's own word: the line that explains the
+/// failure ([`deciding_line`]) when there is one, otherwise its last.
 fn git_failed(summary: String, outcome: &GitOutcome, advice: String) -> AmbitError {
-    let stderr = last_line(&outcome.stderr);
+    let stderr = deciding_line(&outcome.stderr)
+        .map_or_else(|| last_line(&outcome.stderr), |(_, line)| line.to_owned());
     let said = if stderr.is_empty() {
         last_line(&outcome.stdout)
     } else {
@@ -506,7 +745,7 @@ fn clone(repo: &Path, request: &GitFetchRequest) -> Result<()> {
     }
 
     let incoming_arg = path_arg(&incoming);
-    let outcome = git(
+    let outcome = git_remote(
         &[
             "clone",
             "--mirror",
@@ -516,7 +755,11 @@ fn clone(repo: &Path, request: &GitFetchRequest) -> Result<()> {
             &incoming_arg,
         ],
         request,
-    )?;
+    )
+    .inspect_err(|_| {
+        // A canceled clone leaves nothing behind either.
+        let _ = rm_rf(&incoming);
+    })?;
 
     if !outcome.ok {
         rm_rf(&incoming)?;
@@ -528,7 +771,7 @@ fn clone(repo: &Path, request: &GitFetchRequest) -> Result<()> {
         ));
     }
 
-    std::fs::rename(&incoming, repo)?;
+    rename(&incoming, repo)?;
 
     Ok(())
 }
@@ -540,7 +783,7 @@ fn clone(repo: &Path, request: &GitFetchRequest) -> Result<()> {
 /// Exit 4 if the fetch fails.
 fn fetch_into(repo: &Path, request: &GitFetchRequest) -> Result<()> {
     let repo_arg = path_arg(repo);
-    let outcome = git(
+    let outcome = git_remote(
         &["-C", &repo_arg, "fetch", "--quiet", "--prune", "origin"],
         request,
     )?;
@@ -582,7 +825,7 @@ fn probe_into(repo: &Path, request: &GitFetchRequest) -> Result<()> {
     ];
     args.extend(PROBE_REFSPECS.iter().map(String::as_str));
 
-    let outcome = git(&args, request)?;
+    let outcome = git_remote(&args, request)?;
 
     if !outcome.ok {
         return Err(git_failed(
@@ -936,7 +1179,11 @@ fn ensure_checkout(
             commit,
         ],
         request,
-    )?;
+    )
+    .inspect_err(|_| {
+        // A canceled checkout has no ready marker, so the next run redoes it; this only tidies.
+        let _ = rm_rf(&target);
+    })?;
 
     if !outcome.ok {
         rm_rf(&target)?;
@@ -976,6 +1223,39 @@ fn ensure_checkout(
 /// Exit 4 if git is missing, a clone/fetch/probe/checkout fails, or `--offline` was given and the
 /// cache cannot answer; exit 2 for a ref or a pinned commit the repository does not have.
 pub fn fetch_git_source(request: &GitFetchRequest) -> Result<FetchedGitSource> {
+    fetch(request).map_err(|error| AmbitError {
+        message: redact(&error.message, &request.env),
+        detail: error
+            .detail
+            .iter()
+            .map(|line| redact(line, &request.env))
+            .collect(),
+        ..error
+    })
+}
+
+/// Takes the cache lock, waiting while another process holds it.
+///
+/// # Errors
+///
+/// [`canceled`] if the caller cancels while waiting; exit 1 if the lock file cannot be opened.
+fn lock_cache(cache: &Path, control: &Control) -> Result<File> {
+    mkdir_p(cache)?;
+
+    let path = join(cache, CACHE_LOCK_FILENAME);
+
+    loop {
+        if let Some(file) = try_lock_file(&path)? {
+            return Ok(file);
+        }
+
+        control.check()?;
+        thread::sleep(POLL_INTERVAL);
+    }
+}
+
+/// [`fetch_git_source`], before its errors are redacted.
+fn fetch(request: &GitFetchRequest) -> Result<FetchedGitSource> {
     assert_usable_ref(request)?;
     assert_usable_pin(request)?;
 
@@ -990,6 +1270,16 @@ pub fn fetch_git_source(request: &GitFetchRequest) -> Result<FetchedGitSource> {
     let key = git_cache_key(&request.url);
     let repo = join(&join(&cache, REPOS_DIRNAME), &format!("{key}{GIT_SUFFIX}"));
 
+    // Checked before the lock too, so an offline miss creates nothing in the cache.
+    if offline && !is_directory(&repo) {
+        return Err(not_cached(request, &repo));
+    }
+
+    request.control.check()?;
+
+    // Held to the end of the fetch. Whether the clone exists is decided under it, since another
+    // process may have cloned while this one waited.
+    let _lock = lock_cache(&cache, &request.control)?;
     let mut cloned = false;
 
     if !is_directory(&repo) {
@@ -1019,6 +1309,8 @@ pub fn fetch_git_source(request: &GitFetchRequest) -> Result<FetchedGitSource> {
             moving: None,
         });
     }
+
+    request.control.check()?;
 
     if refresh == RefreshMode::Probe {
         // Needed even right after a clone: the probe namespace is empty until fetched into.
@@ -1052,6 +1344,9 @@ pub fn fetch_git_source(request: &GitFetchRequest) -> Result<FetchedGitSource> {
     }
 
     let commit = commit.ok_or_else(|| unknown_ref(request))?;
+
+    request.control.check()?;
+
     let root = ensure_checkout(&cache, &key, &repo, &commit, request)?;
     let moving = if refresh == RefreshMode::None {
         None
@@ -1068,3 +1363,6 @@ pub fn fetch_git_source(request: &GitFetchRequest) -> Result<FetchedGitSource> {
 
 #[cfg(all(test, feature = "cli"))]
 mod tests;
+
+#[cfg(test)]
+mod runtime_tests;

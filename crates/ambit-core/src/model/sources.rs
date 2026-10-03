@@ -19,6 +19,7 @@ use regex::Regex;
 
 use crate::errors::{AmbitError, Result, config_error};
 use crate::model::git::{GitFetchRequest, RefreshMode, fetch_git_source};
+use crate::util::control::Control;
 use crate::util::env::Env;
 use crate::util::path::resolve;
 use crate::util::text::js_trim;
@@ -101,6 +102,8 @@ pub struct SourceContext {
     pub env: Env,
     /// `--offline`: resolve from the cache alone, and fail with exit 4 rather than fetch.
     pub offline: bool,
+    /// Cancellation and progress for the fetches resolving needs.
+    pub control: Control,
 }
 
 /// A source resolved to a directory on disk.
@@ -280,6 +283,7 @@ pub fn resolve_source(request: &SourceRequest, context: &SourceContext) -> Resul
                 cwd: context.project_dir.clone(),
                 offline: context.offline,
                 refresh: request.refresh,
+                control: context.control.clone(),
             })?;
 
             Ok(ResolvedSource {

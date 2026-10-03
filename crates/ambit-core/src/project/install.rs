@@ -411,6 +411,7 @@ pub fn plan_install(
         project_dir: project_dir.to_path_buf(),
         env: env.clone(),
         offline: options.offline,
+        ..SourceContext::default()
     };
 
     let CatalogPlan { pins, refresh } = catalog_plan(project_dir, &config, options, plan)?;

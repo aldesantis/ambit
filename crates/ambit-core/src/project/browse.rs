@@ -100,6 +100,7 @@ pub fn load_setup(
         project_dir: root.to_path_buf(),
         env: env.clone(),
         offline: policy == FetchPolicy::CacheOnly,
+        ..SourceContext::default()
     };
     let mut catalogs = Vec::new();
 

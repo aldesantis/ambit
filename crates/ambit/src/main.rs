@@ -10,6 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use ambit_core::cli::{self, Io as _};
 use ambit_core::errors::{AmbitError, ExitCode};
+use ambit_core::model::git::GIT_PROGRAM_VAR;
 use ambit_core::self_update::notice::{NoticeContext, update_notice};
 use ambit_core::self_update::release::UreqHttp;
 use ambit_core::util::{self, env::Env};
@@ -20,7 +21,9 @@ fn main() {
         .skip(1)
         .map(|arg| arg.to_string_lossy().into_owned())
         .collect();
-    let env = util::env::snapshot();
+    let mut env = util::env::snapshot();
+    // The CLI always runs the git on PATH. The variable is for library callers that ship their own.
+    env.remove(GIT_PROGRAM_VAR);
     let mut io = cli::StdIo;
 
     // A panic is a bug in ambit. It is reported in the standard error shape below, so the default

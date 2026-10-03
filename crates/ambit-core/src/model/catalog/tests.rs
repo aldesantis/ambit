@@ -69,6 +69,7 @@ impl Fixture {
             project_dir: self.project_dir.clone(),
             env: test_env(&self.root),
             offline: false,
+            ..SourceContext::default()
         }
     }
 
