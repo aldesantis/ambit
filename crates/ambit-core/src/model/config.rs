@@ -444,8 +444,6 @@ fn from_mapping(root: &YamlMapping) -> Result<ProjectConfig> {
 /// # Errors
 ///
 /// Exit 2 for anything malformed.
-// Called from `config_edit`, which the CLI binary does not call.
-#[allow(dead_code)]
 pub fn parse_project_config(text: &str, file: &str) -> Result<ProjectConfig> {
     from_mapping(&crate::model::yaml::parse_yaml_mapping(text, file)?)
 }
