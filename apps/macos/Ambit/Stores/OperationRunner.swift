@@ -42,8 +42,8 @@ final class OperationRunner {
 
             self.current = Operation(id: id, title: title, setup: setup)
             defer { self.current = nil }
-            return try await body { [weak self] event in
-                self?.report(event, for: id)
+            return try await body { event in
+                self.report(event, for: id)
             }
         }
         tail = Task { _ = await task.result }

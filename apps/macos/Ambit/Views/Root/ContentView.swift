@@ -16,6 +16,7 @@ struct ContentView: View {
         .alert(item: $model.presentedError) { error in
             Alert(title: Text(error.title), message: Text(error.message))
         }
+        .pendingChangesAlert(model)
     }
 
     @ViewBuilder
