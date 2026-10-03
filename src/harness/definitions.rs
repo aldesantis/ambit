@@ -520,7 +520,7 @@ fn opencode_server(mcp: &MergedMcp) -> JsonValue {
 /// stdio/http, one `command` array rather than a command and its arguments, and `environment` for
 /// the env map.
 ///
-/// Has no declarative hooks; it runs JavaScript plugins instead, which ambit cannot generate from a
+/// Has no declarative hooks; it runs TypeScript plugins instead, which ambit cannot generate from a
 /// declaration. No `hooks` field is set, and a project that selects a hook for opencode is told the
 /// hook was skipped.
 pub static OPENCODE: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {

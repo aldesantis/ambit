@@ -627,7 +627,7 @@ fn gives_claude_and_vscode_one_shared_file_and_codex_one_of_its_own() {
 
 #[test]
 fn leaves_opencode_without_hooks_which_is_what_makes_a_hook_for_it_a_skip() {
-    // The one harness with no declarative mechanism at all: it runs JavaScript plugins, which is
+    // The one harness with no declarative mechanism at all: it runs TypeScript plugins, which is
     // code rather than config. So the profile carries no layout and no renderer, and
     // `skipped_hooks` reads that absence as the reason.
     assert!(OPENCODE.hooks.is_none());
