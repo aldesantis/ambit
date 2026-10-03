@@ -25,6 +25,8 @@ final class SetupModel {
     @ObservationIgnored let session: any SetupSessionService
 
     private(set) var snapshot: SetupSnapshot?
+    /// Why the last `refresh` could not read the setup root.
+    private(set) var loadError: EngineError?
     private(set) var isLoading = false
 
     init(id: SetupID, root: URL, engine: any EngineService) {
@@ -45,6 +47,10 @@ final class SetupModel {
     var hasPendingChanges: Bool { false }
 
     var badge: Badge? {
+        if loadError != nil {
+            return .error
+        }
+
         guard let snapshot else {
             return nil
         }
@@ -60,6 +66,13 @@ final class SetupModel {
     func refresh() async {
         isLoading = true
         defer { isLoading = false }
-        snapshot = await session.snapshot()
+        do {
+            snapshot = try await session.snapshot()
+            loadError = nil
+        } catch let error as EngineError {
+            loadError = error
+        } catch {
+            loadError = .internal(message: error.localizedDescription, detail: [])
+        }
     }
 }

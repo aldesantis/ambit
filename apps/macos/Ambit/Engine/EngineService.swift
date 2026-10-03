@@ -49,7 +49,10 @@ protocol SetupSessionService: Sendable {
     var root: String { get }
 
     /// Reads the config only. Never fetches.
-    func snapshot() async -> SetupSnapshot
+    ///
+    /// Throws `EngineError.io` when the root cannot be read. A missing or broken config is a
+    /// `ConfigState`, not an error.
+    func snapshot() async throws -> SetupSnapshot
 
     /// Loads the catalogs named by `draftText`, or by the saved config when it is `nil`.
     func loadCatalogs(draftText: String?, policy: FetchPolicy, progress: ProgressHandler?) async throws -> CatalogsState

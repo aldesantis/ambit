@@ -33,13 +33,15 @@ struct CatalogEntry: Sendable, Hashable {
     var name: String
     var source: String
     var gitRef: String?
-    var sourceKind: SourceKind
+    /// `nil` when the source string cannot be parsed.
+    var sourceKind: SourceKind?
 }
 
-/// One `requires` entry. `isRule` is true when the pattern contains a wildcard.
+/// One `requires` entry. `catalog` is `nil` for an unqualified entry. `isRule` is true when the
+/// pattern contains a wildcard.
 struct SelectionEntry: Sendable, Hashable {
     var kind: ItemKind
-    var catalog: String
+    var catalog: String?
     var pattern: String
     var isRule: Bool
 }
@@ -50,10 +52,18 @@ struct ConfigSummary: Sendable, Hashable {
     var requires: [SelectionEntry]
 }
 
+/// Why a config cannot be used. `line` locates the problem in the file when known.
+struct ConfigProblem: Sendable, Hashable {
+    var message: String
+    var detail: [String]
+    var line: UInt32?
+}
+
 enum ConfigState: Sendable, Hashable {
     case missing
-    case ambiguous(files: [String], error: EngineError)
-    case invalid(path: String, error: EngineError)
+    /// More than one config file exists.
+    case ambiguous(files: [String], problem: ConfigProblem)
+    case invalid(path: String, fileName: String, problem: ConfigProblem)
     case valid(path: String, fileName: String, text: String, summary: ConfigSummary)
 }
 
@@ -111,6 +121,12 @@ struct AgentToolInfo: Sendable, Hashable, Identifiable {
     /// The harness name written to `harnesses`.
     var id: String
     var displayName: String
+    /// Paths relative to the setup root.
+    var skillsDir: String
+    var mcpFile: String
+    /// The MCP file of the Personal setup, when it differs from `mcpFile`.
+    var personalMcpFile: String
+    var hooksFile: String?
     var limitations: [String]
 }
 
