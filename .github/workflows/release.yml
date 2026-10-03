@@ -299,3 +299,12 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+
+  custom-macos-release:
+    needs:
+      - plan
+      - announce
+    uses: ./.github/workflows/macos-release.yml
+    with:
+      plan: ${{ needs.plan.outputs.val }}
+    secrets: inherit
