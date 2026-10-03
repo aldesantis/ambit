@@ -4,7 +4,12 @@
 //! instead: every node keeps where it started, and a mapping keeps its pairs in document order,
 //! duplicates included, so the duplicate-key error can name both lines.
 //!
+//! Nodes also keep what the lossless editor (`edit.rs`) needs to splice the original text: the
+//! scalar style, whether a collection is flow style, an anchor, and where a flow collection ends.
+//!
 //! Nothing outside `yaml/` depends on these shapes.
+
+use std::ops::Range;
 
 use saphyr_parser::{Event, Parser, ScalarStyle, ScanError, Span, Tag};
 
@@ -31,7 +36,17 @@ pub(super) struct Node {
     pub kind: NodeKind,
     /// The explicit tag, fully expanded (`tag:yaml.org,2002:str`, `!mine`).
     tag: Option<String>,
+    /// Whether the node carries an `&anchor`.
+    anchored: bool,
+    /// How a scalar was written. Absent for collections and aliases.
+    style: Option<ScalarStyle>,
+    /// Whether a collection is written in flow style (`[a, b]`, `{a: 1}`).
+    flow: bool,
     /// Character offsets into the parsed text, as saphyr reports them.
+    ///
+    /// A flow collection ends past its closing bracket. A block collection's end is its start
+    /// event's, which says nothing about its extent: [`Document::byte_span`] derives that from its
+    /// children.
     start: usize,
     end: usize,
     /// 1-based, within the parsed text.
@@ -104,6 +119,71 @@ impl Document {
         (!slice.is_empty()).then_some(slice)
     }
 
+    /// The parsed text.
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    pub fn items(&self, id: NodeId) -> &[NodeId] {
+        match self.kind(id) {
+            NodeKind::Seq(items) => items,
+            _ => &[],
+        }
+    }
+
+    pub fn is_flow(&self, id: NodeId) -> bool {
+        self.nodes[id].flow
+    }
+
+    pub fn is_anchored(&self, id: NodeId) -> bool {
+        self.nodes[id].anchored
+    }
+
+    pub fn tag(&self, id: NodeId) -> Option<&str> {
+        self.nodes[id].tag.as_deref()
+    }
+
+    pub fn scalar_style(&self, id: NodeId) -> Option<ScalarStyle> {
+        self.nodes[id].style
+    }
+
+    /// The byte range `id` occupies in [`Document::text`].
+    ///
+    /// A scalar's range stops at its last character: saphyr's span for a quoted scalar runs on over
+    /// the whitespace after the closing quote. A block collection runs from its first item or key
+    /// to the end of its last descendant, so a comment trailing it is outside the range.
+    pub fn byte_span(&self, id: NodeId) -> Range<usize> {
+        let node = &self.nodes[id];
+        let start = self.byte_offset(node.start);
+
+        let end = match &node.kind {
+            NodeKind::Map(pairs) if !node.flow => pairs
+                .iter()
+                .map(|&(_, value)| self.byte_span(value).end)
+                .max()
+                .unwrap_or(start),
+            NodeKind::Seq(items) if !node.flow => items
+                .iter()
+                .map(|&item| self.byte_span(item).end)
+                .max()
+                .unwrap_or(start),
+            NodeKind::Scalar(_) if node.style == Some(ScalarStyle::DoubleQuoted) => {
+                start + closing_quote(&self.text[start..], '"')
+            }
+            NodeKind::Scalar(_) if node.style == Some(ScalarStyle::SingleQuoted) => {
+                start + closing_quote(&self.text[start..], '\'')
+            }
+            _ => {
+                let end = self.byte_offset(node.end);
+                let slice = self.text.get(start..end).unwrap_or_default();
+
+                start + slice.trim_end().len()
+            }
+        };
+
+        start..end.max(start)
+    }
+
     fn byte_offset(&self, chars: usize) -> usize {
         self.text
             .char_indices()
@@ -124,6 +204,29 @@ impl Document {
             NodeKind::Alias => "an unsupported value",
         }
     }
+}
+
+/// The length of the quoted scalar `text` starts with, through its closing quote: saphyr's span for
+/// one can run on over the comment after it.
+///
+/// Inside double quotes a backslash escapes the next character; inside single quotes a doubled
+/// quote stands for one.
+fn closing_quote(text: &str, quote: char) -> usize {
+    let mut chars = text.char_indices().skip(1).peekable();
+
+    while let Some((index, c)) = chars.next() {
+        if quote == '"' && c == '\\' {
+            chars.next();
+        } else if c == quote {
+            if quote == '\'' && chars.peek().is_some_and(|&(_, next)| next == '\'') {
+                chars.next();
+            } else {
+                return index + c.len_utf8();
+            }
+        }
+    }
+
+    text.len()
 }
 
 /// `Number.isInteger`.
@@ -147,12 +250,17 @@ struct Builder {
 }
 
 impl Builder {
-    fn add(&mut self, kind: NodeKind, tag: Option<String>, span: Span) -> NodeId {
+    fn add(&mut self, kind: NodeKind, attributes: Attributes, span: Span) -> NodeId {
         let id = self.nodes.len();
+        let flow = matches!(kind, NodeKind::Map(_) | NodeKind::Seq(_))
+            && matches!(self.text.chars().nth(span.start.index()), Some('[' | '{'));
 
         self.nodes.push(Node {
             kind,
-            tag,
+            tag: attributes.tag,
+            anchored: attributes.anchor != 0,
+            style: attributes.style,
+            flow,
             start: span.start.index(),
             end: span.end.index(),
             line: span.start.line(),
@@ -180,6 +288,18 @@ impl Builder {
         id
     }
 
+    /// Closes the innermost collection. A flow collection's end event starts at its closing
+    /// bracket, so that is where the collection is recorded to end.
+    fn close(&mut self, span: Span) {
+        let Some(Frame::Seq(id) | Frame::Map { id, .. }) = self.stack.pop() else {
+            return;
+        };
+
+        if self.nodes[id].flow {
+            self.nodes[id].end = span.start.index() + 1;
+        }
+    }
+
     fn line(&self, span: Span) -> usize {
         span.start.line() + self.line_offset
     }
@@ -195,8 +315,22 @@ impl Builder {
     }
 }
 
-fn expand(tag: Option<&Tag>) -> Option<String> {
-    tag.map(|tag| format!("{}{}", tag.handle, tag.suffix))
+/// What an event says about a node besides its kind.
+struct Attributes {
+    tag: Option<String>,
+    /// saphyr's anchor id: 0 for none.
+    anchor: usize,
+    style: Option<ScalarStyle>,
+}
+
+impl Attributes {
+    fn new(anchor: usize, tag: Option<&Tag>) -> Self {
+        Self {
+            tag: tag.map(|tag| format!("{}{}", tag.handle, tag.suffix)),
+            anchor,
+            style: None,
+        }
+    }
 }
 
 /// Parses `text` into a positioned tree, rejecting a syntax error or a second document.
@@ -232,28 +366,29 @@ pub(super) fn parse(text: &str, file: &str, line_offset: usize) -> Result<Docume
                     ));
                 }
             }
-            Event::Scalar(value, style, _, tag) => {
-                let tag = expand(tag.as_deref());
+            Event::Scalar(value, style, anchor, tag) => {
+                let mut attributes = Attributes::new(anchor, tag.as_deref());
                 let plain = matches!(style, ScalarStyle::Plain);
-                let scalar = schema::resolve_scalar(&value, plain, tag.as_deref());
+                let scalar = schema::resolve_scalar(&value, plain, attributes.tag.as_deref());
 
-                builder.add(NodeKind::Scalar(scalar), tag, span);
+                attributes.style = Some(style);
+                builder.add(NodeKind::Scalar(scalar), attributes, span);
             }
-            Event::SequenceStart(_, tag) => {
-                let id = builder.add(NodeKind::Seq(Vec::new()), expand(tag.as_deref()), span);
+            Event::SequenceStart(anchor, tag) => {
+                let attributes = Attributes::new(anchor, tag.as_deref());
+                let id = builder.add(NodeKind::Seq(Vec::new()), attributes, span);
 
                 builder.stack.push(Frame::Seq(id));
             }
-            Event::MappingStart(_, tag) => {
-                let id = builder.add(NodeKind::Map(Vec::new()), expand(tag.as_deref()), span);
+            Event::MappingStart(anchor, tag) => {
+                let attributes = Attributes::new(anchor, tag.as_deref());
+                let id = builder.add(NodeKind::Map(Vec::new()), attributes, span);
 
                 builder.stack.push(Frame::Map { id, key: None });
             }
-            Event::SequenceEnd | Event::MappingEnd => {
-                builder.stack.pop();
-            }
+            Event::SequenceEnd | Event::MappingEnd => builder.close(span),
             Event::Alias(_) => {
-                builder.add(NodeKind::Alias, None, span);
+                builder.add(NodeKind::Alias, Attributes::new(0, None), span);
             }
             Event::Nothing | Event::StreamStart | Event::StreamEnd | Event::DocumentEnd => {}
         }
@@ -462,6 +597,38 @@ mod tests {
 
         assert_eq!(document.line_of(root), 1);
         assert_eq!(document.line_of(document.pairs(root)[0].1), 2);
+    }
+
+    #[test]
+    fn spans_stop_at_a_quoted_scalar_and_a_flow_bracket() {
+        let document = parse("a: [x, 'y' ] # c\nb: \"z\\\"\"  # d\n", "t.yml", 0).unwrap();
+        let root = document.root.unwrap();
+        let pairs = document.pairs(root);
+        let span = |id| &document.text()[document.byte_span(id)];
+
+        assert!(document.is_flow(pairs[0].1));
+        assert_eq!(span(pairs[0].1), "[x, 'y' ]");
+        assert_eq!(span(document.items(pairs[0].1)[1]), "'y'");
+        assert_eq!(span(pairs[1].1), "\"z\\\"\"");
+        assert_eq!(
+            document.scalar_style(pairs[1].1),
+            Some(ScalarStyle::DoubleQuoted)
+        );
+    }
+
+    #[test]
+    fn spans_a_block_collection_to_its_last_descendant() {
+        let document = parse("a:\n  - b: 1\n    c: é # x\n\nd: &k 2\n", "t.yml", 0).unwrap();
+        let root = document.root.unwrap();
+        let pairs = document.pairs(root);
+
+        assert!(!document.is_flow(pairs[0].1));
+        assert_eq!(
+            &document.text()[document.byte_span(pairs[0].1)],
+            "- b: 1\n    c: é"
+        );
+        assert!(document.is_anchored(pairs[1].1));
+        assert!(!document.is_anchored(pairs[0].1));
     }
 
     #[test]
