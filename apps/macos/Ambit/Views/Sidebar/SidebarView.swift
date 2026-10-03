@@ -60,7 +60,7 @@ struct SidebarView: View {
         }
         Divider()
         Button("Forget Project") {
-            model.forget(project)
+            Task { await model.forget(project) }
         }
     }
 }
