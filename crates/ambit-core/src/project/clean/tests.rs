@@ -23,6 +23,7 @@ use crate::model::state::{STATE_FILENAME, parse_state};
 use crate::project::doctor::{DoctorOptions, diagnose_project, is_healthy};
 use crate::project::gitignore::{BLOCK_BEGIN, BLOCK_END};
 use crate::project::lock::LOCK_FILENAME;
+use crate::project::operation_lock::OPERATION_LOCK_FILENAME;
 use crate::test_support::fixture_catalog::build_fixture_catalog;
 use crate::test_support::{CliResult, run_cli, tempdir, test_env};
 use crate::util::fs::{read_dir_names, read_text};
@@ -176,7 +177,8 @@ impl Fixture {
     /// Every file in the project, keyed by relative path and carrying its contents.
     ///
     /// Symlinks are followed, because the default install of a `path:` catalog is a link and what
-    /// these tests compare is the files a harness would read.
+    /// these tests compare is the files a harness would read. The operation lock is recorded
+    /// without its contents: Windows locks are mandatory, so reading a held one fails.
     fn snapshot(&self) -> BTreeMap<String, String> {
         fn walk(current: &Path, relative: &str, found: &mut BTreeMap<String, String>) {
             for entry in read_dir_names(current).unwrap() {
@@ -189,6 +191,8 @@ impl Fixture {
 
                 if fs::metadata(&absolute).unwrap().is_dir() {
                     walk(&absolute, &within, found);
+                } else if entry == OPERATION_LOCK_FILENAME {
+                    found.insert(within, String::new());
                 } else {
                     found.insert(within, read_text(&absolute).unwrap());
                 }

@@ -20,7 +20,7 @@ use crate::test_support::fixture_catalog::{
 };
 use crate::test_support::{tempdir, test_env};
 use crate::util::control::ProgressSink;
-use crate::util::fs::{EntryKind, lstat_kind, mkdir_p, read_dir_names, write_text};
+use crate::util::fs::{EntryKind, lstat_kind, mkdir_p, read_dir_names, rm_rf, write_text};
 
 struct Setup {
     _temp: tempfile::TempDir,
@@ -386,7 +386,7 @@ fn reapplying_the_saved_config_restores_drift() {
     let setup = Setup::new();
 
     setup.install(&local_config(&[CODE_REVIEW]));
-    std::fs::remove_file(setup.path(SKILL_DIR)).unwrap();
+    rm_rf(&setup.path(SKILL_DIR)).unwrap();
 
     let review = setup.review(None, "ambit.yml");
 
