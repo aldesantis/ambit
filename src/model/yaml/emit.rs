@@ -23,7 +23,7 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-use super::schema;
+use super::load;
 use crate::util::cmp::js_cmp;
 use crate::util::json::{self, JsonValue};
 use crate::util::text::js_len;
@@ -194,7 +194,7 @@ fn plain(value: &str, context: &Context) -> String {
 
     // Verify that the output will be parsed as a string, as plain numbers and booleans are read
     // with those types in YAML 1.2 (`42`, `true`, `0.9e-3`).
-    if schema::resolves_to_non_string(value) {
+    if load::resolves_to_non_string(value) {
         return double_quoted(value, context);
     }
 
