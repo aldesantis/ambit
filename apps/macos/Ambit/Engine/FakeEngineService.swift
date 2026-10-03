@@ -1,8 +1,9 @@
 // An in-memory engine for previews, unit tests of UI state, and UI tests until the UniFFI-backed
 // `LiveEngineService` is wired in. Setups come from `fixtures`; a root without a fixture has no
 // config. Nothing here writes to disk: apply stores the draft as the fixture's valid config.
-// `canonicalPath` is the one call that reads the real filesystem, because project registration
-// needs real folders.
+// `canonicalPath` reads the real filesystem, because project registration needs real folders, and
+// so does the first `snapshot()` of a root without a fixture: it takes an `ambit.yml` found there
+// as the root's saved config, so UI tests can seed a setup through `AMBIT_TEST_HOME`.
 //
 // Configs use a small YAML subset of the fake's own (see `FakeConfigText`). Edits re-render the
 // whole file, so the fake does not preserve comments; that guarantee belongs to the real engine.
@@ -22,6 +23,15 @@ final class FakeEngineService: EngineService {
     struct Fixture: Sendable {
         var config: ConfigState = .missing
         var catalogs: [CatalogLoadState] = []
+        /// How a config catalog with this source loads, overriding the default (available). A
+        /// `.notCached` source loads under `.fetchMissing` and stays cached afterwards.
+        var sourceStates: [String: CatalogAvailability] = [:]
+        /// Item names a catalog with this source lacks: entries selecting them are unmatched.
+        var missingItems: [String: Set<String>] = [:]
+        /// How long `loadCatalogs(policy: .fetchMissing)` takes, so tests can cancel it.
+        var fetchDelay: Duration = .zero
+        /// How many `.fetchMissing` loads ran.
+        var fetchCount = 0
         var items: [BrowseItem] = []
         /// Computes `selected`, `routes`, rule matches and removal impact from the draft with
         /// `FakeSelectionResolver`, instead of returning `items` as given.
@@ -55,6 +65,22 @@ final class FakeEngineService: EngineService {
 
     func fixture(root: String) -> Fixture {
         state.withLock { $0[root] ?? Fixture() }
+    }
+
+    /// Gives a root without a fixture the `ambit.yml` saved in it, if any.
+    fileprivate func seedFromDisk(root: String) {
+        let url = URL(fileURLWithPath: root).appending(path: DraftModel.newFileName)
+        guard state.withLock({ $0[root] == nil }), let text = try? String(contentsOf: url, encoding: .utf8),
+            let config = try? Self.validConfig(text, root: root)
+        else {
+            return
+        }
+
+        state.withLock { fixtures in
+            if fixtures[root] == nil {
+                fixtures[root] = Fixture(config: config)
+            }
+        }
     }
 
     func updateFixture(root: String, _ change: (inout Fixture) -> Void) {
@@ -141,8 +167,24 @@ final class FakeEngineService: EngineService {
     }
 
     func describeSource(_ source: String, gitRef: String?) throws -> SourceInfo {
-        let name = URL(fileURLWithPath: source).deletingPathExtension().lastPathComponent
-        return SourceInfo(kind: .local(path: source), proposedName: name)
+        let trimmed = source.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else {
+            throw EngineError.config(
+                message: String(localized: "The source is empty."), detail: [], path: nil, line: nil)
+        }
+
+        var base = trimmed
+        while base.hasSuffix("/") {
+            base.removeLast()
+        }
+        var name = String(base.split(whereSeparator: { "/:".contains($0) }).last ?? "")
+        if name.hasSuffix(".git") {
+            name.removeLast(4)
+        }
+        if name.isEmpty || name == "." || name == ".." {
+            name = "catalog"
+        }
+        return SourceInfo(kind: FakeConfigText.sourceKind(trimmed, gitRef: gitRef), proposedName: name)
     }
 
     /// The real tool names with made-up file locations.
@@ -170,11 +212,74 @@ private struct FakeSetupSession: SetupSessionService {
     private var fixture: FakeEngineService.Fixture { engine.fixture(root: root) }
 
     func snapshot() async throws -> SetupSnapshot {
-        SetupSnapshot(root: root, config: fixture.config)
+        engine.seedFromDisk(root: root)
+        return SetupSnapshot(root: root, config: fixture.config)
     }
 
+    /// The fixture's `catalogs`, then a state for every other catalog of the config: from
+    /// `sourceStates` by source, or available.
     func loadCatalogs(draftText: String?, policy: FetchPolicy, progress: ProgressHandler?) async throws -> CatalogsState {
-        CatalogsState(catalogs: fixture.catalogs)
+        let fixture = fixture
+        guard let summary = summary(draftText) else {
+            return CatalogsState(catalogs: fixture.catalogs)
+        }
+
+        if policy == .fetchMissing {
+            engine.updateFixture(root: root) { $0.fetchCount += 1 }
+            for catalog in summary.catalogs {
+                await progress?(ProgressEvent(stage: .fetching, subject: catalog.source, current: 0, total: 0))
+            }
+            try await pause(fixture.fetchDelay)
+        }
+
+        var states = fixture.catalogs
+        for catalog in summary.catalogs where !states.contains(where: { $0.name == catalog.name }) {
+            let local = catalog.sourceKind.map(Self.isLocal) ?? true
+            var availability =
+                fixture.sourceStates[catalog.source] ?? .available(commit: local ? nil : Self.commit, local: local)
+            if availability == .notCached, policy == .fetchMissing {
+                availability = .available(commit: Self.commit, local: false)
+                engine.updateFixture(root: root) { $0.sourceStates[catalog.source] = availability }
+            }
+            states.append(CatalogLoadState(name: catalog.name, availability: availability))
+        }
+        return CatalogsState(catalogs: states)
+    }
+
+    func unmatchedEntries(draftText: String?) async throws -> [UnmatchedEntry] {
+        let fixture = fixture
+        guard let summary = summary(draftText) else {
+            return []
+        }
+
+        return summary.requires.compactMap { entry in
+            guard let source = summary.catalogs.first(where: { $0.name == entry.catalog })?.source,
+                fixture.missingItems[source]?.contains(entry.pattern) == true
+            else {
+                return nil
+            }
+            let error = EngineError.resolution(
+                message: String(localized: "\(entry.kind.rawValue) \(entry.pattern) matches nothing in \(source)."),
+                detail: [])
+            return UnmatchedEntry(entry: entry, error: error)
+        }
+    }
+
+    private static let commit = "0123456789abcdef0123456789abcdef01234567"
+
+    private static func isLocal(_ kind: SourceKind) -> Bool {
+        if case .local = kind { true } else { false }
+    }
+
+    /// `draftText`, or the saved config, parsed.
+    private func summary(_ draftText: String?) -> ConfigSummary? {
+        if let draftText {
+            return try? FakeConfigText.parse(draftText, fileName: DraftModel.newFileName)
+        }
+        if case let .valid(_, _, _, summary) = fixture.config {
+            return summary
+        }
+        return nil
     }
 
     func verifyCatalog(name: String, source: String, gitRef: String?, progress: ProgressHandler?) async throws -> CatalogProbe {
@@ -436,9 +541,11 @@ enum FakeConfigText {
                     summary.catalogs.append(CatalogEntry(name: rest, source: "", gitRef: nil, sourceKind: nil))
                 case "source" where !summary.catalogs.isEmpty:
                     summary.catalogs[summary.catalogs.count - 1].source = rest
-                    summary.catalogs[summary.catalogs.count - 1].sourceKind = .local(path: rest)
+                    summary.catalogs[summary.catalogs.count - 1].sourceKind = sourceKind(rest, gitRef: nil)
                 case "ref" where !summary.catalogs.isEmpty:
                     summary.catalogs[summary.catalogs.count - 1].gitRef = rest
+                    summary.catalogs[summary.catalogs.count - 1].sourceKind = sourceKind(
+                        summary.catalogs[summary.catalogs.count - 1].source, gitRef: rest)
                 default:
                     throw fail()
                 }
@@ -471,14 +578,15 @@ enum FakeConfigText {
             guard !summary.catalogs.contains(where: { $0.name == name }) else {
                 throw refuse(String(localized: "A catalog named \(name) already exists."))
             }
-            summary.catalogs.append(CatalogEntry(name: name, source: source, gitRef: gitRef, sourceKind: .local(path: source)))
+            summary.catalogs.append(
+                CatalogEntry(name: name, source: source, gitRef: gitRef, sourceKind: sourceKind(source, gitRef: gitRef)))
         case let .setCatalogSource(name, source, gitRef):
             guard let index = summary.catalogs.firstIndex(where: { $0.name == name }) else {
                 throw refuse(String(localized: "There is no catalog named \(name)."))
             }
             summary.catalogs[index].source = source
             summary.catalogs[index].gitRef = gitRef
-            summary.catalogs[index].sourceKind = .local(path: source)
+            summary.catalogs[index].sourceKind = sourceKind(source, gitRef: gitRef)
         case let .renameCatalog(from, to):
             guard let index = summary.catalogs.firstIndex(where: { $0.name == from }) else {
                 throw refuse(String(localized: "There is no catalog named \(from)."))
@@ -502,6 +610,22 @@ enum FakeConfigText {
             }
             summary.requires[index] = new
         }
+    }
+
+    /// Git for URLs, `git@host:path` remotes and `owner/repo` shorthands (GitHub); local otherwise.
+    static func sourceKind(_ source: String, gitRef: String?) -> SourceKind {
+        let commitRef = gitRef.map { $0.count == 40 && $0.allSatisfy(\.isHexDigit) } ?? false
+        if source.contains("://") {
+            return .git(url: source, github: source.contains("github.com"), commitRef: commitRef)
+        }
+        if source.hasPrefix("git@") {
+            return .git(url: source, github: source.hasPrefix("git@github.com:"), commitRef: commitRef)
+        }
+        let parts = source.split(separator: "/", omittingEmptySubsequences: false)
+        if parts.count == 2, !source.hasPrefix("."), !source.hasPrefix("~"), parts.allSatisfy({ !$0.isEmpty }) {
+            return .git(url: "https://github.com/\(source).git", github: true, commitRef: commitRef)
+        }
+        return .local(path: source)
     }
 
     private static func split(_ value: String) -> (key: String, rest: String) {

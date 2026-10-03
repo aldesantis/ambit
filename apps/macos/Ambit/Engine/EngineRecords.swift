@@ -152,6 +152,13 @@ struct CatalogsState: Sendable, Hashable {
     var catalogs: [CatalogLoadState]
 }
 
+/// A `requires` entry that matches nothing in the loaded catalogs, with the error resolution
+/// would report. Any such entry blocks Apply.
+struct UnmatchedEntry: Sendable, Hashable {
+    var entry: SelectionEntry
+    var error: EngineError
+}
+
 struct ItemCounts: Sendable, Hashable {
     var skills: UInt32 = 0
     var packs: UInt32 = 0
