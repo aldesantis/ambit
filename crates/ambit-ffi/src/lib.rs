@@ -22,6 +22,8 @@ pub mod engine;
 pub mod errors;
 pub mod git;
 pub mod records;
+pub mod review;
+pub mod status;
 
 pub use engine::{Engine, EngineConfig, SetupSession, describe_source, supported_agent_tools};
 pub use errors::{EngineError, NetworkKind};
