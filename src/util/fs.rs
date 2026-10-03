@@ -1,8 +1,8 @@
-//! Filesystem calls with Node's semantics, which ambit's behaviour follows.
+//! Filesystem calls under the rules every module relies on.
 //!
 //! - Only `NotFound` means "absent". Any other failure (`ENOTDIR`, `EACCES`) is an error, because
 //!   "I could not look" is not the same answer as "nothing is there".
-//! - Text reads decode invalid UTF-8 lossily, as `readFile(…, "utf8")` does.
+//! - Text reads decode invalid UTF-8 lossily, replacing each bad sequence with U+FFFD.
 //! - [`read_dir_names`] is the only directory listing in ambit. Under `cfg(test)` it is permuted
 //!   by a per-thread hook, which is how the determinism suite proves no output depends on the
 //!   order the OS lists a directory in.

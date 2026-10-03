@@ -46,14 +46,11 @@ unsafe_code = "forbid"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
-# model::catalog::CatalogSkill mirrors the TS names porters search for.
-module_name_repetitions = "allow"
-# Would annotate most pure functions.
-must_use_candidate = "allow"
-# Faithful ports of long TS functions.
+# The plugin export steps, and one catalog test, run a long sequence best read in order.
 too_many_lines = "allow"
 # Option structs mirror CLI flags.
 struct_excessive_bools = "allow"
+# Pairs such as `args`/`argv` and `requirer`/`required` are the clearest names for what they hold.
 similar_names = "allow"
 
 # The profile that dist builds release binaries with
