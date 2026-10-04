@@ -17,6 +17,7 @@ You write a few lines of config. ambit fetches, resolves, and writes the files.
 - [Configuring your project](#configuring-your-project)
 - [Authoring a catalog](#authoring-a-catalog)
 - [Staying up to date](#staying-up-to-date)
+- [Checking what you install](#checking-what-you-install)
 - [CLI reference](#cli-reference)
 - [Development](#development)
 - [License](#license)
@@ -576,6 +577,72 @@ without touching anything you selected reports a moved commit and an empty diff.
 `ambit update` is the command that moves the pins forward and then installs. `ambit update
 --dry-run` is `ambit outdated` limited to the catalogs you named.
 
+## Checking what you install
+
+### Digests in the lock
+
+For every skill and every script-shipping hook from a git catalog, `ambit.lock` records a `digest`
+of its files beside the commit:
+
+```yaml
+skills:
+  code-review:
+    catalog: company
+    commit: 3f1a99b0c4e2d6a8b1f7e5c3a9d2b4f6e8a0c1d3
+    digest: sha256-9b2c41d7e0f35a8c6b1d2e4f7a9c0b3d5e8f1a2c4b6d8e0f3a5c7b9d1e2f4a6c
+    path: skills/code-review
+    reason: required-by:pack:engineering
+```
+
+`ambit install` and `ambit update` check every digest before writing anything. When the files at a
+recorded commit no longer hash to the recorded digest, they stop with exit 5:
+
+```
+error: skill "code-review" does not match the digest ambit.lock records
+       ambit.lock records sha256-9b2c41d7… for skills/code-review at commit 3f1a99b0…
+       the catalog checkout holds sha256-41d7e0f3…
+       find out why these files changed while the commit did not; to accept them, delete this entry's `digest` from ambit.lock and run `ambit install` again
+```
+
+A commit that moved records a new digest. A lock with no digests gains them on the next install.
+`path:` catalogs and MCP servers get none: a working directory has no commit to pin, and a server is
+a few config values, not files.
+
+`ambit status` uses the same digest to report a copied skill or hook that was edited after install.
+
+### Auditing content
+
+A skill is a prompt, and some characters render as nothing in a diff view while a model still reads
+them. `ambit audit` reads every file of every item in every catalog the project lists and reports
+them:
+
+```
+$ ambit audit
+skills (1)
+  !  house-style  3 zero-width joiners (U+200D) at SKILL.md:41
+
+hooks (1)
+  ~  guard-secrets  command names /etc/passwd, an absolute path in hook.yml
+
+audit found 2 issues in 2 items
+```
+
+`!` is a failure and `~` a warning. Any failure exits 6; warnings alone exit 0. A location is
+relative to the skill's or hook's directory, or to the catalog root for a pack or an MCP server.
+Files that are not UTF-8 are skipped.
+
+| Check          | Severity | What it finds                                                                                                                                                           |
+| -------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `invisible`    | failure  | Zero-width space, non-joiner and joiner, word joiner, soft hyphen, and U+FEFF anywhere but the start of a file.                                                         |
+| `bidi`         | failure  | Bidi embeddings, overrides and isolates (U+202A to U+202E, U+2066 to U+2069). The marks U+200E, U+200F and U+061C are warnings.                                         |
+| `tag`          | failure  | Tag characters, U+E0000 to U+E007F.                                                                                                                                     |
+| `mixed-script` | warning  | A skill, pack, MCP server or hook name mixing Latin, Greek, Cyrillic, Armenian or Cherokee letters.                                                                     |
+| `command`      | warning  | A hook command, a script hook's arguments, or a stdio server's command line naming an absolute path, `~`, `$HOME` or a `..` segment, or piping a download into a shell. |
+
+`ambit install` and `ambit update` run the same checks on the items they are about to install. A
+failure refuses the install with exit 6 and names each finding. A warning prints to stderr and the
+install goes ahead. `--no-audit` skips the checks.
+
 ### Updating ambit itself
 
 `ambit self-update` replaces the binary you are running with the newest release:
@@ -621,15 +688,16 @@ when `AMBIT_NO_UPDATE_CHECK` is set to anything. It never delays or fails the co
 | `ambit search [--catalog <name>…] [--capability <kind>…] <pattern>` | Search every catalog the project lists, whether anything selects the item or not. Same patterns as `requires`. A pattern matching nothing is exit 0. |
 | `ambit resolve [--explain]`                                         | Compute the bundle and print it. `--explain` prints why each item is in it.                                                                          |
 | `ambit why <kind:name>`                                             | Explain why one item is in the bundle, as a chain back to the entry that asked for it.                                                               |
-| `ambit install [--frozen] [--adopt] [--copy\|--link]`               | Resolve, write `ambit.lock`, install the files, remove what is no longer selected.                                                                   |
+| `ambit install [--frozen] [--adopt] [--copy\|--link] [--no-audit]`  | Resolve, write `ambit.lock`, install the files, remove what is no longer selected. See [install flags](#install-flags).                              |
 | `ambit export --format claude-plugin --output <dir>`                | Export selected packs and their local plugin dependencies into separate Claude plugin directories.                                                   |
 | `ambit outdated`                                                    | Ask each remote where its `ref` points now, and report what moving there would change.                                                               |
-| `ambit update [<catalog>…] [--adopt] [--copy\|--link]`              | Move those pins forward, then install. Every catalog when none is named.                                                                             |
+| `ambit update [<catalog>…] [--adopt] [--copy\|--link] [--no-audit]` | Move those pins forward, then install. Every catalog when none is named.                                                                             |
 | `ambit status [--check]`                                            | Compare what is installed against what resolve produces. `--check` exits 5 on drift.                                                                 |
 | `ambit prune`                                                       | Remove installed files that are no longer selected.                                                                                                  |
 | `ambit clean`                                                       | Remove everything ambit installed.                                                                                                                   |
 | `ambit validate`                                                    | Validate the config and every catalog the project lists. A catalog repo runs this too, since it lists itself.                                        |
 | `ambit doctor`                                                      | Check preconditions, the lock, ownership, drift, and harness limits.                                                                                 |
+| `ambit audit`                                                       | Scan every catalog the project lists for hidden text and risky command lines. See [auditing content](#auditing-content).                             |
 | `ambit self-update [<version>]`                                     | Replace this ambit binary with a released one, checksum verified. The newest release when no version is named.                                       |
 
 ### Global flags
@@ -643,17 +711,29 @@ when `AMBIT_NO_UPDATE_CHECK` is set to anything. It never delays or fails the co
 | `-h`, `--help`    | Usage for the program or for any command. `ambit help <command>` prints the same.                      |
 | `-V`, `--version` | Print the ambit version.                                                                               |
 
+### Install flags
+
+| Flag         | Notes                                                                                   |
+| ------------ | --------------------------------------------------------------------------------------- |
+| `--frozen`   | Exit 5 instead of writing when resolution would change `ambit.lock`. For CI.            |
+| `--adopt`    | Take ownership of existing files ambit did not create, instead of refusing them.        |
+| `--copy`     | Copy every skill, including those from `path:` catalogs, which are symlinked otherwise. |
+| `--link`     | Symlink every skill instead of copying it.                                              |
+| `--no-audit` | Skip the [content audit](#auditing-content) of the items being installed.               |
+
+`ambit update` takes the same flags except `--frozen`.
+
 ### Exit codes
 
-| Code | Meaning                                                                                 |
-| ---- | --------------------------------------------------------------------------------------- |
-| 0    | Success                                                                                 |
-| 1    | Unexpected internal error                                                               |
-| 2    | Config, ownership, export compatibility, or usage error                                 |
-| 3    | Resolution error: a pattern matching nothing, missing requirement, cycle, name conflict |
-| 4    | Network or cache error                                                                  |
-| 5    | Drift detected (`status --check`, `install --frozen`, `export --check`)                 |
-| 6    | A health check found something (`doctor` failures)                                      |
+| Code | Meaning                                                                                                                                    |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0    | Success                                                                                                                                    |
+| 1    | Unexpected internal error                                                                                                                  |
+| 2    | Config, ownership, export compatibility, or usage error                                                                                    |
+| 3    | Resolution error: a pattern matching nothing, missing requirement, cycle, name conflict                                                    |
+| 4    | Network or cache error                                                                                                                     |
+| 5    | Drift detected (`status --check`, `install --frozen`, `export --check`), or a catalog's files no longer match their digest in `ambit.lock` |
+| 6    | A health check found something (`doctor` or `audit` failures), or the audit refused an install                                             |
 
 Every error names the file, the identifier, and one concrete next step:
 
