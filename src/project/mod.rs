@@ -4,6 +4,7 @@ pub mod audit;
 pub mod bundle_diff;
 pub mod clean;
 pub mod doctor;
+pub mod exec;
 pub mod gitignore;
 pub mod init;
 pub mod install;

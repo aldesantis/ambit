@@ -12,9 +12,10 @@
 //! installation, and lets `ambit prune` (`clean.rs`) reach the same bundle without materializing
 //! it.
 //!
-//! The digests the lock records, `--frozen`, and the content audit are all checked before anything
-//! is written, so a CI run with a stale committed lock, a catalog tree that no longer matches it, or
-//! hidden text in a skill leaves the project untouched (planning and reading state are both reads).
+//! The digests the lock records, `--frozen`, the execution gate and the content audit are all
+//! checked before anything is written, so a CI run with a stale committed lock, a catalog tree that
+//! no longer matches it, a hook nobody accepted, or hidden text in a skill leaves the project
+//! untouched (planning and reading state are both reads).
 //!
 //! Every adapter plans before any of them applies, so ownership (`ownership.rs`) is checked against
 //! the complete set of targets while the project is still untouched.
@@ -41,7 +42,7 @@ use crate::harness::adapter::{
 use crate::harness::definitions::PROFILES;
 use crate::harness::profile::{ProfileAdapter, adapter_for};
 use crate::model::catalog::{CatalogLoadOptions, load_catalogs, merge_catalogs};
-use crate::model::config::{ProjectConfig, load_project_config};
+use crate::model::config::{ProjectConfig, Trust, load_project_config};
 use crate::model::documents::DocumentShape;
 use crate::model::git::RefreshMode;
 use crate::model::sources::SourceContext;
@@ -51,6 +52,7 @@ use crate::model::state::{
 use crate::project::audit::{
     AuditFinding, AuditItems, audit_items, catalog_roots, refuse_failures,
 };
+use crate::project::exec::{ExecChange, refuse_unaccepted, review_exec};
 use crate::project::gitignore::{GitignoreStatus, gitignore_status, write_gitignore_blocks};
 use crate::project::lock::{
     Lock, assert_lock_current, build_lock, item_digests, read_catalog_pins, read_lock_text,
@@ -86,6 +88,8 @@ pub struct InstallOptions {
     pub mode: Option<ArtifactMode>,
     /// `--no-audit`: skip the content audit of the bundle entirely.
     pub no_audit: bool,
+    /// `--accept-exec`: install execution the lock does not hold instead of refusing it.
+    pub accept_exec: bool,
 }
 
 /// One adapter and the artifacts it would write.
@@ -119,6 +123,8 @@ pub struct PlannedInstall {
     pub lock_text: String,
     /// Each loaded catalog's root, keyed by name, for auditing the files the bundle came from.
     pub roots: IndexMap<String, PathBuf>,
+    /// Each configured catalog's trust, keyed by name, for the execution gate.
+    pub trust: IndexMap<String, Trust>,
 }
 
 /// What `install --dry-run` reports: everything the run would do, with the project untouched.
@@ -138,6 +144,8 @@ pub struct InstallPreview {
     pub gitignore: Vec<GitignoreStatus>,
     /// The audit's warnings about the bundle. Empty under `--no-audit`.
     pub audit: Vec<AuditFinding>,
+    /// Http servers from a reviewed catalog that the lock does not hold. Empty under `--frozen`.
+    pub endpoints: Vec<ExecChange>,
 }
 
 /// What an install did, for the command to report.
@@ -156,6 +164,8 @@ pub struct InstallResult {
     pub pruned: Vec<PrunedArtifact>,
     /// The audit's warnings about the bundle. Empty under `--no-audit`.
     pub audit: Vec<AuditFinding>,
+    /// Http servers from a reviewed catalog that the lock did not hold. Empty under `--frozen`.
+    pub endpoints: Vec<ExecChange>,
 }
 
 /// The platform's own answer for the home directory, used only when the passed environment has no
@@ -463,6 +473,11 @@ pub fn plan_install(
         .iter()
         .flat_map(|adapter| adapter.skips(&bundle))
         .collect();
+    let trust = config
+        .catalogs
+        .iter()
+        .map(|entry| (entry.name.clone(), entry.trust))
+        .collect();
 
     Ok(PlannedInstall {
         harnesses,
@@ -473,43 +488,77 @@ pub fn plan_install(
         lock_text: serialize_lock(&lock),
         lock,
         roots: catalog_roots(&loaded),
+        trust,
         bundle,
     })
+}
+
+/// What [`check_plan`] lets through with a warning, for the command to print.
+struct PlanWarnings {
+    audit: Vec<AuditFinding>,
+    endpoints: Vec<ExecChange>,
 }
 
 /// Everything an install checks about a plan before it writes, in the order it checks it.
 ///
 /// The digests first: a tree that no longer matches the lock is a sharper answer than `--frozen`'s
-/// "the lock would change", which it would also trip. Then `--frozen`. Then the audit, which reads
-/// only the bundle's own files and is skipped entirely under `--no-audit`.
-///
-/// Returns the audit's warnings, for the command to print.
+/// "the lock would change", which it would also trip. Then `--frozen`. Then the execution gate,
+/// skipped under `--frozen`, which has just proved nothing is new (see `project/exec.rs`), and
+/// under `--accept-exec`. It runs before the audit because it compares digests already in hand,
+/// while the audit reads files. The audit reads only the bundle's own files and is skipped entirely
+/// under `--no-audit`; `--accept-exec` does not skip it.
 ///
 /// # Errors
 ///
-/// Exit 2 for an unreadable lock or an unreadable catalog file; exit 5 for a digest mismatch or,
-/// under `--frozen`, a lock that would change; exit 6 for an audit failure.
+/// Exit 2 for an unreadable lock or an unreadable catalog file; exit 5 for a digest mismatch, under
+/// `--frozen` for a lock that would change, and for execution the lock does not hold; exit 6 for an
+/// audit failure.
 fn check_plan(
     project_dir: &Path,
     planned: &PlannedInstall,
     options: InstallOptions,
-) -> Result<Vec<AuditFinding>> {
-    if let Some(previous) = read_locked_items(project_dir)? {
-        verify_digests(&previous, &planned.lock)?;
+) -> Result<PlanWarnings> {
+    let previous = read_locked_items(project_dir)?;
+
+    if let Some(previous) = &previous {
+        verify_digests(previous, &planned.lock)?;
     }
 
     if options.frozen {
         assert_lock_current(project_dir, &planned.lock_text)?;
     }
 
+    let endpoints = if options.frozen {
+        Vec::new()
+    } else {
+        let review = review_exec(
+            previous.as_ref(),
+            &planned.lock,
+            &planned.bundle,
+            &planned.trust,
+        );
+
+        if !options.accept_exec {
+            refuse_unaccepted(&review.gated)?;
+        }
+
+        review.endpoints
+    };
+
     if options.no_audit {
-        return Ok(Vec::new());
+        return Ok(PlanWarnings {
+            audit: Vec::new(),
+            endpoints,
+        });
     }
 
     let report = audit_items(AuditItems::of_bundle(&planned.bundle), &planned.roots)?;
 
     refuse_failures(&report)?;
-    Ok(report.warnings().cloned().collect())
+    Ok(PlanWarnings {
+        audit: report.warnings().cloned().collect(),
+        endpoints,
+    })
 }
 
 /// What an install would do, without doing any of it: `install --dry-run`.
@@ -527,7 +576,8 @@ fn check_plan(
 ///
 /// Everything [`install_project`] returns before its first write: exit 2 for a malformed config or
 /// an unowned target, exit 3 for a resolution error, exit 4 for a fetch, exit 5 for a tree that no
-/// longer matches its recorded digest or under `--frozen`, exit 6 for an audit failure.
+/// longer matches its recorded digest, under `--frozen`, or for execution the lock does not hold,
+/// exit 6 for an audit failure.
 pub fn preview_install(
     project_dir: &Path,
     env: &Env,
@@ -545,7 +595,7 @@ pub fn preview_install(
         },
     )?;
 
-    let audit = check_plan(project_dir, &planned, options)?;
+    let warnings = check_plan(project_dir, &planned, options)?;
 
     authorize_plan(
         &planned.artifacts,
@@ -568,13 +618,15 @@ pub fn preview_install(
         pruned,
         lock_changed,
         gitignore,
-        audit,
+        audit: warnings.audit,
+        endpoints: warnings.endpoints,
     })
 }
 
 /// Resolves the project and materializes the bundle.
 ///
-/// `options` carries `--frozen`, `--offline`, `--adopt` and `--copy`/`--link`. `released` is the
+/// `options` carries `--frozen`, `--offline`, `--adopt`, `--copy`/`--link`, `--no-audit` and
+/// `--accept-exec`. `released` is the
 /// catalogs whose recorded pin this install is moving past (`ambit update`'s; see
 /// [`PlanContext::released`]). Empty for every other caller, which is what makes a plain `install`
 /// reproduce the lock rather than move it.
@@ -584,8 +636,10 @@ pub fn preview_install(
 /// Exit 2 for a malformed config or catalog, an unknown harness, a target path or config key ambit
 /// does not own and was not told to adopt, or a locked commit the repository does not have; exit 4
 /// if a fetch fails, or under `--offline` when the cache cannot answer; exit 5 under `--frozen` when
-/// the committed lock is not what resolution produces, and for a catalog tree that no longer matches
-/// the digest the lock records for its commit; exit 6 when the audit finds hidden text in the bundle.
+/// the committed lock is not what resolution produces, for a catalog tree that no longer matches
+/// the digest the lock records for its commit, and, without `--accept-exec`, for a hook or stdio MCP
+/// server from a reviewed catalog that the lock does not hold; exit 6 when the audit finds hidden
+/// text in the bundle.
 pub fn install_project(
     project_dir: &Path,
     env: &Env,
@@ -602,7 +656,7 @@ pub fn install_project(
         },
     )?;
 
-    let audit = check_plan(project_dir, &planned, options)?;
+    let warnings = check_plan(project_dir, &planned, options)?;
 
     let owner = authorize_plan(
         &planned.artifacts,
@@ -643,7 +697,8 @@ pub fn install_project(
         artifacts,
         skipped: planned.skipped,
         pruned,
-        audit,
+        audit: warnings.audit,
+        endpoints: warnings.endpoints,
     })
 }
 

@@ -216,6 +216,8 @@ enum Command {
         #[command(flatten)]
         audit: AuditFlags,
         #[command(flatten)]
+        exec: ExecFlags,
+        #[command(flatten)]
         dry_run: DryRun,
         #[command(flatten)]
         globals: ProjectFlags,
@@ -246,6 +248,8 @@ enum Command {
         materialize: MaterializeFlags,
         #[command(flatten)]
         audit: AuditFlags,
+        #[command(flatten)]
+        exec: ExecFlags,
         #[command(flatten)]
         dry_run: DryRun,
         #[command(flatten)]
@@ -328,6 +332,17 @@ struct AuditFlags {
         help = "skip scanning the bundle for hidden text"
     )]
     no_audit: bool,
+}
+
+// `--accept-exec`, on the commands that install. Its id is its `CommandOptions` key.
+#[derive(Debug, Args)]
+struct ExecFlags {
+    #[arg(
+        id = "acceptExec",
+        long = "accept-exec",
+        help = "accept hooks and stdio MCP servers not in ambit.lock"
+    )]
+    accept_exec: bool,
 }
 
 // `--dry-run`, only on commands that touch disk. Its id is its `CommandOptions` key.

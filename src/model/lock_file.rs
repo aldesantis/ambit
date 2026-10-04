@@ -13,8 +13,9 @@
 //!
 //! So the `catalogs` section is an input, resolved against rather than just recorded. The item
 //! sections stay a record: compared as bytes by `--frozen`, and read back by [`read_locked_items`]
-//! only so an install can check the bytes it is about to write against the digests an earlier
-//! install recorded. Nothing resolves against them.
+//! only so an install can check what it is about to write against what an earlier install
+//! recorded: the digests of its trees, and the execution each hook and MCP server carried. Nothing
+//! resolves against them.
 
 use std::path::{Path, PathBuf};
 
@@ -123,11 +124,16 @@ pub struct LockedItem {
     pub commit: Option<String>,
     /// The [`tree_digest`](crate::util::hash::tree_digest) of its directory at that commit.
     pub digest: Option<String>,
+    /// The digest of what it runs, on a hook or an MCP server. See `project/exec.rs`.
+    pub exec: Option<String>,
 }
 
 /// The item sections of an earlier lock, keyed by item name.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LockedItems {
+    /// The commit each catalog was pinned to, keyed by catalog name. A catalog with no commit (a
+    /// `path:` source) is absent.
+    pub catalog_commits: IndexMap<String, String>,
     pub skills: IndexMap<String, LockedItem>,
     pub mcps: IndexMap<String, LockedItem>,
     pub hooks: IndexMap<String, LockedItem>,
@@ -151,6 +157,7 @@ fn locked_section(root: &YamlMapping, key: &str) -> Result<IndexMap<String, Lock
                 path: entry.optional_string("path")?,
                 commit: entry.optional_string("commit")?,
                 digest: entry.optional_string("digest")?,
+                exec: entry.optional_string("exec")?,
             },
         );
     }
@@ -158,11 +165,31 @@ fn locked_section(root: &YamlMapping, key: &str) -> Result<IndexMap<String, Lock
     Ok(items)
 }
 
+/// The `commit` of each `catalogs` entry that has one.
+///
+/// Not checked for being a full SHA, unlike [`read_catalog_pins`]: nothing resolves against these,
+/// they are only compared with the commits a fresh lock records.
+fn catalog_commits(root: &YamlMapping) -> Result<IndexMap<String, String>> {
+    let Some(section) = root.optional_mapping("catalogs")? else {
+        return Ok(IndexMap::new());
+    };
+
+    let mut commits = IndexMap::new();
+
+    for name in section.keys() {
+        if let Some(commit) = section.require_mapping(&name)?.optional_string("commit")? {
+            commits.insert(name, commit);
+        }
+    }
+
+    Ok(commits)
+}
+
 /// What the project's lock recorded about each skill, MCP server and hook, or `None` when it has
 /// no lock.
 ///
 /// Read so an install can compare what it is about to write against what an earlier install wrote
-/// (see `verify_digests` in `project/lock.rs`). As with the `catalogs` section, keys this build
+/// (see `verify_digests` in `project/lock.rs`, and `project/exec.rs`). As with the `catalogs` section, keys this build
 /// does not read are ignored, so a lock written by a later ambit still reads.
 ///
 /// # Errors
@@ -175,6 +202,7 @@ pub fn read_locked_items(project_dir: &Path) -> Result<Option<LockedItems>> {
     };
 
     Ok(Some(LockedItems {
+        catalog_commits: catalog_commits(&root)?,
         skills: locked_section(&root, "skills")?,
         mcps: locked_section(&root, "mcps")?,
         hooks: locked_section(&root, "hooks")?,

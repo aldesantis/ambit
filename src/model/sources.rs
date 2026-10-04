@@ -26,6 +26,13 @@ use crate::util::text::js_trim;
 /// The prefix marking a source as a local directory.
 const PATH_PREFIX: &str = "path:";
 
+/// Whether `source` names a local directory rather than a repository.
+///
+/// Only the prefix is read, so this answers for a source too malformed to parse.
+pub fn is_path_source(source: &str) -> bool {
+    source.starts_with(PATH_PREFIX)
+}
+
 /// The prefix marking the remainder as a git URL, whatever its shape.
 const GIT_PREFIX: &str = "git:";
 

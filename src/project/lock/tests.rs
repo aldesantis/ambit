@@ -91,16 +91,21 @@ fn records_every_configured_catalog_and_every_selected_item_keys_sorted_througho
             // `path` on the hook that ships a script and not on the one whose `command` is a
             // command line: a lock pins bytes, and a command line is config values.
             "hooks:",
+            // `exec` on every hook and server, a `path:` catalog's included. These values also
+            // pin the recipe: a change to `hook_exec` or `mcp_exec` shows up here.
             "  guard-secrets:",
             &format!("    catalog: {CATALOG_NAME}"),
+            "    exec: sha256-4490456a18e1ceffc2803db69ac395625d5fdcdef0d8d651a981ecfceecd39ec",
             "    path: hooks/guard-secrets",
             "    reason: required-by:pack:function.engineering",
             "  session-notes:",
             &format!("    catalog: {CATALOG_NAME}"),
+            "    exec: sha256-3e2df317065141784006837c665b3b1c1d3cba2ea2b2eb3bfeb13bb243d17a3b",
             "    reason: required-by:pack:core",
             "mcps:",
             "  linter:",
             &format!("    catalog: {CATALOG_NAME}"),
+            "    exec: sha256-7ed71c619f682cbad2712535a3a86dd71f00b953c1d918cee3d86b8c5e6752c7",
             "    reason: required-by:pack:function.engineering",
             // The packs the project named, which nothing materializes and every reason above
             // points at.
@@ -253,7 +258,7 @@ fn records_a_command_line_hook_as_config_values_with_no_bytes_to_pin() {
 
     // A hook whose `command` is a command line ships no bytes, so there is nothing to pin: it
     // takes `LockMcp`'s shape, and `catalog` is all a reader needs to find the document.
-    assert_eq!(entry.keys(), ["catalog", "reason"]);
+    assert_eq!(entry.keys(), ["catalog", "exec", "reason"]);
     assert_eq!(entry.require_string("catalog").unwrap(), CATALOG_NAME);
     assert_eq!(
         entry.require_string("reason").unwrap(),
@@ -318,7 +323,7 @@ fn pins_where_a_hooks_bytes_came_from_only_when_it_ships_a_script() {
 
     assert_eq!(
         shipping.keys(),
-        ["catalog", "commit", "digest", "path", "reason"]
+        ["catalog", "commit", "digest", "exec", "path", "reason"]
     );
     assert_eq!(shipping.require_string("catalog").unwrap(), CATALOG_NAME);
     assert_eq!(shipping.require_string("path").unwrap(), "hooks/block-rm");
@@ -333,7 +338,7 @@ fn pins_where_a_hooks_bytes_came_from_only_when_it_ships_a_script() {
     // nothing, whatever digest it is handed.
     let inert = hooks.require_mapping("announce").unwrap();
 
-    assert_eq!(inert.keys(), ["catalog", "reason"]);
+    assert_eq!(inert.keys(), ["catalog", "exec", "reason"]);
     assert_eq!(inert.require_string("catalog").unwrap(), CATALOG_NAME);
 }
 
@@ -407,6 +412,7 @@ fn emits_every_section_and_quotes_what_would_read_as_a_number() {
             path: None,
             commit: None,
             digest: None,
+            exec: "sha256-exec".to_owned(),
             reason: format!("hook:{CATALOG_NAME}/notify"),
         },
     );
@@ -422,6 +428,7 @@ fn emits_every_section_and_quotes_what_would_read_as_a_number() {
             "hooks:",
             "  notify:",
             "    catalog: company",
+            "    exec: sha256-exec",
             "    reason: hook:company/notify",
             "mcps: {}",
             "packs: {}",
@@ -567,6 +574,7 @@ fn reads_back_every_item_field_and_tolerates_a_missing_digest() {
             path: Some(format!("skills/{CORE_SKILL}")),
             commit: Some("abc1234".to_owned()),
             digest: Some("sha256-one".to_owned()),
+            exec: None,
         }
     );
 

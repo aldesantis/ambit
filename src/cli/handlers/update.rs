@@ -12,7 +12,7 @@
 
 use crate::cli::commands::{CommandContext, dry_run_requested, json_requested, project_dir_of};
 use crate::cli::handlers::artifacts::{artifact_json, artifact_rows};
-use crate::cli::handlers::install::{audit_warnings, skip_json, skip_warnings};
+use crate::cli::handlers::install::{audit_warnings, endpoint_warnings, skip_json, skip_warnings};
 use crate::cli::handlers::outdated::{pins_text, plan_json};
 use crate::cli::handlers::pins::{diff_json, pin_json};
 use crate::cli::output::{print_sections, section};
@@ -47,6 +47,7 @@ fn install_options_of(ctx: &CommandContext<'_>) -> UpdateInstallOptions {
         adopt: ctx.options.flag("adopt"),
         mode: mode_override(ctx),
         no_audit: ctx.options.flag("noAudit"),
+        accept_exec: ctx.options.flag("acceptExec"),
     }
 }
 
@@ -153,6 +154,7 @@ pub fn update_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
 
     for line in skip_warnings(&result.install.skipped)
         .into_iter()
+        .chain(endpoint_warnings(&result.install.endpoints))
         .chain(audit_warnings(&result.install.audit))
     {
         ctx.io.stderr(&line);

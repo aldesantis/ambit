@@ -16,6 +16,9 @@
 //! the same commit. A `path:` source records none: its bytes are whatever the working directory
 //! holds, and a digest would only turn every local edit into a lock change.
 //!
+//! Every hook and MCP server also records an `exec` digest of what it runs, whatever its source, so
+//! an install can refuse execution the lock has not seen (`project/exec.rs`).
+//!
 //! A pin is void once the config it was resolved from changes. Each entry records the `source` and
 //! `ref` its commit came from, so a reader can tell a pin worth honoring from a stale one. Editing
 //! `ref:` invalidates the pin as it always did.
@@ -36,6 +39,7 @@ use crate::model::catalog::Catalog;
 use crate::model::hook_entity::HookType;
 use crate::model::requirement::ItemKind;
 use crate::model::yaml::emit_yaml;
+use crate::project::exec::{hook_exec, mcp_exec};
 use crate::resolution::resolve::{Bundle, BundleItem, format_reason, reason_of};
 use crate::util::fs::{self, io_message};
 use crate::util::hash::tree_digest;
@@ -94,6 +98,8 @@ pub struct LockSkill {
 pub struct LockMcp {
     /// The catalog it came from.
     pub catalog: String,
+    /// The [`mcp_exec`] digest of its transport.
+    pub exec: String,
     /// Why it is in the bundle, in `--explain`'s short form.
     pub reason: String,
 }
@@ -118,6 +124,8 @@ pub struct LockHook {
     pub commit: Option<String>,
     /// The [`tree_digest`] of its directory at that commit. Present exactly when `commit` is.
     pub digest: Option<String>,
+    /// The [`hook_exec`] digest of what it runs.
+    pub exec: String,
     /// Why it is in the bundle, in `--explain`'s short form.
     pub reason: String,
 }
@@ -212,7 +220,8 @@ pub fn item_digests(bundle: &Bundle) -> Result<ItemDigests> {
 /// pins the inputs, and a catalog whose commit moves changes what a later resolve selects even
 /// though today's bundle never named it. `catalogs` is in config order.
 ///
-/// A digest is recorded only beside a commit, whatever `digests` holds.
+/// A digest is recorded only beside a commit, whatever `digests` holds. A script hook's `exec`
+/// covers that same digest, so it too sees a tree only when the source has a commit.
 ///
 /// # Errors
 ///
@@ -270,6 +279,7 @@ pub fn build_lock(catalogs: &[Catalog], bundle: &Bundle, digests: &ItemDigests) 
             mcp.name.clone(),
             LockMcp {
                 catalog: mcp.catalog.clone(),
+                exec: mcp_exec(&mcp.transport),
                 reason: reason(bundle, ItemKind::Mcp, &mcp.name)?,
             },
         );
@@ -280,15 +290,17 @@ pub fn build_lock(catalogs: &[Catalog], bundle: &Bundle, digests: &ItemDigests) 
         // `LockHook`.
         let ships = hook.r#type == HookType::Script;
         let commit = if ships { hook.commit.clone() } else { None };
+        let digest = commit
+            .as_ref()
+            .and_then(|_| digests.hooks.get(&hook.name).cloned());
 
         lock.hooks.insert(
             hook.name.clone(),
             LockHook {
                 catalog: hook.catalog.clone(),
                 path: ships.then(|| hook.path.clone()),
-                digest: commit
-                    .as_ref()
-                    .and_then(|_| digests.hooks.get(&hook.name).cloned()),
+                exec: hook_exec(hook, digest.as_deref()),
+                digest,
                 commit,
                 reason: reason(bundle, ItemKind::Hook, &hook.name)?,
             },
@@ -348,6 +360,7 @@ fn lock_document(lock: &Lock) -> JsonValue {
             let mut object = JsonObject::new();
 
             object.insert("catalog".to_owned(), json!(mcp.catalog));
+            object.insert("exec".to_owned(), json!(mcp.exec));
             object.insert("reason".to_owned(), json!(mcp.reason));
             object
         }),
@@ -358,6 +371,7 @@ fn lock_document(lock: &Lock) -> JsonValue {
             insert_some(&mut object, "path", hook.path.as_ref());
             insert_some(&mut object, "commit", hook.commit.as_ref());
             insert_some(&mut object, "digest", hook.digest.as_ref());
+            object.insert("exec".to_owned(), json!(hook.exec));
             object.insert("reason".to_owned(), json!(hook.reason));
             object
         }),
