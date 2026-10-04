@@ -1241,7 +1241,7 @@ fn exits_2_for_a_harness_with_no_adapter() {
     assert!(
         result
             .stderr
-            .contains("claude, codex, cursor, opencode, vscode")
+            .contains("claude, codex, copilot, cursor, devin, gemini, grok, kiro, opencode")
     );
     assert!(!project.exists(SKILLS_DIR));
 }
@@ -1257,7 +1257,7 @@ fn names_every_shipped_adapter_when_one_is_unknown() {
         error.format(),
         [
             "error: unknown harness \"zed\" (ambit.yml)",
-            "       this build ships adapters for: claude, codex, cursor, opencode, vscode",
+            "       this build ships adapters for: claude, codex, copilot, cursor, devin, gemini, grok, kiro, opencode",
             "       remove it from `harnesses`, or correct the spelling",
         ]
         .join("\n")

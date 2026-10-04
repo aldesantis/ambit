@@ -7,8 +7,8 @@
 //! which files its servers and hooks live in, which section of each, and what one server and one
 //! hook look like there.
 //!
-//! So there is one implementation and five descriptions, not five implementations. A new harness
-//! is a profile; adding one should not require editing this file.
+//! So there is one implementation and one description per harness, not one implementation per
+//! harness. A new harness is a profile; adding one should not require editing this file.
 
 use std::path::Path;
 
@@ -40,9 +40,9 @@ pub const SHARED_AGENTS_DIR: &str = ".agents";
 
 /// Where every harness's skills are materialized, project-relative.
 ///
-/// One location for all of them: three of the five harnesses read it natively, and the other two
-/// are pointed at it with a link. A directory per harness would materialize the same skill several
-/// times in one project.
+/// One location for all of them: most harnesses read it natively, and the rest are pointed at it
+/// with a link. A directory per harness would materialize the same skill several times in one
+/// project.
 pub const SHARED_SKILLS_DIR: &str = ".agents/skills";
 
 /// Where the script a hook ships is materialized, project-relative.
@@ -68,31 +68,35 @@ pub struct McpLayout {
 ///
 /// Three fields wider than [`McpLayout`], because a hooks section is not a table keyed by name.
 /// `shape` picks the driver, since format alone cannot (`.mcp.json` and `.claude/settings.json`
-/// are both JSON). `root_defaults` names the keys a harness expects beside its hooks in a file
-/// ambit may create. `events` says how the harness spells each event.
+/// are both JSON, and Kiro's hooks file holds one flat list rather than one array per event).
+/// `root_defaults` names the keys a harness expects beside its hooks in a file ambit may create.
+/// `events` says how the harness spells each event.
 #[derive(Clone, Debug)]
 pub struct HookLayout {
     /// Project-relative path to the config file.
     pub file: &'static str,
-    /// The top-level key holding one array per event.
+    /// The top-level key holding the hooks: one array per event, or one flat list.
     pub section: &'static str,
     /// How that file is parsed and written.
     pub format: DocumentFormat,
-    /// How that section is laid out: `Array` for every harness that expresses hooks at all.
+    /// How that section is laid out: `Array` for one array per event, `List` for one flat list
+    /// whose entries name their own event.
     pub shape: DocumentShape,
-    /// Root keys the file should carry beside its hooks: Cursor's `version: 1`.
+    /// Root keys the file should carry beside its hooks: Cursor's `version: 1`, Kiro's
+    /// `version: "v1"`.
     ///
-    /// The array driver seeds them only where the document lacks the key, so ambit adds one when
+    /// The driver seeds them only where the document lacks the key, so ambit adds one when
     /// creating the file and never overwrites a value someone else wrote. Only a merge applies
     /// them: pruning takes entries out and adds no keys.
     pub root_defaults: Option<JsonObject>,
-    /// How this harness spells each event, where it differs from ambit's own spelling.
+    /// How this harness spells each event, where it differs from ambit's own spelling, and `None`
+    /// for an event it has no counterpart for.
     ///
-    /// Absent means Claude's `PascalCase` verbatim, which is what Claude, VS Code, and Codex read.
-    /// Cursor is the one harness needing a map. It lives on the layout, not the renderer, because
-    /// it names which array an entry joins. A function rather than a table, so a `match` keeps it
-    /// total over [`HookEvent`].
-    pub events: Option<fn(HookEvent) -> &'static str>,
+    /// Absent means Claude's `PascalCase` verbatim for every event. It lives on the layout, not
+    /// the renderer, because it names which array an entry joins and which key it is recorded
+    /// under. A function rather than a table, so a `match` keeps it total over [`HookEvent`] and
+    /// every missing counterpart is written out as one.
+    pub events: Option<fn(HookEvent) -> Option<&'static str>>,
 }
 
 /// One agent tool's layout.
@@ -230,18 +234,17 @@ fn plan_mcp_config(
 /// names, and [`skipped_hooks`] reports what it does not. "Installed" and "skipped" partition the
 /// bundle's hooks from the same fields rather than being computed twice.
 ///
-/// [`HookLayout::events`] is total over [`HookEvent`] by construction, so an event miss is
-/// unreachable today; the `Option` keeps the skip path in place for when the vocabulary grows. A
-/// hook silently landing in an array named the Claude way would be worse than a skip.
+/// An event [`HookLayout::events`] has no spelling for is a skip, not a fallback to ambit's own
+/// spelling: a hook silently landing in an array the harness never reads would be worse.
 fn hook_array_for(profile: &HarnessProfile, event: HookEvent) -> Option<&'static str> {
     let layout = profile.hooks.as_ref()?;
 
     profile.hook_config?;
 
-    Some(match layout.events {
-        None => event.as_str(),
+    match layout.events {
+        None => Some(event.as_str()),
         Some(spell) => spell(event),
-    })
+    }
 }
 
 /// The hooks one harness was handed and cannot write.

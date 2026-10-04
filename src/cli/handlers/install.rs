@@ -63,9 +63,9 @@ fn options_of(ctx: &CommandContext<'_>) -> InstallOptions {
 
 /// Why one harness could not take one hook, in a sentence.
 ///
-/// The two reasons read differently on purpose: one is a permanent fact about the harness
-/// ("opencode will never run this"), the other is this build's event vocabulary outgrowing that
-/// harness's map ("ambit does not know how to say this to Codex yet").
+/// The two reasons read differently on purpose: one is about the harness as a whole ("opencode
+/// will never run this"), the other about one event it has no counterpart for ("Kiro has no
+/// trigger for compaction").
 fn skip_reason(skipped: &SkippedHook) -> String {
     match skipped.reason {
         HookSkipReason::NoMechanism => {

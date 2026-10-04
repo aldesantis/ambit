@@ -12,6 +12,10 @@
 //! not own. And `.codex/hooks.json` says they hold for the harness that differs in one respect only:
 //! Claude's entries, somewhere else.
 //!
+//! `.gemini/settings.json` says they hold for a file whose servers and hooks are two sections ambit
+//! writes side by side, and `.kiro/hooks/ambit.json` for one flat list whose entries name their own
+//! event.
+//!
 //! opencode closes the set from the other end. It expresses no hooks at all, so a project that
 //! configures it and declares one is warned and left installed: the case that must not be an error,
 //! since one harness's limitation cannot be allowed to cost every other harness its hooks.
@@ -37,7 +41,7 @@ use crate::util::fs::{EntryKind, lstat_kind, mkdir_p, read_text, rm_rf, write_te
 use crate::util::json::{JsonValue, parse, stringify_pretty};
 use crate::util::path::{join, to_slash};
 
-/// The file Claude Code reads, and VS Code with it.
+/// The file Claude Code reads, and Copilot, Devin and Grok with it.
 const SETTINGS: &str = ".claude/settings.json";
 
 /// One hook as its own document: the directory it sits in, and the lines beyond `name`.
@@ -104,13 +108,18 @@ fn pretty(value: &JsonValue) -> String {
 
 /// A harness config as state records it.
 fn config_artifact(path: &str, keys: Vec<String>) -> OwnedArtifact {
+    shaped_artifact(path, keys, Some(DocumentShape::Array))
+}
+
+/// A harness config of any shape as state records it. A map-shaped one records none.
+fn shaped_artifact(path: &str, keys: Vec<String>, shape: Option<DocumentShape>) -> OwnedArtifact {
     OwnedArtifact {
         path: path.to_owned(),
         kind: ArtifactKind::HarnessConfig,
         mode: None,
         managed_keys: Some(keys),
         format: Some(DocumentFormat::Json),
-        shape: Some(DocumentShape::Array),
+        shape,
     }
 }
 
@@ -339,17 +348,17 @@ mod claude_settings {
     }
 }
 
-mod claude_and_vscode {
-    //! VS Code reads Claude's settings file natively, so the two share it.
+mod claude_and_the_harnesses_reading_its_file {
+    //! Copilot, Devin and Grok read Claude's settings file natively, so all four share it.
     //!
-    //! The same relationship as Claude and Cursor sharing one skills link: two harnesses naming one
-    //! target is one artifact, not two that collide.
+    //! The same relationship as Claude and Cursor sharing one skills link: several harnesses naming
+    //! one target is one artifact, not several that collide.
 
     use super::*;
 
     fn fixture() -> Fixture {
         let fixture = Fixture::new();
-        fixture.write_profile(&[format_hook()], &["claude", "vscode"]);
+        fixture.write_profile(&[format_hook()], &["claude", "copilot", "devin", "grok"]);
         fixture
     }
 
@@ -374,11 +383,13 @@ mod claude_and_vscode {
     }
 
     #[test]
-    fn leaves_vs_codes_own_config_alone_having_nothing_to_put_in_it() {
+    fn leaves_their_own_configs_alone_having_nothing_to_put_in_them() {
         let f = fixture();
         f.cli(&["install"]);
 
         assert!(!f.path_exists(".vscode/mcp.json"));
+        assert!(!f.path_exists(".devin"));
+        assert!(!f.path_exists(".grok"));
         assert_eq!(f.cli(&["status", "--check"]).code, ExitCode::Success);
     }
 }
@@ -1026,6 +1037,363 @@ mod codex_hooks {
     }
 }
 
+mod gemini_hooks {
+    //! Gemini CLI: its servers and its hooks are two sections of one `.gemini/settings.json`.
+    //!
+    //! The one file ambit writes two managed sections into, recorded as two artifacts at one path.
+    //! So every step of the cycle has to keep the two apart: a prune of one section must leave the
+    //! other's keys, both in the file and in state.
+
+    use super::*;
+
+    const GEMINI: &str = ".gemini/settings.json";
+
+    fn format_gemini() -> JsonValue {
+        json!({
+            "matcher": "write_file",
+            "hooks": [{
+                "name": "format",
+                "type": "command",
+                "command": "npx prettier --write",
+                "timeout": 30000,
+            }],
+        })
+    }
+
+    fn notify_gemini() -> JsonValue {
+        json!({ "hooks": [{ "name": "notify", "type": "command", "command": "./bin/notify" }] })
+    }
+
+    /// Both entries' keys, in the order state records them.
+    fn hook_keys() -> Vec<String> {
+        vec![
+            managed_key("hooks", &array_entry_key("AfterAgent", &notify_gemini())),
+            managed_key("hooks", &array_entry_key("AfterTool", &format_gemini())),
+        ]
+    }
+
+    /// The project's hooks, plus one server in the same pack, so both sections are written.
+    fn write_with_server(f: &Fixture, hooks: &[Hook]) {
+        f.write_profile(hooks, &["gemini"]);
+        mkdir_p(&f.project_dir.join("mcps")).unwrap();
+        write_text(
+            &f.project_dir.join("mcps/docs.yml"),
+            "name: docs
+
+transport:
+  http:
+    url: https://mcp.invalid/docs
+",
+        )
+        .unwrap();
+
+        let mut lines = vec![
+            "name: core".to_owned(),
+            "description: The hooks and server this project ships.".to_owned(),
+            "requires:".to_owned(),
+            "  - mcp: docs".to_owned(),
+        ];
+        lines.extend(hooks.iter().map(|hook| format!("  - hook: {}", hook.name)));
+        lines.push(String::new());
+        mkdir_p(&f.project_dir.join("packs")).unwrap();
+        write_text(
+            &f.project_dir.join("packs/core.yml"),
+            &lines.join(
+                "
+",
+            ),
+        )
+        .unwrap();
+        write_text(
+            &f.project_dir.join("ambit.yml"),
+            &format!(
+                "version: 1\nharnesses: [gemini]\ncatalogs:\n  - name: local\n    source: path:.\nrequires:\n{}\n",
+                requires_entry("core", "local")
+            ),
+        )
+        .unwrap();
+    }
+
+    fn fixture() -> Fixture {
+        let f = Fixture::new();
+        write_with_server(&f, &[format_hook(), notify_hook()]);
+        f
+    }
+
+    #[test]
+    fn writes_servers_and_hooks_side_by_side_and_records_each_section_on_its_own() {
+        let f = fixture();
+        let result = f.cli(&["install"]);
+
+        assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
+
+        assert_eq!(
+            f.file_text(GEMINI),
+            pretty(&json!({
+                "mcpServers": { "docs": { "httpUrl": "https://mcp.invalid/docs" } },
+                "hooks": { "AfterTool": [format_gemini()], "AfterAgent": [notify_gemini()] },
+            }))
+        );
+        assert_eq!(
+            f.state_artifacts(),
+            [
+                shaped_artifact(GEMINI, vec![managed_key("mcpServers", "docs")], None),
+                config_artifact(GEMINI, hook_keys()),
+            ]
+        );
+    }
+
+    #[test]
+    fn changes_no_bytes_on_a_second_install_and_reports_no_drift() {
+        let f = fixture();
+        f.cli(&["install"]);
+        let written = f.file_text(GEMINI);
+
+        assert_eq!(f.cli(&["install"]).code, ExitCode::Success);
+
+        assert_eq!(f.file_text(GEMINI), written);
+        assert_eq!(f.cli(&["status", "--check"]).code, ExitCode::Success);
+    }
+
+    #[test]
+    fn prunes_the_hooks_and_keeps_the_server_once_the_hooks_are_gone() {
+        let f = fixture();
+        f.cli(&["install"]);
+        write_with_server(&f, &[]);
+
+        let result = f.cli(&["prune"]);
+
+        assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
+        assert_eq!(
+            f.file_json(GEMINI),
+            json!({
+                "mcpServers": { "docs": { "httpUrl": "https://mcp.invalid/docs" } },
+                "hooks": { "AfterTool": [], "AfterAgent": [] },
+            })
+        );
+        // The server's artifact survives a prune of the other section at the same path.
+        assert_eq!(
+            f.state_artifacts(),
+            [shaped_artifact(
+                GEMINI,
+                vec![managed_key("mcpServers", "docs")],
+                None
+            )]
+        );
+        assert_eq!(f.cli(&["status", "--check"]).code, ExitCode::Success);
+    }
+
+    #[test]
+    fn prunes_both_sections_at_once_and_stops_claiming_either() {
+        let f = fixture();
+        f.cli(&["install"]);
+        f.write_profile(&[], &["gemini"]);
+
+        let result = f.cli(&["prune"]);
+
+        assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
+        assert_eq!(
+            f.file_json(GEMINI),
+            json!({ "mcpServers": {}, "hooks": { "AfterTool": [], "AfterAgent": [] } })
+        );
+        // Two removals at one path: state must drop the keys of both, or `status` would report the
+        // one it kept as stale forever.
+        assert!(
+            f.state_artifacts()
+                .iter()
+                .all(|artifact| artifact.path != GEMINI)
+        );
+        assert_eq!(f.cli(&["status", "--check"]).code, ExitCode::Success);
+    }
+
+    #[test]
+    fn takes_both_sections_back_on_clean() {
+        let f = fixture();
+        f.cli(&["install"]);
+
+        assert_eq!(f.cli(&["clean"]).code, ExitCode::Success);
+
+        assert_eq!(
+            f.file_json(GEMINI),
+            json!({ "mcpServers": {}, "hooks": { "AfterTool": [], "AfterAgent": [] } })
+        );
+    }
+
+    #[test]
+    fn warns_for_a_subagent_hook_which_gemini_has_no_event_for() {
+        let f = Fixture::new();
+        f.write_profile(
+            &[hook(
+                "subagent",
+                &[
+                    "event: SubagentStop",
+                    "type: command",
+                    "command: ./bin/done",
+                ],
+            )],
+            &["gemini"],
+        );
+
+        let result = f.cli(&["install"]);
+
+        assert_eq!(result.code, ExitCode::Success);
+        assert!(
+            result
+                .stderr
+                .contains("gemini has no spelling for the SubagentStop event"),
+            "{}",
+            result.stderr
+        );
+        assert!(!f.path_exists(GEMINI));
+    }
+}
+
+mod kiro_hooks {
+    //! Kiro: one flat list in a file of ambit's own, each entry naming its own trigger.
+    //!
+    //! The list-shaped section end to end: the same co-ownership claims as every other hooks file,
+    //! in a document with no array per event to key on.
+
+    use super::*;
+
+    const KIRO: &str = ".kiro/hooks/ambit.json";
+
+    fn format_kiro() -> JsonValue {
+        json!({
+            "name": "format",
+            "trigger": "PostToolUse",
+            "matcher": "Write",
+            "action": { "type": "command", "command": "npx prettier --write" },
+            "timeout": 30,
+        })
+    }
+
+    fn notify_kiro() -> JsonValue {
+        json!({
+            "name": "notify",
+            "trigger": "Stop",
+            "action": { "type": "command", "command": "./bin/notify" },
+        })
+    }
+
+    fn fixture() -> Fixture {
+        let f = Fixture::new();
+        f.write_profile(&[format_hook(), notify_hook()], &["kiro"]);
+        f
+    }
+
+    #[test]
+    fn writes_one_list_with_a_version_and_records_each_entry_by_trigger_and_digest() {
+        let f = fixture();
+        let result = f.cli(&["install"]);
+
+        assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
+
+        assert_eq!(
+            f.file_text(KIRO),
+            pretty(&json!({ "version": "v1", "hooks": [format_kiro(), notify_kiro()] }))
+        );
+        assert_eq!(
+            f.state_artifacts(),
+            [shaped_artifact(
+                KIRO,
+                vec![
+                    managed_key("hooks", &array_entry_key("PostToolUse", &format_kiro())),
+                    managed_key("hooks", &array_entry_key("Stop", &notify_kiro())),
+                ],
+                Some(DocumentShape::List)
+            )]
+        );
+    }
+
+    #[test]
+    fn changes_no_bytes_on_a_second_install_and_reports_no_drift() {
+        let f = fixture();
+        f.cli(&["install"]);
+        let written = f.file_text(KIRO);
+
+        assert_eq!(f.cli(&["install"]).code, ExitCode::Success);
+
+        assert_eq!(f.file_text(KIRO), written);
+        assert_eq!(f.cli(&["status", "--check"]).code, ExitCode::Success);
+    }
+
+    #[test]
+    fn reports_a_hand_edited_entry_as_missing() {
+        let f = fixture();
+        f.cli(&["install"]);
+        let edited = f.file_text(KIRO).replacen("./bin/notify", "./bin/other", 1);
+        write_text(&join(&f.project_dir, KIRO), &edited).unwrap();
+
+        assert_ne!(f.cli(&["status", "--check"]).code, ExitCode::Success);
+    }
+
+    #[test]
+    fn prunes_the_entry_a_narrowed_config_no_longer_declares() {
+        let f = fixture();
+        f.cli(&["install"]);
+        f.write_profile(&[format_hook()], &["kiro"]);
+
+        assert_eq!(f.cli(&["install"]).code, ExitCode::Success);
+
+        assert_eq!(
+            f.file_json(KIRO),
+            json!({ "version": "v1", "hooks": [format_kiro()] })
+        );
+    }
+
+    #[test]
+    fn leaves_a_hook_of_someone_elses_where_it_is_and_gives_it_back_on_clean() {
+        let f = fixture();
+        let mine = json!({
+            "name": "mine",
+            "trigger": "Stop",
+            "action": { "type": "command", "command": "./bin/mine" },
+        });
+        let handwritten = pretty(&json!({ "version": "v1", "hooks": [mine.clone()] }));
+
+        mkdir_p(&f.project_dir.join(".kiro/hooks")).unwrap();
+        write_text(&join(&f.project_dir, KIRO), &handwritten).unwrap();
+
+        assert_eq!(f.cli(&["install"]).code, ExitCode::Success);
+        assert_eq!(
+            f.file_json(KIRO),
+            json!({ "version": "v1", "hooks": [mine.clone(), format_kiro(), notify_kiro()] })
+        );
+
+        assert_eq!(f.cli(&["clean"]).code, ExitCode::Success);
+        assert_eq!(f.file_text(KIRO), handwritten);
+    }
+
+    #[test]
+    fn warns_for_the_events_kiro_has_no_trigger_for() {
+        let f = Fixture::new();
+        f.write_profile(
+            &[hook(
+                "compact",
+                &[
+                    "event: PreCompact",
+                    "type: command",
+                    "command: ./bin/compact",
+                ],
+            )],
+            &["kiro"],
+        );
+
+        let result = f.cli(&["install"]);
+
+        assert_eq!(result.code, ExitCode::Success);
+        assert!(
+            result
+                .stderr
+                .contains("kiro has no spelling for the PreCompact event"),
+            "{}",
+            result.stderr
+        );
+        assert!(!f.path_exists(KIRO));
+    }
+}
+
 mod opencode_skip {
     //! opencode, which expresses no hooks at all.
     //!
@@ -1116,7 +1484,7 @@ mod opencode_skip {
 mod claude_and_cursor {
     //! Claude and Cursor together: two harnesses, two files, two renderings.
     //!
-    //! The counterpart of the Claude/VS Code case above. There the two shared a file because they
+    //! The counterpart of the Claude/Copilot case above. There the two shared a file because they
     //! render one entry; here they render different entries into different files, so `plan_for`
     //! collapses nothing.
 
@@ -1177,9 +1545,9 @@ mod script_hook {
     ///
     /// The declaration is `command: hook.sh`, which names a file relative to the hook's directory
     /// *in the catalog*, so what reaches a config file has to name the installed copy instead,
-    /// spelled the way that harness resolves a path. Claude and VS Code get Claude's documented
-    /// `${CLAUDE_PROJECT_DIR}`; Cursor and Codex interpolate nothing, so they get the path
-    /// project-relative.
+    /// spelled the way that harness resolves a path. Claude and Copilot get Claude's documented
+    /// `${CLAUDE_PROJECT_DIR}`, Gemini its own `$GEMINI_PROJECT_DIR`; Cursor, Codex and Kiro
+    /// interpolate nothing, so they get the path project-relative.
     fn claude_command() -> String {
         format!("${{CLAUDE_PROJECT_DIR}}/{HOOK_DIR}/{SCRIPT}")
     }
@@ -1361,13 +1729,16 @@ mod script_hook {
     ///
     /// The one string the whole capability turns on: `command: hook.sh` is relative to a directory
     /// in the catalog, which is a place no harness has heard of, so an unrewritten command installs
-    /// a hook that silently never fires. Four harnesses, one materialized script, two spellings of
+    /// a hook that silently never fires. Six harnesses, one materialized script, three spellings of
     /// the way to it, and exact strings, because a placeholder a harness does not interpolate is not
     /// a near miss.
     #[test]
     fn writes_the_materialized_path_the_way_each_harness_resolves_one() {
         let f = fixture();
-        write_catalog(&f, &["claude", "codex", "cursor", "vscode"]);
+        write_catalog(
+            &f,
+            &["claude", "codex", "copilot", "cursor", "gemini", "kiro"],
+        );
 
         let result = f.cli(&["install"]);
 
@@ -1376,7 +1747,7 @@ mod script_hook {
         // One script, however many harnesses read it.
         assert_eq!(f.file_text(&format!("{HOOK_DIR}/{SCRIPT}")), SCRIPT_BODY);
 
-        // Claude, and VS Code out of the same file: Claude's own documented placeholder, which holds
+        // Claude, and Copilot out of the same file: Claude's own documented placeholder, which holds
         // the project root, so the script is found whatever a session's cwd is.
         assert_eq!(
             f.settings(),
@@ -1411,9 +1782,60 @@ mod script_hook {
             })
         );
 
-        // And the hook that ships nothing is written verbatim into all three: prefixing a command
+        // Gemini: Claude's nesting, its own event names, and its own project-root variable.
+        assert_eq!(
+            f.file_json(".gemini/settings.json"),
+            json!({
+                "hooks": {
+                    "BeforeTool": [{
+                        "matcher": "run_shell_command",
+                        "hooks": [{
+                            "name": SCRIPT_HOOK,
+                            "type": "command",
+                            "command": format!("$GEMINI_PROJECT_DIR/{HOOK_DIR}/{SCRIPT}"),
+                        }],
+                    }],
+                    "AfterAgent": [{
+                        "hooks": [{
+                            "name": "announce",
+                            "type": "command",
+                            "command": "npx --yes say done",
+                        }],
+                    }],
+                },
+            })
+        );
+
+        // Kiro: one flat list, run from the project root, so the same project-relative path.
+        assert_eq!(
+            f.file_json(".kiro/hooks/ambit.json"),
+            json!({
+                "version": "v1",
+                "hooks": [
+                    {
+                        "name": "announce",
+                        "trigger": "Stop",
+                        "action": { "type": "command", "command": "npx --yes say done" },
+                    },
+                    {
+                        "name": SCRIPT_HOOK,
+                        "trigger": "PreToolUse",
+                        "matcher": "Bash",
+                        "action": { "type": "command", "command": relative_command() },
+                    },
+                ],
+            })
+        );
+
+        // And the hook that ships nothing is written verbatim into every file: prefixing a command
         // line with a directory would break it, and there are no bytes there to point at.
-        for file in [SETTINGS, ".codex/hooks.json", ".cursor/hooks.json"] {
+        for file in [
+            SETTINGS,
+            ".codex/hooks.json",
+            ".cursor/hooks.json",
+            ".gemini/settings.json",
+            ".kiro/hooks/ambit.json",
+        ] {
             assert!(f.file_text(file).contains("npx --yes say done"), "{file}");
             assert!(!f.file_text(file).contains("hooks/announce"), "{file}");
         }

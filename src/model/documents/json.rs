@@ -1,4 +1,5 @@
-//! The JSON driver: `.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`.
+//! The JSON driver: `.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json` and every other map-shaped
+//! JSON config.
 //!
 //! JSON has no comments, so a parse round-trip loses nothing a person wrote and the driver can work
 //! on parsed objects internally. Key order is preserved: every foreign key stays in place and the

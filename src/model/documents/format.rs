@@ -33,18 +33,21 @@ string_enum! {
 pub const DOCUMENT_FORMATS: &[DocumentFormat] = DocumentFormat::ALL;
 
 string_enum! {
-    /// The two shapes a managed section can have.
+    /// The three shapes a managed section can have.
     ///
     /// `Map` is a table keyed by an entity's name (`mcpServers.<name>`), where identity is written
     /// in the document and a merge is a key assignment. `Array` is `<Event>: [entries]`, the shape
-    /// every harness uses for hooks, where nothing in the document says which entry belongs to
-    /// whom: identity is derived from the entry's content, and a merge is an append.
+    /// most harnesses use for hooks, where nothing in the document says which entry belongs to
+    /// whom: identity is derived from the entry's content, and a merge is an append. `List` is one
+    /// flat array of entries, each naming its own event (`json_list.rs`): identity is derived the
+    /// same way as for `Array`.
     ///
     /// Shape is not a property of format: `.mcp.json` and `.claude/settings.json` are both JSON, so
     /// format alone cannot pick a driver and both have to be carried.
     pub enum DocumentShape {
         Map => "map",
         Array => "array",
+        List => "list",
     }
 }
 

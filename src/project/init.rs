@@ -115,13 +115,16 @@ fn blocks() -> Vec<ScaffoldBlock> {
         },
         ScaffoldBlock {
             comment: lines(&[
-                "The agent harnesses to install into: `claude`, `codex`, `cursor`, `opencode`, `vscode`.",
+                "The agent harnesses to install into: `claude`, `codex`, `copilot`, `cursor`, `devin`,",
+                "`gemini`, `grok`, `kiro`, `opencode`.",
                 "",
                 "Skills go to `.agents/skills/` whichever are listed — one copy, however many tools read it.",
-                "`claude` and `cursor` also get `.claude/skills` as a link to it, since neither reads the",
-                "shared directory natively. Each harness's MCP servers go in that harness's own config file:",
-                "`.mcp.json`, `.codex/config.toml`, `.cursor/mcp.json`, `.opencode/opencode.jsonc`,",
-                "`.vscode/mcp.json`.",
+                "`claude` and `cursor` also get `.claude/skills` as a link to it, `kiro` gets `.kiro/skills`",
+                "and `grok` gets `.grok/skills`, since none of them reads the shared directory natively.",
+                "Each harness's MCP servers go in that harness's own config file: `.mcp.json`,",
+                "`.codex/config.toml`, `.vscode/mcp.json`, `.cursor/mcp.json`, `.devin/mcp_config.json`,",
+                "`.gemini/settings.json`, `.grok/config.toml`, `.kiro/settings/mcp.json`,",
+                "`.opencode/opencode.jsonc`.",
             ]),
             values: Some(object(json!({ "harnesses": DEFAULT_HARNESSES }))),
             ..ScaffoldBlock::default()

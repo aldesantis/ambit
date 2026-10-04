@@ -1,4 +1,4 @@
-//! The five harness profiles, as a table of exact server shapes.
+//! The harness profiles, as a table of exact server shapes.
 //!
 //! This file is the specification for the property the whole harness layer rests on: an installed
 //! config is indistinguishable from one a person wrote by hand. That is what makes a harness
@@ -6,8 +6,9 @@
 //! emitted object rather than probing a field, and the key order too, since a hand-written server
 //! does not put `url` before `type`.
 //!
-//! The layouts come from dotagents 1.19.0's own target definitions rather than from memory, with
-//! one deliberate deviation for VS Code that is called out where it is asserted.
+//! The original five layouts come from dotagents 1.19.0's own target definitions rather than from
+//! memory, with one deliberate deviation for Copilot that is called out where it is asserted. The
+//! rest come from each harness's own MCP and hooks documentation, cited on its profile.
 //!
 //! Every comparison goes through [`same`], which compares the serialized bytes, so key order is
 //! asserted along with the values.
@@ -113,13 +114,15 @@ fn project(root: &str, scope: Option<InstallScope>) -> ProjectPaths {
 // the harness table
 
 #[test]
-fn ships_exactly_five_profiles_in_the_order_errors_and_help_list_them() {
+fn ships_every_profile_in_the_order_errors_and_help_list_them() {
     assert_eq!(
         PROFILES
             .iter()
             .map(|profile| profile.name)
             .collect::<Vec<_>>(),
-        ["claude", "codex", "cursor", "opencode", "vscode"]
+        [
+            "claude", "codex", "copilot", "cursor", "devin", "gemini", "grok", "kiro", "opencode"
+        ]
     );
 }
 
@@ -157,8 +160,48 @@ fn names_each_harnesss_config_file_section_and_format() {
                 )
             ),
             (
+                "copilot",
+                layout(".vscode/mcp.json", None, "servers", DocumentFormat::Json)
+            ),
+            (
                 "cursor",
                 layout(".cursor/mcp.json", None, "mcpServers", DocumentFormat::Json)
+            ),
+            (
+                "devin",
+                layout(
+                    ".devin/mcp_config.json",
+                    None,
+                    "mcpServers",
+                    DocumentFormat::Json
+                )
+            ),
+            (
+                "gemini",
+                layout(
+                    ".gemini/settings.json",
+                    None,
+                    "mcpServers",
+                    DocumentFormat::Json
+                )
+            ),
+            (
+                "grok",
+                layout(
+                    ".grok/config.toml",
+                    None,
+                    "mcp_servers",
+                    DocumentFormat::Toml
+                )
+            ),
+            (
+                "kiro",
+                layout(
+                    ".kiro/settings/mcp.json",
+                    None,
+                    "mcpServers",
+                    DocumentFormat::Json
+                )
             ),
             (
                 "opencode",
@@ -169,22 +212,23 @@ fn names_each_harnesss_config_file_section_and_format() {
                     DocumentFormat::Jsonc
                 )
             ),
-            (
-                "vscode",
-                layout(".vscode/mcp.json", None, "servers", DocumentFormat::Json)
-            ),
         ]
     );
 }
 
 #[test]
-fn gives_the_two_harnesses_that_need_one_the_same_skills_link_and_the_other_three_none() {
-    // Claude Code and Cursor read `.claude/skills`; Codex, VS Code and opencode read the shared
-    // directory natively. Naming the same link is what makes a project using both plan it once.
+fn links_each_harness_that_does_not_read_the_shared_directory_and_no_other() {
+    // Claude Code and Cursor read `.claude/skills`, so naming the same link is what makes a project
+    // using both plan it once. Kiro and Grok each read a directory of their own. Codex, Copilot,
+    // Devin, Gemini and opencode read the shared directory natively.
     assert_eq!(CLAUDE.skills_link, Some(LINK));
     assert_eq!(CURSOR.skills_link, Some(LINK));
+    assert_eq!(KIRO.skills_link, Some(".kiro/skills"));
+    assert_eq!(GROK.skills_link, Some(".grok/skills"));
     assert_eq!(CODEX.skills_link, None);
-    assert_eq!(VSCODE.skills_link, None);
+    assert_eq!(COPILOT.skills_link, None);
+    assert_eq!(DEVIN.skills_link, None);
+    assert_eq!(GEMINI.skills_link, None);
     assert_eq!(OPENCODE.skills_link, None);
     // And the link is not the shared directory itself, or it would point at itself.
     assert_ne!(LINK, SHARED_SKILLS_DIR);
@@ -278,7 +322,7 @@ fn cases() -> Vec<Case> {
             bare_http: json!({ "url": URL }),
         },
         Case {
-            profile: &VSCODE,
+            profile: &COPILOT,
             // An explicit `type` on both transports, and `${env:VAR}` throughout, including in
             // `env`, where dotagents writes `${input:VAR}`. That form only works when the file
             // also declares a matching `inputs` array, which ambit does not write, so emitting it
@@ -315,6 +359,68 @@ fn cases() -> Vec<Case> {
                 "env_http_headers": { "X-Api-Key": "API_KEY" },
             }),
             bare_http: json!({ "url": URL }),
+        },
+        Case {
+            profile: &GEMINI,
+            stdio: json!({
+                "command": "npx",
+                "args": ["-y", "mcp-remote", URL, "--header", "Authorization: Bearer ${TOKEN}"],
+                "env": { "FIXTURE_API_KEY": "${FIXTURE_API_KEY}", "TOKEN": "${TOKEN}" },
+            }),
+            bare_stdio: json!({ "command": "npx" }),
+            // `httpUrl` is streamable HTTP; `url` would mean SSE. No `type`.
+            http: json!({
+                "httpUrl": URL,
+                "headers": { "Authorization": "Bearer ${TOKEN}", "X-Api-Key": "${API_KEY}" },
+            }),
+            bare_http: json!({ "httpUrl": URL }),
+        },
+        Case {
+            profile: &KIRO,
+            stdio: json!({
+                "command": "npx",
+                "args": ["-y", "mcp-remote", URL, "--header", "Authorization: Bearer ${TOKEN}"],
+                "env": { "FIXTURE_API_KEY": "${FIXTURE_API_KEY}", "TOKEN": "${TOKEN}" },
+            }),
+            bare_stdio: json!({ "command": "npx" }),
+            http: json!({
+                "url": URL,
+                "headers": { "Authorization": "Bearer ${TOKEN}", "X-Api-Key": "${API_KEY}" },
+            }),
+            bare_http: json!({ "url": URL }),
+        },
+        Case {
+            profile: &GROK,
+            stdio: json!({
+                "command": "npx",
+                "args": ["-y", "mcp-remote", URL, "--header", "Authorization: Bearer ${TOKEN}"],
+                "env": { "FIXTURE_API_KEY": "${FIXTURE_API_KEY}", "TOKEN": "${TOKEN}" },
+            }),
+            bare_stdio: json!({ "command": "npx" }),
+            http: json!({
+                "url": URL,
+                "headers": { "Authorization": "Bearer ${TOKEN}", "X-Api-Key": "${API_KEY}" },
+            }),
+            bare_http: json!({ "url": URL }),
+        },
+        Case {
+            profile: &DEVIN,
+            // `${env:VAR}` throughout, and `transport` after the url.
+            stdio: json!({
+                "command": "npx",
+                "args": ["-y", "mcp-remote", URL, "--header", "Authorization: Bearer ${env:TOKEN}"],
+                "env": { "FIXTURE_API_KEY": "${env:FIXTURE_API_KEY}", "TOKEN": "${env:TOKEN}" },
+            }),
+            bare_stdio: json!({ "command": "npx" }),
+            http: json!({
+                "url": URL,
+                "transport": "http",
+                "headers": {
+                    "Authorization": "Bearer ${env:TOKEN}",
+                    "X-Api-Key": "${env:API_KEY}",
+                },
+            }),
+            bare_http: json!({ "url": URL, "transport": "http" }),
         },
         Case {
             profile: &OPENCODE,
@@ -422,13 +528,26 @@ fn resolves_no_variable_whatever_the_environment_holds() {
 #[test]
 fn is_translated_too_so_a_per_tenant_endpoint_works_on_every_harness() {
     let tenant = |profile: &HarnessProfile| {
-        (profile.server_config)(&http_at("https://${TENANT}.mcp.invalid/fixture"))["url"].clone()
+        let emitted = (profile.server_config)(&http_at("https://${TENANT}.mcp.invalid/fixture"));
+
+        emitted
+            .get("url")
+            .or_else(|| emitted.get("httpUrl"))
+            .cloned()
+            .unwrap_or(JsonValue::Null)
     };
 
     assert_eq!(tenant(&CLAUDE), "https://${TENANT}.mcp.invalid/fixture");
     assert_eq!(tenant(&CODEX), "https://${TENANT}.mcp.invalid/fixture");
     assert_eq!(tenant(&CURSOR), "https://${env:TENANT}.mcp.invalid/fixture");
-    assert_eq!(tenant(&VSCODE), "https://${env:TENANT}.mcp.invalid/fixture");
+    assert_eq!(
+        tenant(&COPILOT),
+        "https://${env:TENANT}.mcp.invalid/fixture"
+    );
+    assert_eq!(tenant(&DEVIN), "https://${env:TENANT}.mcp.invalid/fixture");
+    assert_eq!(tenant(&GEMINI), "https://${TENANT}.mcp.invalid/fixture");
+    assert_eq!(tenant(&GROK), "https://${TENANT}.mcp.invalid/fixture");
+    assert_eq!(tenant(&KIRO), "https://${TENANT}.mcp.invalid/fixture");
     assert_eq!(
         tenant(&OPENCODE),
         "https://{env:TENANT}.mcp.invalid/fixture"
@@ -472,9 +591,20 @@ fn writes_the_declared_name_against_the_variable_that_supplies_it_in_every_spell
         &json!({ "PLANNER_TOKEN": "${ACME_PLANNER_TOKEN}" }),
     );
     same(
-        &env_of(&VSCODE),
+        &env_of(&COPILOT),
         &json!({ "PLANNER_TOKEN": "${env:ACME_PLANNER_TOKEN}" }),
     );
+    same(
+        &env_of(&DEVIN),
+        &json!({ "PLANNER_TOKEN": "${env:ACME_PLANNER_TOKEN}" }),
+    );
+
+    for profile in [&*GEMINI, &*GROK, &*KIRO] {
+        same(
+            &env_of(profile),
+            &json!({ "PLANNER_TOKEN": "${ACME_PLANNER_TOKEN}" }),
+        );
+    }
 }
 
 #[test]
@@ -515,19 +645,24 @@ fn reaches_every_harness_in_that_harnesss_own_spelling() {
     assert_eq!(last_arg(&CODEX), "Authorization: Bearer ${TOKEN}");
     assert_eq!(last_arg(&CURSOR), "Authorization: Bearer ${TOKEN}");
     assert_eq!(last_arg(&OPENCODE), "Authorization: Bearer ${TOKEN}");
-    assert_eq!(last_arg(&VSCODE), "Authorization: Bearer ${env:TOKEN}");
+    assert_eq!(last_arg(&COPILOT), "Authorization: Bearer ${env:TOKEN}");
+    assert_eq!(last_arg(&DEVIN), "Authorization: Bearer ${env:TOKEN}");
+    assert_eq!(last_arg(&GEMINI), "Authorization: Bearer ${TOKEN}");
+    assert_eq!(last_arg(&GROK), "Authorization: Bearer ${TOKEN}");
+    assert_eq!(last_arg(&KIRO), "Authorization: Bearer ${TOKEN}");
 }
 
 // the hook each profile emits
 //
-// Four harnesses express hooks, in two shapes: Claude, VS Code and Codex render one entry (the
-// first two into one shared file, Codex into its own) and Cursor shares nothing with any of them.
-// So the claims are each entry's exact shape, its key order, and which harnesses render the same
+// Every harness but opencode expresses hooks, in four shapes: Claude, Copilot, Devin, Grok and Codex
+// render one entry (the first four into one shared file, Codex into its own), Gemini renders
+// Claude's nesting with fields of its own, and Cursor and Kiro share nothing with any of them. So
+// the claims are each entry's exact shape, its key order, and which harnesses render the same
 // bytes. Key order is load-bearing here in a way it is not for a server: the managed key is a
 // digest of these bytes, so reordering them renames every hook every project owns.
 //
-// The fifth harness expresses none, which is the other thing asserted here: opencode carries no
-// layout, and `skipped_hooks` turns that absence into something the run reports.
+// opencode expresses none, which is the other thing asserted here: it carries no layout, and
+// `skipped_hooks` turns that absence into something the run reports.
 
 fn plain_project() -> ProjectPaths {
     project("/tmp/ambit-project", None)
@@ -593,7 +728,7 @@ fn layout_of(
 }
 
 #[test]
-fn gives_claude_and_vscode_one_shared_file_and_codex_one_of_its_own() {
+fn gives_the_harnesses_reading_claudes_file_one_shared_file_and_codex_one_of_its_own() {
     let layout = (
         ".claude/settings.json",
         "hooks",
@@ -604,8 +739,10 @@ fn gives_claude_and_vscode_one_shared_file_and_codex_one_of_its_own() {
     );
 
     assert_eq!(layout_of(CLAUDE.hooks.as_ref().unwrap()), layout);
-    // The same file, so a project configuring both writes it once.
-    assert_eq!(layout_of(VSCODE.hooks.as_ref().unwrap()), layout);
+    // The same file, so a project configuring several writes it once.
+    assert_eq!(layout_of(COPILOT.hooks.as_ref().unwrap()), layout);
+    assert_eq!(layout_of(DEVIN.hooks.as_ref().unwrap()), layout);
+    assert_eq!(layout_of(GROK.hooks.as_ref().unwrap()), layout);
     // Codex differs in the file and in nothing else: Claude's section, Claude's shape, Claude's
     // entries. Not `[hooks]` in `.codex/config.toml`, which Codex also reads: that is an
     // array-of-tables, which the TOML driver refuses.
@@ -666,14 +803,89 @@ fn gives_cursor_a_file_of_its_own_a_version_to_seed_and_its_own_event_names() {
             .map(|&event| (event.as_str(), spell(event)))
             .collect::<Vec<_>>(),
         [
-            ("SessionStart", "sessionStart"),
-            ("UserPromptSubmit", "userPromptSubmit"),
-            ("PreToolUse", "preToolUse"),
-            ("PostToolUse", "postToolUse"),
-            ("Stop", "stop"),
-            ("SubagentStop", "subagentStop"),
-            ("PreCompact", "preCompact"),
-            ("SessionEnd", "sessionEnd"),
+            ("SessionStart", Some("sessionStart")),
+            ("UserPromptSubmit", Some("userPromptSubmit")),
+            ("PreToolUse", Some("preToolUse")),
+            ("PostToolUse", Some("postToolUse")),
+            ("Stop", Some("stop")),
+            ("SubagentStop", Some("subagentStop")),
+            ("PreCompact", Some("preCompact")),
+            ("SessionEnd", Some("sessionEnd")),
+        ]
+    );
+}
+
+#[test]
+fn gives_gemini_its_settings_file_and_its_own_event_names() {
+    let layout = GEMINI.hooks.as_ref().unwrap();
+
+    // The same file its servers are written to, under a different section.
+    assert_eq!(
+        layout_of(layout),
+        (
+            ".gemini/settings.json",
+            "hooks",
+            DocumentFormat::Json,
+            DocumentShape::Array,
+            None,
+            true
+        )
+    );
+    assert_eq!(layout.file, GEMINI.mcp.file);
+    assert_ne!(layout.section, GEMINI.mcp.section);
+
+    let spell = layout.events.unwrap();
+
+    assert_eq!(
+        HOOK_EVENTS
+            .iter()
+            .map(|&event| (event.as_str(), spell(event)))
+            .collect::<Vec<_>>(),
+        [
+            ("SessionStart", Some("SessionStart")),
+            ("UserPromptSubmit", Some("BeforeAgent")),
+            ("PreToolUse", Some("BeforeTool")),
+            ("PostToolUse", Some("AfterTool")),
+            ("Stop", Some("AfterAgent")),
+            ("SubagentStop", None),
+            ("PreCompact", Some("PreCompress")),
+            ("SessionEnd", Some("SessionEnd")),
+        ]
+    );
+}
+
+#[test]
+fn gives_kiro_a_file_of_ambits_own_holding_one_flat_list_and_a_version() {
+    let layout = KIRO.hooks.as_ref().unwrap();
+
+    assert_eq!(
+        layout_of(layout),
+        (
+            ".kiro/hooks/ambit.json",
+            "hooks",
+            DocumentFormat::Json,
+            DocumentShape::List,
+            Some(r#"{"version":"v1"}"#.to_owned()),
+            true
+        )
+    );
+
+    let spell = layout.events.unwrap();
+
+    assert_eq!(
+        HOOK_EVENTS
+            .iter()
+            .map(|&event| (event.as_str(), spell(event)))
+            .collect::<Vec<_>>(),
+        [
+            ("SessionStart", Some("SessionStart")),
+            ("UserPromptSubmit", Some("UserPromptSubmit")),
+            ("PreToolUse", Some("PreToolUse")),
+            ("PostToolUse", Some("PostToolUse")),
+            ("Stop", Some("Stop")),
+            ("SubagentStop", None),
+            ("PreCompact", None),
+            ("SessionEnd", Some("SessionEnd")),
         ]
     );
 }
@@ -710,19 +922,92 @@ fn omits_a_matcher_and_a_timeout_the_hook_does_not_declare() {
 }
 
 #[test]
-fn renders_one_entry_for_the_three_harnesses_that_read_claudes_shape() {
+fn renders_one_entry_for_every_harness_that_reads_claudes_shape() {
     // Byte equality, not structural: the digest that identifies the entry is taken over exactly
     // these bytes, so two renderings that differ only in key order would be two entries in one
     // array.
     let claudes = stringify(&render(&CLAUDE, &hook(), &plain_project()));
 
+    for profile in [&*COPILOT, &*CODEX, &*DEVIN, &*GROK] {
+        assert_eq!(
+            stringify(&render(profile, &hook(), &plain_project())),
+            claudes,
+            "{}",
+            profile.name
+        );
+    }
+}
+
+#[test]
+fn writes_geminis_entry_with_a_name_its_own_tool_names_and_a_timeout_in_milliseconds() {
+    same(
+        &render(&GEMINI, &hook(), &plain_project()),
+        &json!({
+            "matcher": "run_shell_command",
+            "hooks": [{
+                "name": "block-rm",
+                "type": "command",
+                "command": "./bin/block-rm",
+                "timeout": 30000,
+            }],
+        }),
+    );
+    same(
+        &render(&GEMINI, &bare(), &plain_project()),
+        &json!({ "hooks": [{ "name": "greet", "type": "command", "command": "./bin/greet" }] }),
+    );
+}
+
+#[test]
+fn translates_each_claude_tool_name_in_a_matcher_and_leaves_everything_else_alone() {
+    let matcher_of = |matcher: &str| {
+        render(
+            &GEMINI,
+            &MergedHook {
+                matcher: Some(matcher.to_owned()),
+                ..hook()
+            },
+            &plain_project(),
+        )["matcher"]
+            .clone()
+    };
+
+    assert_eq!(matcher_of("Edit|Write"), "replace|write_file");
     assert_eq!(
-        stringify(&render(&VSCODE, &hook(), &plain_project())),
-        claudes
+        matcher_of("Read|Glob|Grep|LS"),
+        "read_file|glob|grep_search|list_directory"
     );
     assert_eq!(
-        stringify(&render(&CODEX, &hook(), &plain_project())),
-        claudes
+        matcher_of("WebFetch|WebSearch|TodoWrite"),
+        "web_fetch|google_web_search|write_todos"
+    );
+    // A regex, an MCP tool, a Gemini name, and a Claude tool Gemini has no counterpart for all
+    // pass through, as does a token that only contains a tool name.
+    assert_eq!(
+        matcher_of("mcp__github__.*|run_shell_command|Task|Bash.*"),
+        "mcp__github__.*|run_shell_command|Task|Bash.*"
+    );
+}
+
+#[test]
+fn writes_kiros_flat_entry_naming_its_trigger_and_a_command_action() {
+    same(
+        &render(&KIRO, &hook(), &plain_project()),
+        &json!({
+            "name": "block-rm",
+            "trigger": "PreToolUse",
+            "matcher": "Bash",
+            "action": { "type": "command", "command": "./bin/block-rm" },
+            "timeout": 30,
+        }),
+    );
+    same(
+        &render(&KIRO, &bare(), &plain_project()),
+        &json!({
+            "name": "greet",
+            "trigger": "SessionStart",
+            "action": { "type": "command", "command": "./bin/greet" },
+        }),
     );
 }
 
@@ -787,28 +1072,50 @@ fn command_of(profile: &HarnessProfile, hook: &MergedHook, paths: &ProjectPaths)
                 .get("hooks")
                 .and_then(|hooks| hooks[0].get("command"))
         })
+        .or_else(|| {
+            emitted
+                .get("action")
+                .and_then(|action| action.get("command"))
+        })
         .and_then(JsonValue::as_str)
         .unwrap_or_default()
         .to_owned()
 }
 
 #[test]
-fn points_claude_and_vscode_at_the_project_root_through_claudes_own_placeholder() {
+fn points_claude_and_copilot_at_the_project_root_through_claudes_own_placeholder() {
     // `${CLAUDE_PROJECT_DIR}` is documented by Claude as interpolated in `command` and as holding
-    // the project root. VS Code reads this same file and gets the same string, documented or not.
+    // the project root. Copilot reads this same file and gets the same string, documented or not.
     assert_eq!(
         command_of(&CLAUDE, &script(), &plain_project()),
         "${CLAUDE_PROJECT_DIR}/.agents/hooks/block-rm/hook.sh"
     );
+    for profile in [&*COPILOT, &*DEVIN, &*GROK] {
+        assert_eq!(
+            command_of(profile, &script(), &plain_project()),
+            "${CLAUDE_PROJECT_DIR}/.agents/hooks/block-rm/hook.sh",
+            "{}",
+            profile.name
+        );
+    }
+}
+
+#[test]
+fn points_gemini_at_the_project_root_through_its_own_variable() {
     assert_eq!(
-        command_of(&VSCODE, &script(), &plain_project()),
-        "${CLAUDE_PROJECT_DIR}/.agents/hooks/block-rm/hook.sh"
+        command_of(&GEMINI, &script(), &plain_project()),
+        "$GEMINI_PROJECT_DIR/.agents/hooks/block-rm/hook.sh"
     );
 }
 
 #[test]
-fn writes_cursor_and_codex_a_project_relative_path_and_no_subshell() {
-    // Neither interpolates anything in a `command`, so the path as written is all there is.
+fn writes_cursor_codex_and_kiro_a_project_relative_path_and_no_subshell() {
+    // None interpolates anything in a `command`, so the path as written is all there is. Kiro runs
+    // a command in the project root.
+    assert_eq!(
+        command_of(&KIRO, &script(), &plain_project()),
+        ".agents/hooks/block-rm/hook.sh"
+    );
     assert_eq!(
         command_of(&CURSOR, &script(), &plain_project()),
         ".agents/hooks/block-rm/hook.sh"
@@ -818,7 +1125,7 @@ fn writes_cursor_and_codex_a_project_relative_path_and_no_subshell() {
         ".agents/hooks/block-rm/hook.sh"
     );
 
-    for profile in [&*CURSOR, &*CODEX] {
+    for profile in [&*CURSOR, &*CODEX, &*KIRO] {
         assert!(!command_of(profile, &script(), &plain_project()).contains("rev-parse"));
         assert!(!command_of(profile, &script(), &plain_project()).contains("${"));
     }
@@ -871,7 +1178,7 @@ fn leaves_a_hook_that_ships_nothing_exactly_as_declared() {
         ..hook()
     };
 
-    for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*VSCODE] {
+    for profile in hook_profiles() {
         assert_eq!(
             command_of(profile, &inline, &plain_project()),
             "npx --yes prettier --check",
@@ -895,13 +1202,21 @@ fn leaves_a_hook_that_ships_nothing_exactly_as_declared() {
 // project is open". Cloning a repository must not be enough to get code run, so the path is
 // absolute here.
 
+/// Every profile that expresses hooks.
+fn hook_profiles() -> impl Iterator<Item = &'static HarnessProfile> {
+    PROFILES
+        .iter()
+        .copied()
+        .filter(|profile| profile.hooks.is_some())
+}
+
 fn home() -> ProjectPaths {
     project("/home/jane", Some(InstallScope::User))
 }
 
 #[test]
 fn names_the_install_root_outright_for_every_harness_that_expresses_hooks() {
-    for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*VSCODE] {
+    for profile in hook_profiles() {
         assert_eq!(
             command_of(profile, &script(), &home()),
             "/home/jane/.agents/hooks/block-rm/hook.sh",
@@ -913,7 +1228,7 @@ fn names_the_install_root_outright_for_every_harness_that_expresses_hooks() {
 
 #[test]
 fn leaves_nothing_for_a_harness_or_a_project_to_resolve() {
-    for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*VSCODE] {
+    for profile in hook_profiles() {
         let command = command_of(profile, &script(), &home());
 
         // No placeholder, since `${CLAUDE_PROJECT_DIR}` is the project's root and not this one,
@@ -944,7 +1259,7 @@ fn leaves_a_hook_that_ships_nothing_exactly_as_declared_at_a_user_level_install(
         ..hook()
     };
 
-    for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*VSCODE] {
+    for profile in hook_profiles() {
         assert_eq!(
             command_of(profile, &inline, &home()),
             "npx --yes prettier --check",
@@ -976,8 +1291,6 @@ fn resolves_no_variable_in_a_command_and_rewrites_no_reference_either() {
 // One predicate answers both (a hook is planned for the array it belongs in, or skipped because
 // there is none), so these cases and the ones above partition every hook a bundle can hold.
 //
-// No case covers an event a harness has no spelling for: `HookLayout::events` is a total
-// function, so such a profile cannot be written.
 
 fn skip(harness: &str, hook: &str, event: HookEvent, reason: HookSkipReason) -> SkippedHook {
     SkippedHook {
@@ -1009,14 +1322,73 @@ fn accounts_for_every_hook_on_the_harness_that_expresses_none() {
     );
 }
 
-#[test]
-fn skips_nothing_on_the_four_harnesses_that_do_for_every_event_ambit_knows() {
-    for profile in PROFILES.iter().filter(|profile| profile.hooks.is_some()) {
-        let every: Vec<MergedHook> = HOOK_EVENTS
-            .iter()
-            .map(|&event| MergedHook { event, ..bare() })
-            .collect();
+/// One hook per event ambit knows.
+fn every_event() -> Vec<MergedHook> {
+    HOOK_EVENTS
+        .iter()
+        .map(|&event| MergedHook { event, ..bare() })
+        .collect()
+}
 
-        assert_eq!(skipped_hooks(profile, &every), [], "{}", profile.name);
+#[test]
+fn skips_nothing_on_the_harnesses_with_a_spelling_for_every_event() {
+    for profile in [&*CLAUDE, &*CODEX, &*COPILOT, &*CURSOR, &*DEVIN, &*GROK] {
+        assert_eq!(
+            skipped_hooks(profile, &every_event()),
+            [],
+            "{}",
+            profile.name
+        );
+    }
+}
+
+#[test]
+fn skips_only_the_events_gemini_and_kiro_have_no_counterpart_for() {
+    assert_eq!(
+        skipped_hooks(&GEMINI, &every_event()),
+        [skip(
+            "gemini",
+            "greet",
+            HookEvent::SubagentStop,
+            HookSkipReason::NoEvent
+        )]
+    );
+    assert_eq!(
+        skipped_hooks(&KIRO, &every_event()),
+        [
+            skip(
+                "kiro",
+                "greet",
+                HookEvent::SubagentStop,
+                HookSkipReason::NoEvent
+            ),
+            skip(
+                "kiro",
+                "greet",
+                HookEvent::PreCompact,
+                HookSkipReason::NoEvent
+            ),
+        ]
+    );
+}
+
+#[test]
+fn plans_no_script_and_no_entry_for_a_hook_it_skips() {
+    let skipped = MergedHook {
+        event: HookEvent::SubagentStop,
+        ..script()
+    };
+    let bundle = Bundle {
+        hooks: vec![skipped],
+        ..Bundle::default()
+    };
+
+    for profile in [&*GEMINI, &*KIRO] {
+        assert_eq!(
+            adapter_for(profile).plan(&bundle, &plain_project()),
+            [],
+            "{}",
+            profile.name
+        );
     }
 }

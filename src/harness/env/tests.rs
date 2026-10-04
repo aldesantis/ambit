@@ -32,7 +32,7 @@ fn spells_one_variable_the_way_each_family_of_harnesses_does() {
     // Claude Code and Codex take plain shell syntax, which is also the spelling a catalog writes,
     // so the common case is a no-op and the catalog reads as what it means.
     assert_eq!(shell_ref("TOKEN"), "${TOKEN}");
-    // Cursor and VS Code.
+    // Copilot, Cursor and Devin.
     assert_eq!(namespaced_ref("TOKEN"), "${env:TOKEN}");
     // opencode.
     assert_eq!(braced_ref("TOKEN"), "{env:TOKEN}");
