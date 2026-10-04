@@ -260,8 +260,7 @@ fn env_demands(bundle: &Bundle, artifacts: &[PlannedArtifact]) -> EnvDemands {
 
     // Read off the entity rather than the config file's bytes. Each harness spells a reference in
     // its own syntax (`${VAR}`, `${env:VAR}`, `{env:VAR}`, Codex's bare variable name under
-    // `env_http_headers`), so scanning the written file would miss it for four of the five
-    // harnesses.
+    // `env_http_headers`), so scanning the written file would miss it for most harnesses.
     let referenced: IndexMap<&str, Vec<String>> = bundle
         .mcps
         .iter()

@@ -295,12 +295,14 @@ fn leaves_a_codex_configs_own_settings_and_comments_exactly_as_they_were() {
     assert!(project.read(".codex/config.toml").starts_with(handwritten));
 }
 
-// all five harnesses at once
+// every harness at once
 
-const ALL_HARNESSES: &[&str] = &["claude", "codex", "copilot", "cursor", "opencode"];
+const ALL_HARNESSES: &[&str] = &[
+    "claude", "codex", "copilot", "cursor", "devin", "gemini", "grok", "kiro", "opencode",
+];
 
 #[test]
-fn writes_one_skills_tree_one_link_and_five_config_files() {
+fn writes_one_skills_tree_and_every_harnesss_config_file() {
     let project = with_harnesses(ALL_HARNESSES);
     let result = project.cli(&["install"]);
 
@@ -310,15 +312,22 @@ fn writes_one_skills_tree_one_link_and_five_config_files() {
     for file in [
         ".mcp.json",
         ".codex/config.toml",
-        ".cursor/mcp.json",
-        ".opencode/opencode.jsonc",
         ".vscode/mcp.json",
+        ".cursor/mcp.json",
+        ".devin/mcp_config.json",
+        ".gemini/settings.json",
+        ".grok/config.toml",
+        ".kiro/settings/mcp.json",
+        ".opencode/opencode.jsonc",
+        ".claude/skills",
+        ".kiro/skills",
+        ".grok/skills",
     ] {
         assert!(project.lexists(file), "{file}");
     }
 
-    // Each skill is materialized once however many harnesses read it: three directories, not
-    // fifteen.
+    // Each skill is materialized once however many harnesses read it: one directory per skill,
+    // not one per skill per harness.
     assert_eq!(
         project
             .state_artifacts()
@@ -348,7 +357,7 @@ fn passes_doctor_with_every_referenced_variable_set() {
 
     project.cli(&["install"]);
     // Every variable the bundle references, whichever entity declared it: `doctor` reads the
-    // environment rather than the files, so a reference in five formats is still one question.
+    // environment rather than the files, so a reference in every format is still one question.
     project
         .env
         .insert(PACKED_KEY_VAR.to_owned(), "s3cret".to_owned());

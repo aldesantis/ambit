@@ -1,6 +1,6 @@
-//! The TOML driver: `.codex/config.toml`.
+//! The TOML driver: `.codex/config.toml`, `.grok/config.toml`.
 //!
-//! This file is not ambit's. Codex keeps a person's model, sandbox, approval and profile settings
+//! These files are not ambit's. Codex, for one, keeps a person's model, sandbox, approval and profile settings
 //! in it, often with comments. Parsing and re-stringifying through a TOML library would drop those
 //! comments, so this driver never parses the document: it locates the `[mcp_servers.<name>]` table
 //! for each server it owns and splices that span of lines, leaving every other byte identical.

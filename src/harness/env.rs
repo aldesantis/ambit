@@ -3,8 +3,8 @@
 //! A catalog writes `${VAR}` in an MCP entity's headers, arguments and env map, and names in
 //! `expects` the variables a server needs. ambit resolves neither into the config file it writes.
 //! It translates them into the reference syntax the target harness expands at spawn time (`${VAR}`
-//! for Claude Code and Codex, `${env:VAR}` for Cursor and VS Code, `{env:VAR}` for opencode) and
-//! leaves the value in the environment.
+//! for Claude Code, Codex, Gemini, Grok and Kiro, `${env:VAR}` for Copilot, Cursor and Devin,
+//! `{env:VAR}` for opencode) and leaves the value in the environment.
 //!
 //! Writing the resolved value would put a live credential into `.mcp.json`, a file ambit does not
 //! gitignore because teams legitimately commit it. Writing a reference instead keeps the installed
@@ -36,12 +36,12 @@ static SOLE_PLACEHOLDER: LazyLock<Regex> = LazyLock::new(|| {
 /// How one harness spells a reference to an environment variable in its own config.
 pub type EnvRefStyle = fn(&str) -> String;
 
-/// Claude Code and Codex: plain shell syntax.
+/// Claude Code, Codex, Gemini, Grok and Kiro: plain shell syntax.
 pub fn shell_ref(name: &str) -> String {
     format!("${{{name}}}")
 }
 
-/// Cursor and VS Code.
+/// Copilot, Cursor and Devin.
 pub fn namespaced_ref(name: &str) -> String {
     format!("${{env:{name}}}")
 }

@@ -13,9 +13,9 @@ use crate::util::text::{is_js_whitespace, js_trim};
 string_enum! {
     /// The events with a real mapping in two or more harnesses, in the order reports list them.
     ///
-    /// These use Claude's `PascalCase` spellings as the neutral vocabulary. Codex and VS Code use
-    /// them verbatim, so only Cursor needs a mapping; a new, fourth spelling would mean every
-    /// harness needs one.
+    /// These use Claude's `PascalCase` spellings as the neutral vocabulary. Most harnesses use
+    /// them verbatim; Cursor, Gemini and Kiro map them (`harness/definitions.rs`), and a harness
+    /// with no counterpart for one skips hooks on it.
     pub enum HookEvent {
         SessionStart => "SessionStart",
         UserPromptSubmit => "UserPromptSubmit",

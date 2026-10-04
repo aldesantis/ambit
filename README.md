@@ -2,10 +2,10 @@
 
 **ambit is a dependency manager for AI agents.**
 
-Every agent harness (Claude Code, Codex, Copilot, Cursor, opencode) loads skills, hooks, and MCP
-servers. Today you copy those files between projects by hand, and they drift. ambit lets you keep
-them in a git repo, declare which ones a project wants, and install them into whatever harness your
-team uses.
+Every agent harness (Claude Code, Codex, Copilot, Cursor, Devin, Gemini CLI, Grok, Kiro, opencode)
+loads skills, hooks, and MCP servers. Today you copy those files between projects by hand, and they
+drift. ambit lets you keep them in a git repo, declare which ones a project wants, and install them
+into whatever harness your team uses.
 
 You write a few lines of config. ambit fetches, resolves, and writes the files.
 
@@ -145,7 +145,29 @@ pack `function.engineering`.
 Your project is also a catalog. `ambit init` lists it as one, so a skill you write locally is
 selected exactly like a skill from a shared repo.
 
-Supported harnesses: `claude`, `codex`, `copilot`, `cursor`, `opencode`.
+Supported harnesses, and where ambit writes for each:
+
+| Harness    | Tool                       | Skills           | MCP servers                | Hooks                    |
+| ---------- | -------------------------- | ---------------- | -------------------------- | ------------------------ |
+| `claude`   | Claude Code                | `.claude/skills` | `.mcp.json`                | `.claude/settings.json`  |
+| `codex`    | Codex                      | `.agents/skills` | `.codex/config.toml`       | `.codex/hooks.json`      |
+| `copilot`  | GitHub Copilot in VS Code  | `.agents/skills` | `.vscode/mcp.json`         | `.claude/settings.json`  |
+| `cursor`   | Cursor                     | `.claude/skills` | `.cursor/mcp.json`         | `.cursor/hooks.json`     |
+| `devin`    | Devin Desktop, Devin Local | `.agents/skills` | `.devin/mcp_config.json`   | `.claude/settings.json`  |
+| `gemini`   | Gemini CLI                 | `.agents/skills` | `.gemini/settings.json`    | `.gemini/settings.json`  |
+| `grok`     | Grok Build                 | `.grok/skills`   | `.grok/config.toml`        | `.claude/settings.json`  |
+| `kiro`     | Kiro                       | `.kiro/skills`   | `.kiro/settings/mcp.json`  | `.kiro/hooks/ambit.json` |
+| `opencode` | opencode                   | `.agents/skills` | `.opencode/opencode.jsonc` | none                     |
+
+Skills are always written once to `.agents/skills`. A harness that looks elsewhere gets its skills
+directory as a symlink to it. Files ambit writes into are merged, so your own entries in them stay.
+
+Some harnesses load a project's config only once you trust it:
+
+- Gemini CLI ignores `.gemini/settings.json` in a folder you have not trusted.
+- Grok loads a project's hooks and MCP servers after you run `/hooks-trust`, or start it with
+  `--trust`.
+- Kiro asks you to approve each environment variable an MCP server's config references.
 
 ## Configuring your project
 
@@ -178,7 +200,7 @@ requires:
 | Field       | Type         | Required | Notes                                                                                                                              |
 | ----------- | ------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `version`   | int          | yes      | Must be `1`.                                                                                                                       |
-| `harnesses` | string[]     | no       | Any of `claude`, `codex`, `copilot`, `cursor`, `opencode`. Default `[claude]`.                                                     |
+| `harnesses` | string[]     | no       | Any of the supported harnesses above. Default `[claude]`.                                                                          |
 | `catalogs`  | list of maps | no       | `name`, `source`, `ref?`, `path?`. `name` must be unique and hold no `/`, since it is the first half of an address. Dots are fine. |
 | `requires`  | list of maps | no       | Each entry: exactly one key of `pack`/`skill`/`mcp`/`hook`, carrying `<catalog>/<pattern>`. An entry matching nothing is an error. |
 
@@ -343,12 +365,17 @@ untouched. `${VAR}` in a `command` is left as written, since the harness runs it
 
 Hook support varies by harness:
 
-| Harness             | Written to              | Notes                                                                                         |
-| ------------------- | ----------------------- | --------------------------------------------------------------------------------------------- |
-| `claude`, `copilot` | `.claude/settings.json` | Copilot reads Claude's file natively, so it is written once.                                  |
-| `cursor`            | `.cursor/hooks.json`    | Different event names, and no `matcher` field, so a matcher is dropped.                       |
-| `codex`             | `.codex/hooks.json`     | Experimental: needs `[features] codex_hooks = true` in the user's own config. `doctor` warns. |
-| `opencode`          | —                       | No declarative hooks. A selected hook is skipped with a warning and the install succeeds.     |
+| Harness                              | Written to               | Notes                                                                                                                                                  |
+| ------------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `claude`, `copilot`, `devin`, `grok` | `.claude/settings.json`  | Copilot, Devin and Grok read Claude's file natively, so it is written once.                                                                            |
+| `cursor`                             | `.cursor/hooks.json`     | Different event names, and no `matcher` field, so a matcher is dropped.                                                                                |
+| `codex`                              | `.codex/hooks.json`      | Experimental: needs `[features] codex_hooks = true` in the user's own config. `doctor` warns.                                                          |
+| `gemini`                             | `.gemini/settings.json`  | Different event names. Claude tool names in a `matcher` are translated (`Bash` becomes `run_shell_command`). No `SubagentStop` event.                  |
+| `kiro`                               | `.kiro/hooks/ambit.json` | No `SubagentStop` or `PreCompact` trigger. A `matcher` is written as declared; Kiro matches it against its own tool names (`shell`, `read`, `write`).  |
+| `opencode`                           | none                     | No declarative hooks.                                                                                                                                  |
+
+A hook on an event a harness has no counterpart for is skipped for that harness with a warning, and
+the install succeeds.
 
 ### Packs
 
