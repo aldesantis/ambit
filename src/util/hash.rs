@@ -35,6 +35,20 @@ fn field(hasher: &mut Sha256, bytes: &[u8]) {
     hasher.update(bytes);
 }
 
+/// The digest of a sequence of fields, as [`TREE_DIGEST_PREFIX`] followed by lowercase hex.
+///
+/// Each field is fed length-prefixed, the same way [`tree_digest`] feeds a path and its payload, so
+/// no two different sequences feed the same stream.
+pub fn fields_digest<'a>(fields: impl IntoIterator<Item = &'a [u8]>) -> String {
+    let mut hasher = Sha256::new();
+
+    for bytes in fields {
+        field(&mut hasher, bytes);
+    }
+
+    format!("{TREE_DIGEST_PREFIX}{}", hex(&hasher.finalize()))
+}
+
 /// The content digest of a directory tree, as [`TREE_DIGEST_PREFIX`] followed by lowercase hex.
 ///
 /// This is the one definition of the digest `ambit.lock` records for a skill or a script hook and
@@ -85,6 +99,25 @@ mod tests {
         assert_eq!(
             sha256_hex(b""),
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+    }
+
+    #[test]
+    fn length_prefixes_each_field() {
+        let mut expected = Vec::new();
+
+        for bytes in [&b"ab"[..], b"c"] {
+            expected.extend((bytes.len() as u64).to_be_bytes());
+            expected.extend(bytes);
+        }
+
+        assert_eq!(
+            fields_digest([&b"ab"[..], b"c"]),
+            format!("{TREE_DIGEST_PREFIX}{}", sha256_hex(&expected))
+        );
+        assert_ne!(
+            fields_digest([&b"ab"[..], b"c"]),
+            fields_digest([&b"a"[..], b"bc"])
         );
     }
 

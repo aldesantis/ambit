@@ -13,8 +13,9 @@
 //!
 //! So the `catalogs` section is an input, resolved against rather than just recorded. The item
 //! sections stay a record: compared as bytes by `--frozen`, and read back by [`read_locked_items`]
-//! only so an install can check the bytes it is about to write against the digests an earlier
-//! install recorded. Nothing resolves against them.
+//! only so an install can check what it is about to write against what an earlier install
+//! recorded: the digests of its trees, and the execution each hook and MCP server carried. Nothing
+//! resolves against them.
 
 use std::path::{Path, PathBuf};
 
@@ -123,6 +124,8 @@ pub struct LockedItem {
     pub commit: Option<String>,
     /// The [`tree_digest`](crate::util::hash::tree_digest) of its directory at that commit.
     pub digest: Option<String>,
+    /// The digest of what it runs, on a hook or an MCP server. See `project/exec.rs`.
+    pub exec: Option<String>,
 }
 
 /// The item sections of an earlier lock, keyed by item name.
@@ -151,6 +154,7 @@ fn locked_section(root: &YamlMapping, key: &str) -> Result<IndexMap<String, Lock
                 path: entry.optional_string("path")?,
                 commit: entry.optional_string("commit")?,
                 digest: entry.optional_string("digest")?,
+                exec: entry.optional_string("exec")?,
             },
         );
     }
