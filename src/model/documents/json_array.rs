@@ -1,6 +1,7 @@
-//! The array-section driver: `.claude/settings.json`, `.cursor/hooks.json`, `.codex/hooks.json`.
+//! The array-section driver: `.claude/settings.json`, `.cursor/hooks.json`, `.codex/hooks.json`,
+//! `.gemini/settings.json`.
 //!
-//! Every harness writes hooks as `<Event>: [entries]`. An array has no identity key: nothing in
+//! Most harnesses write hooks as `<Event>: [entries]`. An array has no identity key: nothing in
 //! `[{"matcher": "Bash", "hooks": [...]}, ...]` says which entry a tool wrote and which a person
 //! did. So hooks cannot be merged by key the way MCP servers are.
 //!
@@ -64,7 +65,7 @@ pub fn array_entry_key(event: &str, value: &JsonValue) -> String {
 /// Exit 1 for a key this driver could not have produced. Both callers (append and remove) reach
 /// the file through such a key, so guessing at it would mean writing a duplicate hook or leaving an
 /// entry ambit claims to own in place forever.
-fn split_entry_key<'a>(key: &'a str, file: &str) -> Result<(&'a str, &'a str)> {
+pub(super) fn split_entry_key<'a>(key: &'a str, file: &str) -> Result<(&'a str, &'a str)> {
     match key.rfind(DIGEST_SEPARATOR) {
         Some(at) if at > 0 && at < key.len() - 1 => Ok((&key[..at], &key[at + 1..])),
         _ => Err(AmbitError::new(
@@ -102,6 +103,31 @@ fn keys_of(text: Option<&str>, section: &str, file: &str) -> Result<IndexSet<Str
     }
 
     Ok(keys)
+}
+
+/// The merged document: `defaults` the document lacks, then the document, with `section` set to
+/// `value`.
+///
+/// Defaults come first, so a file ambit creates reads in the order a person would write it. The
+/// document's own keys then keep their values and positions. Shared with the list driver
+/// (`json_list.rs`), which seeds root keys the same way.
+pub(super) fn with_section(
+    defaults: &JsonObject,
+    document: JsonObject,
+    section: &str,
+    value: JsonValue,
+) -> JsonObject {
+    let mut out = JsonObject::new();
+
+    for (key, default) in defaults {
+        if !document.contains_key(key) {
+            out.insert(key.clone(), default.clone());
+        }
+    }
+
+    out.extend(document);
+    out.insert(section.to_owned(), value);
+    out
 }
 
 /// The array-section driver, with the root keys it seeds on a merge.
@@ -184,20 +210,12 @@ impl DocumentDriver for ArraySectionDriver {
             merged.insert(event.to_owned(), JsonValue::Array(present));
         }
 
-        // Defaults first, so a file ambit creates reads in the order a person would write it. The
-        // document's own keys then keep their values and positions.
-        let mut out = JsonObject::new();
-
-        for (key, value) in &self.root_defaults {
-            if !document.contains_key(key) {
-                out.insert(key.clone(), value.clone());
-            }
-        }
-
-        out.extend(document);
-        out.insert(section.to_owned(), JsonValue::Object(merged));
-
-        Ok(serialize_json_document(&out))
+        Ok(serialize_json_document(&with_section(
+            &self.root_defaults,
+            document,
+            section,
+            JsonValue::Object(merged),
+        )))
     }
 
     /// The digest is the value, so presence of the key is the whole question. An entry a person

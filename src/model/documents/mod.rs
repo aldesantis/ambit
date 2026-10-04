@@ -3,6 +3,7 @@
 mod format;
 mod json;
 mod json_array;
+mod json_list;
 mod jsonc;
 mod toml;
 
@@ -12,6 +13,7 @@ pub use format::{
 };
 pub use json::JsonDriver;
 pub use json_array::{array_entry_key, array_section_driver};
+pub use json_list::{LIST_EVENT_FIELD, list_section_driver};
 pub use jsonc::JsoncDriver;
 pub use toml::TomlDriver;
 
@@ -28,13 +30,13 @@ use crate::errors::{AmbitError, ExitCode, Result};
 /// absent format reads as `json`: both fields were added after artifacts were already being
 /// recorded, and every one of those was a name-keyed JSON map.
 ///
-/// `root_defaults` are root keys to seed where the document lacks them, for an array-shaped
-/// section. `None` for every caller that only reads or removes: defaults belong to writing a
+/// `root_defaults` are root keys to seed where the document lacks them, for an array- or
+/// list-shaped section. `None` for every caller that only reads or removes: defaults belong to writing a
 /// document.
 ///
 /// # Errors
 ///
-/// Exit 1 for a format with no array-section driver. Nothing in ambit plans one, so reaching it is
+/// Exit 1 for a format with no array- or list-section driver. Nothing in ambit plans one, so reaching it is
 /// a bug, not something a person did. Falling back to the map driver would mean editing a hooks
 /// file as if its arrays were tables.
 pub fn driver_for(
@@ -49,7 +51,7 @@ pub fn driver_for(
             DocumentFormat::Toml => Box::new(TomlDriver),
         }),
         // Only JSON, because every file with an array-shaped section is JSON: Claude's
-        // `settings.json`, Cursor's `hooks.json`, Codex's `hooks.json`. A pairing nothing supports
+        // `settings.json`, Cursor's `hooks.json`, Codex's `hooks.json`, Gemini's `settings.json`. A pairing nothing supports
         // is a refusal rather than a driver that would write JSON into a `.toml`, so it cannot
         // silently corrupt a file.
         //
@@ -58,14 +60,31 @@ pub fn driver_for(
         // name.
         DocumentShape::Array => match format {
             DocumentFormat::Json => Ok(Box::new(array_section_driver(root_defaults))),
-            DocumentFormat::Jsonc | DocumentFormat::Toml => Err(AmbitError::new(
-                ExitCode::Internal,
-                format!("no {format} driver for an array-shaped section"),
-                [
-                    "every harness file ambit writes an array-shaped section into is JSON",
-                    "this is a bug in ambit; nothing a project can hold selects this pairing",
-                ],
-            )),
+            DocumentFormat::Jsonc | DocumentFormat::Toml => Err(no_driver(format, shape)),
+        },
+        // JSON only, for the same reason: the one file with a list-shaped section is Kiro's.
+        DocumentShape::List => match format {
+            DocumentFormat::Json => Ok(Box::new(list_section_driver(root_defaults))),
+            DocumentFormat::Jsonc | DocumentFormat::Toml => Err(no_driver(format, shape)),
         },
     }
+}
+
+fn no_driver(format: DocumentFormat, shape: DocumentShape) -> AmbitError {
+    let article = if shape == DocumentShape::Array {
+        "an"
+    } else {
+        "a"
+    };
+
+    AmbitError::new(
+        ExitCode::Internal,
+        format!("no {format} driver for {article} {shape}-shaped section"),
+        [
+            format!(
+                "every harness file ambit writes {article} {shape}-shaped section into is JSON"
+            ),
+            "this is a bug in ambit; nothing a project can hold selects this pairing".to_owned(),
+        ],
+    )
 }
