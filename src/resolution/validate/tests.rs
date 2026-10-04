@@ -323,6 +323,7 @@ fn config_for(catalogs: &[&str], requires: Vec<PatternEntry>) -> ProjectConfig {
                 source: format!("path:../{name}"),
                 r#ref: None,
                 path: None,
+                trust: crate::model::config::Trust::Full,
             })
             .collect(),
         requires,

@@ -13,8 +13,10 @@ use crate::model::pattern::{
     Addressing, PatternEntry, REQUIRES_KEY, entry_yaml, parse_entries, unique_entries,
 };
 use crate::model::requirement::{CATALOG_SEPARATOR, ItemKind};
+use crate::model::sources::is_path_source;
 use crate::model::yaml::{YamlEntry, YamlMapping, read_yaml_mapping};
 use crate::util::path::join;
+use crate::util::string_enum;
 
 /// The only config version this build understands.
 pub const CONFIG_VERSION: i64 = 1;
@@ -27,6 +29,32 @@ pub const DEFAULT_HARNESSES: &[&str] = &["claude"];
 /// The first is the one `ambit init` writes.
 pub const CONFIG_FILENAMES: [&str; 2] = ["ambit.yml", "ambit.yaml"];
 
+string_enum! {
+    /// How far a project trusts a catalog to introduce code that runs on its machine.
+    ///
+    /// `Review` gates a hook or a stdio MCP server that is new since the lock, or whose execution
+    /// changed (see `project/exec.rs`). `Full` installs whatever the catalog says.
+    pub enum Trust {
+        Full => "full",
+        Review => "review",
+    }
+}
+
+impl Trust {
+    /// The trust a catalog entry gets when it writes none: `Full` for a `path:` source, `Review`
+    /// for anything fetched.
+    ///
+    /// A `path:` catalog is files the project already holds, usually its own, so gating it would
+    /// gate the project's own edits. A fetched catalog is code someone else can change.
+    pub fn default_for(source: &str) -> Self {
+        if is_path_source(source) {
+            Self::Full
+        } else {
+            Self::Review
+        }
+    }
+}
+
 /// A catalog to fetch and parse.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CatalogRef {
@@ -37,6 +65,8 @@ pub struct CatalogRef {
     /// The directory inside the source that holds the catalog, `/`-separated and normalized.
     /// Absent means the source's root.
     pub path: Option<String>,
+    /// As written, or [`Trust::default_for`] its source when the entry wrote none.
+    pub trust: Trust,
 }
 
 /// Where the config came from, and where inside it the values live that a later stage judges.
@@ -89,7 +119,7 @@ pub struct FoundConfig {
 }
 
 const CONFIG_KEYS: &[&str] = &["catalogs", "harnesses", REQUIRES_KEY, "version"];
-const CATALOG_KEYS: &[&str] = &["name", "path", "ref", "source"];
+const CATALOG_KEYS: &[&str] = &["name", "path", "ref", "source", "trust"];
 
 /// The second half of every rewrite below.
 ///
@@ -393,6 +423,26 @@ fn parse_catalog_path(entry: &YamlMapping) -> Result<Option<String>> {
     Ok(Some(parts.join("/")))
 }
 
+/// A catalog's `trust`, or the default for its source when absent.
+fn parse_trust(entry: &YamlMapping, source: &str) -> Result<Trust> {
+    let Some(written) = entry.optional_string("trust")? else {
+        return Ok(Trust::default_for(source));
+    };
+
+    Trust::parse(&written).ok_or_else(|| {
+        let known: Vec<&str> = Trust::ALL.iter().map(|trust| trust.as_str()).collect();
+
+        entry.key_error(
+            "trust",
+            &format!("unknown trust \"{written}\""),
+            vec![
+                format!("`trust` is one of: {}", known.join(", ")),
+                "write `trust: review` to gate new execution from this catalog, or `trust: full` to install it as is".to_owned(),
+            ],
+        )
+    })
+}
+
 fn parse_catalogs(root: &YamlMapping) -> Result<Vec<CatalogRef>> {
     let mut tracker = NameTracker {
         file: root.file(),
@@ -412,12 +462,15 @@ fn parse_catalogs(root: &YamlMapping) -> Result<Vec<CatalogRef>> {
 
         let r#ref = entry.optional_string("ref")?;
         let path = parse_catalog_path(&entry)?;
+        let source = entry.require_string("source")?;
+        let trust = parse_trust(&entry, &source)?;
 
         catalogs.push(CatalogRef {
             name,
-            source: entry.require_string("source")?,
+            source,
             r#ref,
             path,
+            trust,
         });
     }
 

@@ -222,6 +222,7 @@ mod ambit_init {
                 source: "path:.".to_owned(),
                 r#ref: None,
                 path: None,
+                trust: crate::model::config::Trust::Full,
             }]
         );
         // Nothing selected, which is what keeps `ambit validate` clean on a fresh project: an entry

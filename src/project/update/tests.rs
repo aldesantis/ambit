@@ -320,6 +320,7 @@ fn config(catalogs: &[&str]) -> ProjectConfig {
                 source: format!("path:{name}"),
                 r#ref: None,
                 path: None,
+                trust: crate::model::config::Trust::Full,
             })
             .collect(),
         requires: Vec::new(),

@@ -84,12 +84,14 @@ fn parses_the_specs_own_example_into_a_typed_object() {
                     source: "git@github.com:acme/skills.git".to_owned(),
                     r#ref: Some("a1b2c3d4".to_owned()),
                     path: None,
+                    trust: Trust::Review,
                 },
                 CatalogRef {
                     name: "personal".to_owned(),
                     source: "git@github.com:jane/skills-private.git".to_owned(),
                     r#ref: Some("main".to_owned()),
                     path: None,
+                    trust: Trust::Review,
                 },
             ],
             requires: vec![
@@ -202,7 +204,31 @@ fn omits_an_absent_catalog_ref_rather_than_inventing_one() {
             source: "acme/skills".to_owned(),
             r#ref: None,
             path: None,
+            trust: Trust::Review,
         }
+    );
+}
+
+#[test]
+fn reviews_a_fetched_catalog_and_trusts_a_path_one_unless_told_otherwise() {
+    let config = parse(
+        "version: 1\ncatalogs:\n  - name: a\n    source: acme/skills\n  - name: b\n    source: git:ssh://host/x.git\n  - name: c\n    source: path:../c\n  - name: d\n    source: acme/skills\n    trust: full\n  - name: e\n    source: path:.\n    trust: review\n",
+    );
+    let trust: Vec<Trust> = config
+        .catalogs
+        .iter()
+        .map(|catalog| catalog.trust)
+        .collect();
+
+    assert_eq!(
+        trust,
+        [
+            Trust::Review,
+            Trust::Review,
+            Trust::Full,
+            Trust::Full,
+            Trust::Review
+        ]
     );
 }
 
@@ -350,6 +376,21 @@ mod rejections {
         assert!(error.format().contains(&format!(
             "catalog path \"x/../../y\" leaves its source ({FILE} line 5)"
         )));
+    }
+
+    #[test]
+    fn rejects_a_trust_it_does_not_know_naming_the_ones_it_does() {
+        let error =
+            rejection("version: 1\ncatalogs:\n  - name: c\n    source: a/b\n    trust: some\n");
+
+        assert!(
+            error
+                .format()
+                .contains(&format!("unknown trust \"some\" ({FILE} line 5)")),
+            "{}",
+            error.format()
+        );
+        assert!(error.format().contains("`trust` is one of: full, review"));
     }
 
     #[test]
