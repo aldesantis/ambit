@@ -11,8 +11,10 @@
 //! `ref: main`: a cold CI clone resolves `main` to today's commit and fails against a lock written
 //! last week.
 //!
-//! So the `catalogs` section is an input, resolved against rather than just recorded. Every other
-//! section stays a record, compared as bytes rather than consumed; see `project/lock.rs`.
+//! So the `catalogs` section is an input, resolved against rather than just recorded. The item
+//! sections stay a record: compared as bytes by `--frozen`, and read back by [`read_locked_items`]
+//! only so an install can check the bytes it is about to write against the digests an earlier
+//! install recorded. Nothing resolves against them.
 
 use std::path::{Path, PathBuf};
 
@@ -22,7 +24,7 @@ use crate::errors::{AmbitError, Result, config_error};
 use crate::model::config::ProjectConfig;
 use crate::model::git::is_commit_sha;
 use crate::model::sources::{Source, SourceRequest, parse_source};
-use crate::model::yaml::parse_yaml_mapping;
+use crate::model::yaml::{YamlMapping, parse_yaml_mapping};
 use crate::util::fs::{io_message, read_text_opt};
 use crate::util::path::join;
 
@@ -87,6 +89,98 @@ fn unsupported_version(found: i64) -> AmbitError {
     )
 }
 
+/// The lock parsed as a mapping, with its version checked, or `None` when the project has none.
+///
+/// # Errors
+///
+/// Exit 2 for an unreadable lock, a malformed document, or a version this build cannot read.
+fn read_lock_root(project_dir: &Path) -> Result<Option<YamlMapping>> {
+    let Some(text) = read_lock_text(project_dir)? else {
+        return Ok(None);
+    };
+
+    let root = parse_yaml_mapping(&text, LOCK_FILENAME)?;
+    let version = root.require_integer("version")?;
+
+    if version != LOCK_VERSION {
+        return Err(unsupported_version(version));
+    }
+
+    Ok(Some(root))
+}
+
+/// One `skills`, `mcps` or `hooks` entry as an earlier install recorded it.
+///
+/// Every field is optional, whatever the entry's kind requires when ambit writes it: a lock from an
+/// older build has no `digest`, and a hand-edited one may lack anything else. A reader decides what
+/// an absent field means for its own comparison.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LockedItem {
+    pub catalog: Option<String>,
+    /// The item's directory within its catalog, `/`-separated.
+    pub path: Option<String>,
+    /// The commit its bytes came from.
+    pub commit: Option<String>,
+    /// The [`tree_digest`](crate::util::hash::tree_digest) of its directory at that commit.
+    pub digest: Option<String>,
+}
+
+/// The item sections of an earlier lock, keyed by item name.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LockedItems {
+    pub skills: IndexMap<String, LockedItem>,
+    pub mcps: IndexMap<String, LockedItem>,
+    pub hooks: IndexMap<String, LockedItem>,
+}
+
+/// One item section, absent read as empty.
+fn locked_section(root: &YamlMapping, key: &str) -> Result<IndexMap<String, LockedItem>> {
+    let Some(section) = root.optional_mapping(key)? else {
+        return Ok(IndexMap::new());
+    };
+
+    let mut items = IndexMap::new();
+
+    for name in section.keys() {
+        let entry = section.require_mapping(&name)?;
+
+        items.insert(
+            name,
+            LockedItem {
+                catalog: entry.optional_string("catalog")?,
+                path: entry.optional_string("path")?,
+                commit: entry.optional_string("commit")?,
+                digest: entry.optional_string("digest")?,
+            },
+        );
+    }
+
+    Ok(items)
+}
+
+/// What the project's lock recorded about each skill, MCP server and hook, or `None` when it has
+/// no lock.
+///
+/// Read so an install can compare what it is about to write against what an earlier install wrote
+/// (see `verify_digests` in `project/lock.rs`). As with the `catalogs` section, keys this build
+/// does not read are ignored, so a lock written by a later ambit still reads.
+///
+/// # Errors
+///
+/// Exit 2 for an unreadable lock, a version this build cannot read, a malformed document, or a
+/// field holding something other than a string.
+pub fn read_locked_items(project_dir: &Path) -> Result<Option<LockedItems>> {
+    let Some(root) = read_lock_root(project_dir)? else {
+        return Ok(None);
+    };
+
+    Ok(Some(LockedItems {
+        skills: locked_section(&root, "skills")?,
+        mcps: locked_section(&root, "mcps")?,
+        hooks: locked_section(&root, "hooks")?,
+    }))
+}
+
 /// Reads the `catalogs` section back.
 ///
 /// Failures are fatal. A lock is an input, so a version this build does not know and a document
@@ -102,16 +196,9 @@ fn unsupported_version(found: i64) -> AmbitError {
 /// Exit 2 for an unreadable lock, a version this build cannot read, a malformed document, or a
 /// `commit` that is not a full SHA.
 fn read_recorded_catalogs(project_dir: &Path) -> Result<Option<IndexMap<String, RecordedCatalog>>> {
-    let Some(text) = read_lock_text(project_dir)? else {
+    let Some(root) = read_lock_root(project_dir)? else {
         return Ok(None);
     };
-
-    let root = parse_yaml_mapping(&text, LOCK_FILENAME)?;
-    let version = root.require_integer("version")?;
-
-    if version != LOCK_VERSION {
-        return Err(unsupported_version(version));
-    }
 
     let Some(catalogs) = root.optional_mapping("catalogs")? else {
         return Ok(Some(IndexMap::new()));

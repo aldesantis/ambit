@@ -299,6 +299,7 @@ pub fn authorize_plan(
             managed_keys: None,
             format: None,
             shape: None,
+            digest: None,
         });
     }
 

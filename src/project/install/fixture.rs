@@ -365,6 +365,7 @@ pub fn owned(path: &str, kind: crate::model::state::ArtifactKind, mode: &str) ->
         managed_keys: None,
         format: None,
         shape: None,
+        digest: None,
     }
 }
 
@@ -382,5 +383,6 @@ pub fn config(
         managed_keys: Some(keys),
         format: Some(format),
         shape,
+        digest: None,
     }
 }

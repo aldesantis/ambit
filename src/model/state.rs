@@ -78,6 +78,13 @@ pub struct OwnedArtifact {
     /// than a table keyed by name. Absent reads as `map`, which is what every artifact written
     /// before this field existed was.
     pub shape: Option<DocumentShape>,
+    /// Set for a copied `skill-dir` or `hook-dir`: the
+    /// [`tree_digest`](crate::util::hash::tree_digest) of the directory as install wrote it.
+    ///
+    /// Lets `status` tell a copy edited since install from one whose source moved on, by hashing
+    /// the copy alone. Absent for a link, which has no bytes of its own, and for anything written
+    /// before this field existed, which `status` compares file by file instead.
+    pub digest: Option<String>,
 }
 
 /// The contents of `.ambit/state.json`.
@@ -116,6 +123,10 @@ pub fn owned_paths(state: &State) -> IndexSet<String> {
 
 fn artifact_json(artifact: &OwnedArtifact) -> JsonValue {
     let mut object = JsonObject::new();
+
+    if let Some(digest) = &artifact.digest {
+        object.insert("digest".to_owned(), json!(digest));
+    }
 
     if let Some(format) = artifact.format {
         object.insert("format".to_owned(), json!(format.as_str()));
@@ -277,6 +288,16 @@ fn parse_artifact(value: &JsonValue, file: &str, index: usize) -> Result<OwnedAr
         file,
         &label,
     )?;
+    let digest = match record.get("digest") {
+        None => None,
+        Some(JsonValue::String(digest)) => Some(digest.clone()),
+        Some(_) => {
+            return Err(state_error(
+                file,
+                &format!("\"{label}.digest\" must be a string"),
+            ));
+        }
+    };
     let managed_keys = match record.get("managedKeys") {
         None => None,
         Some(keys) => Some(string_list(
@@ -293,6 +314,7 @@ fn parse_artifact(value: &JsonValue, file: &str, index: usize) -> Result<OwnedAr
         managed_keys,
         format,
         shape,
+        digest,
     })
 }
 
@@ -408,6 +430,7 @@ mod tests {
             managed_keys: None,
             format: None,
             shape: None,
+            digest: None,
         }
     }
 
@@ -428,6 +451,7 @@ mod tests {
                 },
                 OwnedArtifact {
                     mode: Some(ArtifactMode::Copy),
+                    digest: Some("sha256-abc".to_owned()),
                     ..artifact(".claude/skills/a", ArtifactKind::SkillDir)
                 },
             ],
@@ -441,6 +465,7 @@ mod tests {
             r#"{
   "artifacts": [
     {
+      "digest": "sha256-abc",
       "kind": "skill-dir",
       "mode": "copy",
       "path": ".claude/skills/a"

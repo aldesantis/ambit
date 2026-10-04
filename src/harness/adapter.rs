@@ -193,6 +193,7 @@ impl From<&PlannedArtifact> for OwnedArtifact {
             managed_keys: config.map(|config| config.managed_keys.clone()),
             format: config.map(|config| config.format),
             shape: config.and_then(|config| config.shape),
+            digest: None,
         }
     }
 }
