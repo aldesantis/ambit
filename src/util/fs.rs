@@ -72,6 +72,65 @@ pub fn read_dir_names(dir: &Path) -> io::Result<Vec<String>> {
     Ok(names)
 }
 
+/// One file or symlink under a directory, as [`walk_tree`] lists it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TreeEntry {
+    /// Relative to the walked directory, `/`-separated.
+    pub relative: String,
+    /// [`EntryKind::File`], [`EntryKind::Symlink`] or [`EntryKind::Other`]; never a directory.
+    pub kind: EntryKind,
+}
+
+/// Every entry under `dir` that is not a directory, sorted by [`js_cmp`] on the relative path.
+///
+/// Directories are descended rather than listed, so an empty one leaves no trace. A symlink is
+/// listed as itself and never followed, whatever it points at.
+///
+/// # Errors
+///
+/// Any I/O error, `NotFound` included, from listing a directory or inspecting an entry.
+///
+/// [`js_cmp`]: crate::util::cmp::js_cmp
+pub fn walk_tree(dir: &Path) -> io::Result<Vec<TreeEntry>> {
+    fn walk(current: &Path, relative: &str, found: &mut Vec<TreeEntry>) -> io::Result<()> {
+        for name in read_dir_names(current)? {
+            let within = if relative.is_empty() {
+                name.clone()
+            } else {
+                format!("{relative}/{name}")
+            };
+            let entry = current.join(&name);
+            let kind = lstat_kind(&entry)?;
+
+            if kind == EntryKind::Dir {
+                walk(&entry, &within, found)?;
+            } else {
+                found.push(TreeEntry {
+                    relative: within,
+                    kind,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    let mut found = Vec::new();
+
+    walk(dir, "", &mut found)?;
+    found.sort_by(|a, b| crate::util::cmp::js_cmp(&a.relative, &b.relative));
+    Ok(found)
+}
+
+/// What a symlink says, unresolved, with `/` separators.
+///
+/// # Errors
+///
+/// Any I/O error, including `p` not being a symlink.
+pub fn read_link_text(p: &Path) -> io::Result<String> {
+    Ok(crate::util::path::to_slash(&fs::read_link(p)?))
+}
+
 /// `fs.rm(p, { recursive: true, force: true })`: removes a file, a symlink (never following it), or
 /// a directory tree. An absent path is not an error.
 ///
@@ -131,37 +190,47 @@ pub fn write_text(p: &Path, text: &str) -> io::Result<()> {
     fs::write(p, text)
 }
 
-/// `fs.cp(src, dst, { recursive: true })`.
+/// `fs.cp(src, dst, { recursive: true })`, keeping links inside the copied tree relative.
 ///
-/// Files keep their permissions. A symlink is recreated rather than followed, and a relative target
-/// is first resolved against the source link's own directory, as Node does without
-/// `verbatimSymlinks`, so the copy still points at what the original pointed at. Existing files at
-/// the destination are overwritten.
+/// Files keep their permissions. A symlink is recreated rather than followed. A relative link that
+/// resolves inside `src` is recreated as written, since the same relative path names the same file
+/// in the copy. Any other relative link is resolved against the source link's own directory and
+/// recreated as that absolute path, so the copy still points at what the original pointed at.
+/// Keeping in-tree links verbatim is what lets a copied directory hash to the same
+/// [`tree_digest`](crate::util::hash::tree_digest) as its source. Existing files at the destination
+/// are overwritten.
 ///
 /// # Errors
 ///
 /// Any I/O error.
 pub fn copy_tree(src: &Path, dst: &Path) -> io::Result<()> {
+    copy_entry(&normalize(src), src, dst)
+}
+
+/// One entry of [`copy_tree`]. `root` is the normalized top of the tree being copied.
+fn copy_entry(root: &Path, src: &Path, dst: &Path) -> io::Result<()> {
     let metadata = fs::symlink_metadata(src)?;
     let file_type = metadata.file_type();
 
     if file_type.is_symlink() {
         let target = fs::read_link(src)?;
         let resolved = if target.has_root() {
-            target
+            target.clone()
         } else {
             let parent = src.parent().unwrap_or_else(|| Path::new(""));
-            normalize(&parent.join(target))
+            normalize(&parent.join(&target))
         };
+        let inside = !target.has_root() && resolved != root && resolved.starts_with(root);
+        let written = if inside { target } else { resolved.clone() };
 
         if fs::symlink_metadata(dst).is_ok() {
             rm_rf(dst)?;
         }
 
         return if fs::metadata(&resolved).is_ok_and(|m| m.is_dir()) {
-            symlink_dir(&resolved, dst)
+            symlink_dir(&written, dst)
         } else {
-            symlink_file(&resolved, dst)
+            symlink_file(&written, dst)
         };
     }
 
@@ -172,7 +241,7 @@ pub fn copy_tree(src: &Path, dst: &Path) -> io::Result<()> {
         names.sort_by(|a, b| crate::util::cmp::js_cmp(a, b));
 
         for name in names {
-            copy_tree(&src.join(&name), &dst.join(&name))?;
+            copy_entry(root, &src.join(&name), &dst.join(&name))?;
         }
 
         fs::set_permissions(dst, metadata.permissions())?;
@@ -413,6 +482,50 @@ mod tests {
         assert_eq!(
             fs::read_link(dst.join("link")).unwrap(),
             dir.path().join("outside")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn copies_links_inside_the_tree_verbatim() {
+        let dir = tempdir();
+        let src = dir.path().join("src");
+        mkdir_p(&src.join("sub")).unwrap();
+        write_text(&src.join("data.txt"), "d").unwrap();
+        symlink_file(Path::new("../data.txt"), &src.join("sub/link")).unwrap();
+
+        let dst = dir.path().join("dst");
+        copy_tree(&src, &dst).unwrap();
+
+        assert_eq!(
+            read_link_text(&dst.join("sub/link")).unwrap(),
+            "../data.txt"
+        );
+        assert_eq!(read_text(&dst.join("sub/link")).unwrap(), "d");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn walks_files_and_links_in_order_skipping_empty_directories() {
+        let dir = tempdir();
+        mkdir_p(&dir.path().join("b/empty")).unwrap();
+        write_text(&dir.path().join("b/z"), "").unwrap();
+        write_text(&dir.path().join("a"), "").unwrap();
+        symlink_file(Path::new("a"), &dir.path().join("c")).unwrap();
+
+        let entries = with_read_order(ReadOrder::Reversed, || walk_tree(dir.path()).unwrap());
+        let listed: Vec<(&str, EntryKind)> = entries
+            .iter()
+            .map(|entry| (entry.relative.as_str(), entry.kind))
+            .collect();
+
+        assert_eq!(
+            listed,
+            [
+                ("a", EntryKind::File),
+                ("b/z", EntryKind::File),
+                ("c", EntryKind::Symlink)
+            ]
         );
     }
 
