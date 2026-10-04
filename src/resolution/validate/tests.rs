@@ -322,6 +322,7 @@ fn config_for(catalogs: &[&str], requires: Vec<PatternEntry>) -> ProjectConfig {
                 name: s(name),
                 source: format!("path:../{name}"),
                 r#ref: None,
+                path: None,
             })
             .collect(),
         requires,
@@ -686,7 +687,7 @@ fn validate_lists_a_mismatch_as_a_problem_instead_of_stopping_the_run_at_it() {
     let found = fixture.report();
 
     assert_eq!(validated.code, ExitCode::Resolution);
-    // The mismatch alone would be exit 2 anywhere else; here it is one entry of a longer list.
+    // Every other command takes the path's name in silence; here the mismatch is reported.
     assert_eq!(kinds(&found), ["name-mismatch", "unmatched-pattern"]);
     assert!(
         found.problems[0]
@@ -716,15 +717,15 @@ fn validate_goes_on_to_check_the_misnamed_skill_under_the_name_its_path_derives(
 }
 
 #[test]
-fn a_mismatch_still_exits_2_outside_validation() {
+fn a_mismatch_is_not_an_error_outside_validation() {
     let fixture = Fixture::new();
 
     fixture.write_misnamed_skill("misnamed-thing", "wrong-name");
 
     let result = fixture.cli(&["search", "*"]);
 
-    assert_eq!(result.code, ExitCode::Config);
-    assert!(result.stderr.contains("does not match its path"));
+    assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
+    assert!(result.stdout.contains("misnamed-thing"));
 }
 
 // A name two catalogs provide is not a `validate` finding: nothing is dropped, both copies are

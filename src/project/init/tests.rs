@@ -221,6 +221,7 @@ mod ambit_init {
                 name: "local".to_owned(),
                 source: "path:.".to_owned(),
                 r#ref: None,
+                path: None,
             }]
         );
         // Nothing selected, which is what keeps `ambit validate` clean on a fresh project: an entry

@@ -419,12 +419,38 @@ mod catalog_parsing_failures {
     use super::*;
 
     #[test]
-    fn rejects_a_skill_whose_frontmatter_name_disagrees_with_its_path() {
+    fn takes_the_paths_name_for_a_skill_whose_frontmatter_name_disagrees() {
         let fixture = Fixture::new();
 
         fixture.write_catalog_file(CODE_REVIEW, "---\nname: wrong-name\ndescription: x\n---\n");
 
-        let error = fixture.rejection();
+        let catalog = fixture.parse().unwrap();
+        let skills = names(&catalog.skills, |skill| &skill.name);
+
+        assert!(skills.contains(&"code-review".to_owned()));
+        assert!(!skills.contains(&"wrong-name".to_owned()));
+    }
+
+    #[test]
+    fn describes_a_collected_name_disagreement() {
+        let fixture = Fixture::new();
+
+        fixture.write_catalog_file(CODE_REVIEW, "---\nname: wrong-name\ndescription: x\n---\n");
+
+        let mut collected = Vec::new();
+
+        parse_catalog_directory(
+            CATALOG_NAME,
+            "path:../catalog",
+            &fixture.catalog_dir,
+            None,
+            &mut CatalogParseOptions {
+                collect: Some(&mut collected),
+            },
+        )
+        .unwrap();
+
+        let error = collected.remove(0);
 
         assert!(
             error
@@ -761,6 +787,59 @@ mod catalog_sources {
     }
 
     #[test]
+    fn reads_the_catalog_at_a_path_inside_its_source() {
+        let fixture = Fixture::new();
+
+        fixture.write_config(&format!(
+            "version: 1\ncatalogs:\n  - name: {CATALOG_NAME}\n    source: path:..\n    path: catalog\n"
+        ));
+
+        let config = load_project_config(&fixture.project_dir).unwrap();
+        let catalogs = load_catalogs(
+            &config,
+            &fixture.context(),
+            &mut CatalogLoadOptions::default(),
+        )
+        .unwrap();
+
+        assert_eq!(catalogs[0].root, fixture.catalog_dir);
+        assert_eq!(catalogs[0].skills, fixture.parse().unwrap().skills);
+    }
+
+    #[test]
+    fn rejects_a_catalog_path_that_is_not_a_directory() {
+        let fixture = Fixture::new();
+
+        fixture.write_config(&format!(
+            "version: 1\ncatalogs:\n  - name: {CATALOG_NAME}\n    source: path:..\n    path: missing\n"
+        ));
+
+        let result = fixture.cli(&["search", "*"]);
+
+        assert_eq!(result.code, ExitCode::Config);
+        assert!(result.stderr.contains(&format!(
+            "catalog \"{CATALOG_NAME}\" has no directory at path \"missing\""
+        )));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_a_catalog_path_that_links_outside_its_source() {
+        let fixture = Fixture::new();
+
+        std::os::unix::fs::symlink(&fixture.catalog_dir, fixture.project_dir.join("escape"))
+            .unwrap();
+        fixture.write_config(&format!(
+            "version: 1\ncatalogs:\n  - name: {CATALOG_NAME}\n    source: path:.\n    path: escape\n"
+        ));
+
+        let result = fixture.cli(&["search", "*"]);
+
+        assert_eq!(result.code, ExitCode::Config);
+        assert!(result.stderr.contains("leads outside the source"));
+    }
+
+    #[test]
     fn rejects_a_source_in_no_recognized_format() {
         let fixture = Fixture::new();
 
@@ -1002,16 +1081,16 @@ mod ambit_search {
     }
 
     #[test]
-    fn exits_2_on_a_skill_name_that_disagrees_with_its_path() {
+    fn lists_a_skill_whose_name_disagrees_with_its_path_under_the_paths_name() {
         let fixture = Fixture::new();
 
         fixture.write_catalog_file(CODE_REVIEW, "---\nname: wrong-name\n---\n");
 
-        let result = fixture.cli(&["search", "*", "--json"]);
+        let result = fixture.cli(&["search", "*"]);
 
-        assert_eq!(result.code, ExitCode::Config);
-        assert_eq!(result.stdout, "");
-        assert!(result.stderr.contains("does not match its path"));
+        assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
+        assert!(result.stdout.contains("code-review"));
+        assert!(!result.stdout.contains("wrong-name"));
     }
 
     #[test]
