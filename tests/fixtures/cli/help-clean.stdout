@@ -1,10 +1,10 @@
-Usage: ambit clean [options]
-
 remove everything ambit owns
 
+Usage: ambit clean [OPTIONS]
+
 Options:
-  --dry-run        print the plan without touching disk
-  --project <dir>  project directory
-  --json           machine-readable output
-  --offline        use only cached catalogs
-  --help           show usage
+      --dry-run        print the plan without touching disk
+      --project <dir>  project directory
+      --json           machine-readable output
+      --offline        use only cached catalogs
+  -h, --help           Print help

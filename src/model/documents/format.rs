@@ -145,7 +145,7 @@ pub fn read_document_text(target: &Path, file: &str) -> Result<Option<String>> {
         config_error(
             format!("cannot read {file}"),
             [
-                fs::io_message(&error, "open", target),
+                fs::io_message(&error, target),
                 format!(
                     "make {} readable, or move it aside so ambit can write a fresh one",
                     target.display()

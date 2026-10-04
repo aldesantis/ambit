@@ -1,2 +1,6 @@
-error: missing required argument 'pattern'
-(run `ambit --help` for usage)
+error: the following required arguments were not provided:
+  <pattern>
+
+Usage: ambit search <pattern>
+
+For more information, try '--help'.

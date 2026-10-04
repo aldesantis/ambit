@@ -352,7 +352,7 @@ pub fn read_gitignore_text(project_dir: &Path, file: &str) -> Result<Option<Stri
         config_error(
             format!("cannot read {file}"),
             [
-                fs::io_message(&error, "open", &target),
+                fs::io_message(&error, &target),
                 format!(
                     "make {} readable, so ambit can rewrite its own block without discarding the rest",
                     target.display()

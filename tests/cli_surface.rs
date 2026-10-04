@@ -2,7 +2,9 @@
 //!
 //! Every case in `tests/fixtures/cli/cases.json` ends in help, the version, a usage error or a
 //! flag rule, so none reaches a handler. The binary runs with a cleared environment and piped
-//! stdout, so help wraps at the default 80 columns whatever terminal runs the suite.
+//! stdout, so help wraps at the default 100 columns whatever terminal runs the suite.
+//!
+//! `UPDATE_GOLDEN=1 cargo test` rewrites the recorded output from the binary's.
 #![allow(clippy::disallowed_methods)] // std::fs reads the fixtures.
 
 use std::fs;
@@ -18,6 +20,10 @@ fn fixtures() -> PathBuf {
 
 fn read(name: &str) -> String {
     fs::read_to_string(fixtures().join(name)).unwrap_or_else(|error| panic!("{name}: {error}"))
+}
+
+fn write(name: &str, contents: &[u8]) {
+    fs::write(fixtures().join(name), contents).unwrap_or_else(|error| panic!("{name}: {error}"));
 }
 
 /// Case name to argv, in the order recorded.
@@ -64,6 +70,16 @@ fn reproduces_every_recorded_case() {
         }
 
         let output = command.output().expect("ambit runs");
+
+        if std::env::var("UPDATE_GOLDEN").as_deref() == Ok("1") {
+            let code = output.status.code().expect("an exit code");
+
+            write(&format!("{name}.stdout"), &output.stdout);
+            write(&format!("{name}.stderr"), &output.stderr);
+            write(&format!("{name}.code"), format!("{code}\n").as_bytes());
+            continue;
+        }
+
         let code: i32 = read(&format!("{name}.code"))
             .trim()
             .parse()

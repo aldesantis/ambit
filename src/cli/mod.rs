@@ -1,15 +1,9 @@
 //! The program: parsing argv against the declared surface, dispatching to a handler, and turning
 //! every outcome into an exit code.
-//!
-//! The parser (`parser.rs`) and help renderer (`help.rs`) follow commander 15's behaviour for the
-//! subset ambit uses, the layout and error wording ambit's usage text has always had.
 
 pub mod commands;
 pub mod handlers;
-pub mod help;
 pub mod output;
-pub mod parser;
-pub mod suggest;
 
 #[cfg(test)]
 mod tests;
@@ -17,8 +11,11 @@ mod tests;
 use std::io::{IsTerminal as _, Write as _};
 use std::path::Path;
 
+use clap::{ArgAction, ArgMatches, CommandFactory as _};
+use indexmap::IndexMap;
+
 use crate::cli::commands::{
-    CommandContext, CommandHandlers, CommandRules, CommandSpec, command_specs, handler,
+    Cli, CommandContext, CommandHandlers, CommandOptions, CommandRules, OptionValue, handler,
     not_implemented, rule,
 };
 use crate::cli::handlers::outdated::refuses_offline_rule;
@@ -27,22 +24,20 @@ use crate::cli::handlers::{
     clean, doctor, export, init, install, outdated, prune, resolve, search, self_update, status,
     update, validate, why,
 };
-use crate::cli::help::{DEFAULT_HELP_WIDTH, format_help};
-use crate::cli::parser::{HELP_AFTER_ERROR, Parsed, Stop};
 use crate::errors::{AmbitError, ExitCode};
 use crate::util::env::Env;
-use crate::version::VERSION;
+
+/// The widest help wraps to, and its width when stdout is not a terminal: clap's own defaults,
+/// fixed here so clap never reads the terminal or `COLUMNS` itself.
+pub const MAX_HELP_WIDTH: usize = 100;
 
 /// Where a command's output goes, one line at a time.
 pub trait Io {
     fn stdout(&mut self, line: &str);
     fn stderr(&mut self, line: &str);
 
-    /// The columns usage wraps to on stdout (`error` false) or stderr (`error` true): the
-    /// terminal's width when that stream is one, as commander's `getOutHelpWidth` and
-    /// `getErrHelpWidth` read it. `None` means [`DEFAULT_HELP_WIDTH`].
-    fn help_width(&self, error: bool) -> Option<usize> {
-        let _ = error;
+    /// The terminal's width when stdout is one. `None` means [`MAX_HELP_WIDTH`].
+    fn help_width(&self) -> Option<usize> {
         None
     }
 }
@@ -61,22 +56,13 @@ impl Io for StdIo {
         let _ = writeln!(std::io::stderr().lock(), "{line}");
     }
 
-    fn help_width(&self, error: bool) -> Option<usize> {
-        let size = if error {
-            let stream = std::io::stderr();
+    fn help_width(&self) -> Option<usize> {
+        let stream = std::io::stdout();
 
-            stream
-                .is_terminal()
-                .then(|| terminal_size::terminal_size_of(stream))
-        } else {
-            let stream = std::io::stdout();
-
-            stream
-                .is_terminal()
-                .then(|| terminal_size::terminal_size_of(stream))
-        };
-
-        size.flatten()
+        stream
+            .is_terminal()
+            .then(|| terminal_size::terminal_size_of(stream))
+            .flatten()
             .map(|(terminal_size::Width(columns), _)| usize::from(columns))
     }
 }
@@ -100,12 +86,8 @@ impl Io for CaptureIo {
     }
 }
 
-/// Handlers, keyed by the words a user types. Every command the surface declares has one here; a
-/// command added without an entry reports itself unimplemented (exit 1) rather than silently
-/// succeeding.
-///
-/// Entries have no spaces: the surface is flat. A group, were one declared, would still have no
-/// entry here, since it holds commands and runs none itself.
+/// Handlers, keyed by command name. Every command the surface declares has one here; a command
+/// added without an entry reports itself unimplemented (exit 1) rather than silently succeeding.
 pub fn handlers() -> CommandHandlers {
     CommandHandlers::from_iter([
         ("export".to_owned(), handler(export::export_handler)),
@@ -128,16 +110,16 @@ pub fn handlers() -> CommandHandlers {
     ])
 }
 
-/// Flag rules, keyed by the same words [`handlers`] is: what each command refuses about the flags
+/// Flag rules, keyed by command name as [`handlers`] is: what each command refuses about the flags
 /// it was given, before dispatch.
 ///
 /// Three commands need one, and all three refuse `--offline`. `outdated` and `update` share a rule,
 /// since both refuse for the same reason: only a remote knows where a ref points now. `self-update`
 /// refuses for a different reason (no cache holds a binary it has not downloaded), so it carries
-/// its own wording. Rules exist instead of a parser-level "mandatory option" because that produces
-/// a message that names no file and gives no next step. `install`'s `--copy`/`--link` still uses a
-/// declared conflict, since the parser's wording for two flags that cannot appear together already
-/// says everything needed.
+/// its own wording. Rules exist instead of a clap-level conflict because that produces a message
+/// that names no file and gives no next step. `install`'s `--copy`/`--link` still uses a declared
+/// conflict, since clap's wording for two flags that cannot appear together already says
+/// everything needed.
 pub fn rules() -> CommandRules {
     CommandRules::from_iter([
         ("outdated".to_owned(), rule(refuses_offline_rule)),
@@ -157,9 +139,8 @@ pub fn run(argv: &[String], cwd: &Path, env: &Env, io: &mut dyn Io) -> ExitCode 
 /// Runs the CLI and returns the process exit code. Never fails: every failure path is translated
 /// into an exit code, with the message already printed.
 ///
-/// Usage errors print `error: …` then ``(run `ambit --help` for usage)`` to stderr, exit 2.
-/// `--help` and bare `ambit` print usage to stdout, exit 0. An [`AmbitError`] prints its
-/// `format()` and exits with its code.
+/// Usage errors print clap's message to stderr and exit 2. `--help`, `--version` and bare `ambit`
+/// print to stdout and exit 0. An [`AmbitError`] prints its `format()` and exits with its code.
 pub fn run_with(
     argv: &[String],
     cwd: &Path,
@@ -168,67 +149,38 @@ pub fn run_with(
     handlers: &CommandHandlers,
     rules: &CommandRules,
 ) -> ExitCode {
-    run_surface(&command_specs(), argv, cwd, env, io, handlers, rules)
-}
-
-/// [`run_with`] against an arbitrary surface, so the group seam no shipped command uses can be
-/// exercised.
-pub fn run_surface(
-    specs: &[CommandSpec],
-    argv: &[String],
-    cwd: &Path,
-    env: &Env,
-    io: &mut dyn Io,
-    handlers: &CommandHandlers,
-    rules: &CommandRules,
-) -> ExitCode {
-    let program = parser::program(specs, VERSION);
-    let width = |io: &dyn Io, error: bool| io.help_width(error).unwrap_or(DEFAULT_HELP_WIDTH);
+    let width = io
+        .help_width()
+        .map_or(MAX_HELP_WIDTH, |width| width.min(MAX_HELP_WIDTH));
+    let mut program = Cli::command().term_width(width);
 
     // Bare `ambit` is a request for usage, not a mistake.
     if argv.is_empty() {
-        io.stdout(&format_help(&program, width(io, false)));
+        io.stdout(program.render_help().to_string().trim_end());
 
         return ExitCode::Success;
     }
 
-    let (command, options, args) = match parser::parse(&program, argv) {
-        Ok(Parsed::Action {
-            command,
-            options,
-            args,
-        }) => (command, options, args),
-        Ok(Parsed::Nothing) => return ExitCode::Success,
-        Err(Stop::Help(command)) => {
-            io.stdout(&format_help(command, width(io, false)));
+    let words = std::iter::once("ambit").chain(argv.iter().map(String::as_str));
+    let matches = match program.try_get_matches_from_mut(words) {
+        Ok(matches) => matches,
+        Err(error) => {
+            let text = error.render().to_string();
 
-            return ExitCode::Success;
-        }
-        Err(Stop::HelpError(command)) => {
-            io.stderr(&format_help(command, width(io, true)));
+            if error.use_stderr() {
+                io.stderr(text.trim_end());
+            } else {
+                io.stdout(text.trim_end());
+            }
 
-            return ExitCode::Config;
-        }
-        Err(Stop::Version(version)) => {
-            io.stdout(&version);
-
-            return ExitCode::Success;
-        }
-        Err(Stop::Usage(message)) => {
-            io.stderr(&message);
-            io.stderr(HELP_AFTER_ERROR);
-
-            return ExitCode::Config;
+            return if error.exit_code() == 0 {
+                ExitCode::Success
+            } else {
+                ExitCode::Config
+            };
         }
     };
-
-    // A group is a request for usage, not a mistake, exactly like bare `ambit`.
-    if !command.acts {
-        io.stdout(&format_help(command, width(io, false)));
-
-        return ExitCode::Success;
-    }
-
+    let (key, options, args) = invocation(&program, &matches);
     let mut ctx = CommandContext {
         options,
         args,
@@ -237,7 +189,7 @@ pub fn run_surface(
         io,
     };
 
-    match dispatch(&command.key, &mut ctx, handlers, rules) {
+    match dispatch(&key, &mut ctx, handlers, rules) {
         Ok(code) => code,
         Err(error) => {
             ctx.io.stderr(&error.format());
@@ -247,8 +199,60 @@ pub fn run_surface(
     }
 }
 
-/// Runs the command's rule, then its handler. Only an acting command carries a rule, so a rule
-/// runs exactly once, for the command it belongs to.
+/// The name, flags and positionals of the command `matches` reached.
+///
+/// Read back by each argument's id and action, so a flag added to [`Cli`] reaches handlers with no
+/// change here. Positionals are flattened in declaration order. The surface is flat, so the
+/// command is one level down.
+fn invocation(
+    program: &clap::Command,
+    matches: &ArgMatches,
+) -> (String, CommandOptions, Vec<String>) {
+    let (name, matches) = matches
+        .subcommand()
+        .expect("the program requires a command");
+    let command = program
+        .find_subcommand(name)
+        .expect("clap matched a declared command");
+
+    let mut options = IndexMap::new();
+    let mut args = Vec::new();
+
+    for arg in command.get_arguments() {
+        let id = arg.get_id().as_str();
+
+        if arg.is_positional() {
+            args.extend(
+                matches
+                    .get_many::<String>(id)
+                    .into_iter()
+                    .flatten()
+                    .cloned(),
+            );
+            continue;
+        }
+
+        let value = match arg.get_action() {
+            ArgAction::SetTrue => matches.get_flag(id).then_some(OptionValue::Flag),
+            ArgAction::Set => matches
+                .get_one::<String>(id)
+                .map(|value| OptionValue::Value(value.clone())),
+            ArgAction::Append => matches
+                .get_many::<String>(id)
+                .map(|values| OptionValue::List(values.cloned().collect())),
+            // `--help` and `--version`, which end the parse before this.
+            _ => None,
+        };
+
+        if let Some(value) = value {
+            options.insert(id.to_owned(), value);
+        }
+    }
+
+    (name.to_owned(), CommandOptions(options), args)
+}
+
+/// Runs the command's rule, then its handler.
 fn dispatch(
     key: &str,
     ctx: &mut CommandContext<'_>,

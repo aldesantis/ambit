@@ -1,3 +1,5 @@
-error: unknown option '--json=1'
-(Did you mean --json?)
-(run `ambit --help` for usage)
+error: unexpected value '1' for '--json' found; no more were expected
+
+Usage: ambit install --json
+
+For more information, try '--help'.

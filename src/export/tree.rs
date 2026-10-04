@@ -67,10 +67,10 @@ pub fn canonical_path(target: &Path) -> Result<PathBuf> {
 
                     Ok(canonical_path(parent)?.join(name))
                 }
-                _ => Err(io_failed(&error, "realpath", target)),
+                _ => Err(io_failed(&error, target)),
             }
         }
-        Err(error) => Err(io_failed(&error, "realpath", target)),
+        Err(error) => Err(io_failed(&error, target)),
     }
 }
 
@@ -174,12 +174,11 @@ pub fn read_tree(root: &Path) -> Result<ExportTree> {
         } else {
             join(root, relative)
         };
-        let info = std::fs::symlink_metadata(&target)
-            .map_err(|error| io_failed(&error, "lstat", &target))?;
+        let info =
+            std::fs::symlink_metadata(&target).map_err(|error| io_failed(&error, &target))?;
 
         if info.file_type().is_symlink() {
-            let link = std::fs::read_link(&target)
-                .map_err(|error| io_failed(&error, "readlink", &target))?;
+            let link = std::fs::read_link(&target).map_err(|error| io_failed(&error, &target))?;
 
             tree.insert(
                 relative.to_owned(),
@@ -203,8 +202,7 @@ pub fn read_tree(root: &Path) -> Result<ExportTree> {
                 );
             }
 
-            let mut names =
-                read_dir_names(&target).map_err(|error| io_failed(&error, "scandir", &target))?;
+            let mut names = read_dir_names(&target).map_err(|error| io_failed(&error, &target))?;
             names.sort_by(|a, b| js_cmp(a, b));
 
             for name in names {
@@ -217,8 +215,7 @@ pub fn read_tree(root: &Path) -> Result<ExportTree> {
                 visit(root, &child, tree)?;
             }
         } else if info.is_file() {
-            let data =
-                std::fs::read(&target).map_err(|error| io_failed(&error, "open", &target))?;
+            let data = std::fs::read(&target).map_err(|error| io_failed(&error, &target))?;
 
             tree.insert(
                 relative.to_owned(),

@@ -1,9 +1,9 @@
-Usage: ambit doctor [options]
-
 check preconditions, drift, ownership
 
+Usage: ambit doctor [OPTIONS]
+
 Options:
-  --project <dir>  project directory
-  --json           machine-readable output
-  --offline        use only cached catalogs
-  --help           show usage
+      --project <dir>  project directory
+      --json           machine-readable output
+      --offline        use only cached catalogs
+  -h, --help           Print help

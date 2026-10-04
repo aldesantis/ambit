@@ -1,8 +1,8 @@
-//! Filesystem calls with Node's semantics, which ambit's behaviour and error text follow.
+//! Filesystem calls under the rules every module relies on.
 //!
 //! - Only `NotFound` means "absent". Any other failure (`ENOTDIR`, `EACCES`) is an error, because
 //!   "I could not look" is not the same answer as "nothing is there".
-//! - Text reads decode invalid UTF-8 lossily, as `readFile(…, "utf8")` does.
+//! - Text reads decode invalid UTF-8 lossily, replacing each bad sequence with U+FFFD.
 //! - [`read_dir_names`] is the only directory listing in ambit. Under `cfg(test)` it is permuted
 //!   by a per-thread hook, which is how the determinism suite proves no output depends on the
 //!   order the OS lists a directory in.
@@ -234,38 +234,11 @@ pub fn lstat_kind(p: &Path) -> io::Result<EntryKind> {
     }
 }
 
-/// An I/O error worded as Node words it: `ENOENT: no such file or directory, open '<path>'`.
+/// An I/O error prefixed with the path it concerns: `<path>: <error>`.
 ///
-/// Errors Node has no code for fall back to Rust's own message.
-pub fn io_message(err: &io::Error, syscall: &str, path: &Path) -> String {
-    match node_code(err) {
-        Some((code, text)) => format!("{code}: {text}, {syscall} '{}'", path.display()),
-        None => err.to_string(),
-    }
-}
-
-fn node_code(err: &io::Error) -> Option<(&'static str, &'static str)> {
-    use io::ErrorKind as K;
-
-    // EPERM and EACCES share a kind; the raw errno (1 and 13 on every Unix ambit ships for) tells
-    // them apart.
-    if cfg!(unix) && err.raw_os_error() == Some(1) {
-        return Some(("EPERM", "operation not permitted"));
-    }
-
-    Some(match err.kind() {
-        K::NotFound => ("ENOENT", "no such file or directory"),
-        K::PermissionDenied => ("EACCES", "permission denied"),
-        K::AlreadyExists => ("EEXIST", "file already exists"),
-        K::NotADirectory => ("ENOTDIR", "not a directory"),
-        K::IsADirectory => ("EISDIR", "illegal operation on a directory"),
-        K::DirectoryNotEmpty => ("ENOTEMPTY", "directory not empty"),
-        K::ReadOnlyFilesystem => ("EROFS", "read-only file system"),
-        K::CrossesDevices => ("EXDEV", "cross-device link not permitted"),
-        K::ResourceBusy => ("EBUSY", "resource busy or locked"),
-        K::StorageFull => ("ENOSPC", "no space left on device"),
-        _ => return None,
-    })
+/// The error text is Rust's, so it differs between platforms.
+pub fn io_message(err: &io::Error, path: &Path) -> String {
+    format!("{}: {err}", path.display())
 }
 
 /// The canonical form of `p` when it exists, for comparing two paths that may differ only by a
@@ -444,12 +417,9 @@ mod tests {
     }
 
     #[test]
-    fn words_errors_like_node() {
-        let error = io::Error::from(io::ErrorKind::NotFound);
+    fn prefixes_errors_with_their_path() {
+        let error = io::Error::other("boom");
 
-        assert_eq!(
-            io_message(&error, "open", Path::new("/x/y")),
-            "ENOENT: no such file or directory, open '/x/y'"
-        );
+        assert_eq!(io_message(&error, Path::new("/x/y")), "/x/y: boom");
     }
 }

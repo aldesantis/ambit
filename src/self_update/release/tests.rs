@@ -24,72 +24,6 @@ fn answering(response: impl Fn() -> Canned + 'static) -> FakeHttp {
     FakeHttp::new(move |_| Ok(response()))
 }
 
-/// The order of two versions, for a test that only cares about ordering.
-fn order(a: &str, b: &str) -> Ordering {
-    let left = parse_version(a).unwrap_or_else(|| panic!("unparseable: {a}"));
-    let right = parse_version(b).unwrap_or_else(|| panic!("unparseable: {b}"));
-
-    compare_versions(&left, &right)
-}
-
-fn version(major: u64, minor: u64, patch: u64, prerelease: &[&str]) -> Version {
-    Version {
-        major,
-        minor,
-        patch,
-        prerelease: prerelease.iter().map(|&id| id.to_owned()).collect(),
-    }
-}
-
-#[test]
-fn reads_a_tag_with_or_without_its_leading_v() {
-    assert_eq!(parse_version("v1.2.3"), Some(version(1, 2, 3, &[])));
-    assert_eq!(parse_version("1.2.3"), Some(version(1, 2, 3, &[])));
-}
-
-#[test]
-fn splits_a_prerelease_into_its_identifiers() {
-    assert_eq!(
-        parse_version("v1.0.0-rc.2").map(|v| v.prerelease),
-        Some(vec!["rc".to_owned(), "2".to_owned()])
-    );
-}
-
-#[test]
-fn ignores_build_metadata_which_does_not_order_two_versions() {
-    assert_eq!(parse_version("1.2.3+build.5"), Some(version(1, 2, 3, &[])));
-}
-
-#[test]
-fn reads_nothing_out_of_a_string_that_is_not_a_version() {
-    assert_eq!(parse_version("latest"), None);
-    assert_eq!(parse_version("v1.2"), None);
-    assert_eq!(parse_version(""), None);
-}
-
-#[test]
-fn orders_by_major_then_minor_then_patch() {
-    assert_eq!(order("1.0.0", "2.0.0"), Ordering::Less);
-    assert_eq!(order("1.2.0", "1.10.0"), Ordering::Less);
-    assert_eq!(order("1.2.3", "1.2.4"), Ordering::Less);
-    assert_eq!(order("1.2.3", "1.2.3"), Ordering::Equal);
-    assert_eq!(order("2.0.0", "1.9.9"), Ordering::Greater);
-}
-
-#[test]
-fn sorts_a_prerelease_below_the_release_it_leads_to() {
-    assert_eq!(order("1.0.0-rc.1", "1.0.0"), Ordering::Less);
-    assert_eq!(order("1.0.0", "1.0.0-rc.1"), Ordering::Greater);
-}
-
-#[test]
-fn orders_prerelease_identifiers_the_way_semver_does() {
-    assert_eq!(order("1.0.0-rc.2", "1.0.0-rc.10"), Ordering::Less);
-    assert_eq!(order("1.0.0-alpha", "1.0.0-beta"), Ordering::Less);
-    assert_eq!(order("1.0.0-rc", "1.0.0-rc.1"), Ordering::Less);
-    assert_eq!(order("1.0.0-1", "1.0.0-alpha"), Ordering::Less);
-}
-
 #[test]
 fn is_newer_only_for_a_strictly_newer_release() {
     assert!(is_newer("0.1.0", "v0.2.0"));
@@ -98,9 +32,21 @@ fn is_newer_only_for_a_strictly_newer_release() {
 }
 
 #[test]
+fn never_offers_a_prerelease_to_someone_on_the_release_it_leads_to() {
+    assert!(!is_newer("1.0.0", "v1.0.0-rc.1"));
+    assert!(is_newer("1.0.0-rc.1", "v1.0.0"));
+}
+
+#[test]
+fn ignores_build_metadata_which_does_not_make_a_release_newer() {
+    assert!(!is_newer("1.2.3", "v1.2.3+build.5"));
+}
+
+#[test]
 fn refuses_to_guess_when_either_side_is_not_a_version() {
     assert!(!is_newer("0.1.0", "nightly"));
     assert!(!is_newer("dev", "v9.9.9"));
+    assert!(!is_newer("0.1.0", "v1.2"));
 }
 
 #[test]

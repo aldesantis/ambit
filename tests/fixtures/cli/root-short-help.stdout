@@ -1,0 +1,24 @@
+a deterministic dependency manager for AI-agent capabilities
+
+Usage: ambit <COMMAND>
+
+Commands:
+  export       export selected packs as Claude plugins
+  init         scaffold ambit.yml, skills/, mcps/, hooks/
+  search       search the merged catalog
+  resolve      compute the bundle and print it
+  why          explain why one item is in the bundle
+  install      resolve, write lock, materialize, prune
+  status       compare what is installed against what resolve produces
+  outdated     check whether any catalog's ref now names a different commit
+  update       move catalog pins forward, then install
+  prune        remove owned artifacts not in the current bundle
+  clean        remove everything ambit owns
+  validate     validate everything this project configures, for CI
+  doctor       check preconditions, drift, ownership
+  self-update  replace this ambit binary with a released one
+  help         Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version

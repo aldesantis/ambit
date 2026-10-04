@@ -1,2 +1,5 @@
-error: unknown option '--bogus'
-(run `ambit --help` for usage)
+error: unexpected argument '--bogus' found
+
+Usage: ambit install [OPTIONS]
+
+For more information, try '--help'.

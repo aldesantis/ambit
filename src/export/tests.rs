@@ -1037,7 +1037,7 @@ fn refuses_links_leaving_the_catalog_and_cycles() {
 
     assert_eq!(error.code, ExitCode::Config);
     assert_eq!(error.message, "cannot export Claude plugins");
-    assert!(error.detail[0].starts_with("ENOENT: no such file or directory, stat '"));
+    assert!(error.detail[0].starts_with(&format!("{}: ", skill.join("missing").display())));
 }
 
 fn file(data: &[u8], mode: u32, source: Option<&str>) -> PackageFile {

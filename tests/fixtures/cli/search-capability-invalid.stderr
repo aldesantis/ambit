@@ -1,2 +1,6 @@
-error: option '--capability <kind>' argument 'foo' is invalid. Allowed choices are pack, skill, mcp, hook.
-(run `ambit --help` for usage)
+error: invalid value 'foo' for '--capability <kind>'
+  [possible values: pack, skill, mcp, hook]
+
+  tip: a similar value exists: 'hook'
+
+For more information, try '--help'.

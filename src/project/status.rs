@@ -176,11 +176,7 @@ fn shape_of(target: &Path, file: &str) -> Result<Shape> {
         Ok(EntryKind::Symlink) => Ok(Shape::Link),
         Ok(EntryKind::Dir) => Ok(Shape::Directory),
         Ok(EntryKind::File | EntryKind::Other) => Ok(Shape::Other),
-        Err(error) => Err(unreadable(
-            file,
-            target,
-            io_message(&error, "lstat", target),
-        )),
+        Err(error) => Err(unreadable(file, target, io_message(&error, target))),
     }
 }
 
@@ -197,8 +193,8 @@ fn file_list(dir: &Path, label: &str) -> Result<Vec<String>> {
         current: &Path,
         relative: &str,
         found: &mut Vec<String>,
-    ) -> std::result::Result<(), (io::Error, PathBuf, &'static str)> {
-        let names = read_dir_names(current).map_err(|e| (e, current.to_path_buf(), "scandir"))?;
+    ) -> std::result::Result<(), (io::Error, PathBuf)> {
+        let names = read_dir_names(current).map_err(|e| (e, current.to_path_buf()))?;
 
         for name in names {
             let within = if relative.is_empty() {
@@ -207,7 +203,7 @@ fn file_list(dir: &Path, label: &str) -> Result<Vec<String>> {
                 format!("{relative}/{name}")
             };
             let entry = current.join(&name);
-            let kind = lstat_kind(&entry).map_err(|e| (e, entry.clone(), "lstat"))?;
+            let kind = lstat_kind(&entry).map_err(|e| (e, entry.clone()))?;
 
             if kind == EntryKind::Dir {
                 walk(&entry, &within, found)?;
@@ -222,7 +218,7 @@ fn file_list(dir: &Path, label: &str) -> Result<Vec<String>> {
     let mut found = Vec::new();
 
     walk(dir, "", &mut found)
-        .map_err(|(error, at, syscall)| unreadable(label, dir, io_message(&error, syscall, &at)))?;
+        .map_err(|(error, at)| unreadable(label, dir, io_message(&error, &at)))?;
     found.sort_by(|a, b| js_cmp(a, b));
     Ok(found)
 }
@@ -296,7 +292,7 @@ fn first_difference(artifact: &PlannedCatalogDir) -> Result<Option<String>> {
 /// Exit 2 when the link cannot be read.
 fn link_verdict(path: &str, target: &Path, source: &Path) -> Result<Verdict> {
     let written = std::fs::read_link(target)
-        .map_err(|error| unreadable(path, target, io_message(&error, "readlink", target)))?;
+        .map_err(|error| unreadable(path, target, io_message(&error, target)))?;
     let written = written.to_string_lossy();
 
     // Resolved against the link's own directory, so a relative link and an absolute one naming the

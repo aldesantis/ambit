@@ -1,10 +1,10 @@
-//! Shared low-level helpers: JavaScript string and JSON semantics, Node-style paths and
-//! filesystem calls, and the process environment as a value.
+//! Shared low-level helpers: JavaScript string and JSON semantics, lexical paths, filesystem
+//! calls, and the process environment as a value.
 //!
 //! Every module reaches the filesystem, the environment, and string ordering through here, so
-//! ambit's observable semantics (UTF-16 ordering, lossy UTF-8 reads, lexical path normalization,
-//! ENOENT-only absence) are decided once. `clippy.toml` forbids the std calls this
-//! module wraps everywhere else.
+//! ambit's observable rules (UTF-16 ordering, lossy UTF-8 reads, lexical path normalization, only
+//! `NotFound` meaning absent) are decided once. `clippy.toml` forbids the std calls this module
+//! wraps everywhere else.
 
 pub mod cmp;
 pub mod env;

@@ -53,7 +53,7 @@ pub fn read_lock_text(project_dir: &Path) -> Result<Option<String>> {
         config_error(
             format!("cannot read {LOCK_FILENAME}"),
             [
-                io_message(&error, "open", &file),
+                io_message(&error, &file),
                 format!(
                     "make {} readable, or delete it and run `ambit install` again",
                     file.display()

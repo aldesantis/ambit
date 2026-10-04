@@ -1,15 +1,15 @@
-Usage: ambit export [options]
-
 export selected packs as Claude plugins
 
+Usage: ambit export [OPTIONS]
+
 Options:
-  --format <format>  package format (choices: "claude-plugin")
-  --output <dir>     new output directory, relative to the project
-  --link             link skills and hook assets to local catalogs
-  --force            replace an existing export directory
-  --check            exit 5 when exported files or links differ
-  --dry-run          print the plan without touching disk
-  --project <dir>    project directory
-  --json             machine-readable output
-  --offline          use only cached catalogs
-  --help             show usage
+      --format <format>  package format [possible values: claude-plugin]
+      --output <dir>     new output directory, relative to the project
+      --link             link skills and hook assets to local catalogs
+      --force            replace an existing export directory
+      --check            exit 5 when exported files or links differ
+      --dry-run          print the plan without touching disk
+      --project <dir>    project directory
+      --json             machine-readable output
+      --offline          use only cached catalogs
+  -h, --help             Print help

@@ -254,8 +254,8 @@ fn write(project_dir: &Path, scaffolded: &ScaffoldedFile) -> Result<()> {
         )
     };
 
-    mkdir_p(parent).map_err(|error| fail(io_message(&error, "mkdir", parent)))?;
-    write_text(&target, &scaffolded.text).map_err(|error| fail(io_message(&error, "open", &target)))
+    mkdir_p(parent).map_err(|error| fail(io_message(&error, parent)))?;
+    write_text(&target, &scaffolded.text).map_err(|error| fail(io_message(&error, &target)))
 }
 
 /// Scaffolds a project in `project_dir`: `ambit.yml`, and the item directories that make it a

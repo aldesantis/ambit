@@ -373,14 +373,7 @@ fn link(from: &Path, at: &Path, label: &str, hint: &str) -> Result<()> {
     fs::symlink_dir(Path::new(&target), at).map_err(|error| {
         config_error(
             format!("cannot symlink {label}"),
-            [
-                format!(
-                    "{} -> '{}'",
-                    fs::io_message(&error, "symlink", Path::new(&target)),
-                    at.display()
-                ),
-                hint.to_owned(),
-            ],
+            [fs::io_message(&error, at), hint.to_owned()],
         )
     })
 }

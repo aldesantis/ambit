@@ -1,2 +1,5 @@
-error: unknown command 'frob'
-(run `ambit --help` for usage)
+error: unrecognized subcommand 'frob'
+
+Usage: ambit <COMMAND>
+
+For more information, try '--help'.

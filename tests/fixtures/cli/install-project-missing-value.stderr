@@ -1,2 +1,3 @@
-error: option '--project <dir>' argument missing
-(run `ambit --help` for usage)
+error: a value is required for '--project <dir>' but none was supplied
+
+For more information, try '--help'.

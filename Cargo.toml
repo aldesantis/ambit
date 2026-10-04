@@ -14,6 +14,8 @@ serde_json = { version = "1.0.151", features = ["preserve_order"] }
 indexmap = { version = "2.14.2", features = ["serde"] }
 ryu-js = "1.0.3"
 jsonc-parser = { version = "0.34.0", features = ["cst", "serde", "serde_json", "preserve_order"] }
+saphyr = "0.1.0"
+# The event stream, for the checks saphyr's loader does not make; see model::yaml::load.
 saphyr-parser = "0.1.0"
 regex = "1.13.1"
 sha2 = "0.11.0"
@@ -24,13 +26,18 @@ lzma-rust2 = { version = "0.21.0", default-features = false, features = ["std", 
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 tempfile = "3.27.0"
 terminal_size = "0.4.4"
+semver = "1.0.28"
+url = "2.5.8"
+# No `color`: usage text goes through ambit's own output, uncolored, the same everywhere.
+clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions", "wrap_help"] }
+# Pinned: later versions need Rust 1.89, and the version decides the bytes ambit writes.
+serde-saphyr = { version = "=1.1.0", default-features = false, features = ["serialize"] }
+gray_matter = { version = "0.3.2", default-features = false }
 
 [dev-dependencies]
 assert_cmd = "2.2.2"
 predicates = "3.1.4"
 pretty_assertions = "1.4.1"
-# Reads the fixture catalog in tests independently of ambit's own YAML reader.
-saphyr = "0.1.0"
 # The self-update suites build cargo-dist-shaped `.tar.xz` archives to serve from a fake GitHub.
 lzma-rust2 = { version = "0.21.0", default-features = false, features = ["std", "xz", "encoder"] }
 
@@ -39,14 +46,11 @@ unsafe_code = "forbid"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
-# model::catalog::CatalogSkill mirrors the TS names porters search for.
-module_name_repetitions = "allow"
-# Would annotate most pure functions.
-must_use_candidate = "allow"
-# Faithful ports of long TS functions.
+# The plugin export steps, and one catalog test, run a long sequence best read in order.
 too_many_lines = "allow"
 # Option structs mirror CLI flags.
 struct_excessive_bools = "allow"
+# Pairs such as `args`/`argv` and `requirer`/`required` are the clearest names for what they hold.
 similar_names = "allow"
 
 # The profile that dist builds release binaries with

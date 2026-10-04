@@ -1,2 +1,7 @@
-error: unknown option '--project'
-(run `ambit --help` for usage)
+error: unexpected argument '--project' found
+
+  tip: to pass '--project' as a value, use '-- --project'
+
+Usage: ambit self-update [OPTIONS] [version]
+
+For more information, try '--help'.

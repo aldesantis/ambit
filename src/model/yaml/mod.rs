@@ -5,10 +5,10 @@
 //! a commit SHA like `1234567` would parse as an integer, a duplicate key would quietly win, or a
 //! tab could pass as indentation.
 //!
-//! Reading builds a positioned tree from saphyr-parser events (`tree.rs`), types plain scalars by
-//! the YAML 1.2 core schema (`schema.rs`), and returns a [`YamlMapping`]: a positioned view over
-//! the document rather than a plain value, so every downstream error can name the line it came
-//! from.
+//! Reading loads a positioned tree with saphyr's loader, which types plain scalars by the YAML 1.2
+//! core schema, checks the rules the loader does not enforce (`load.rs`), and returns a
+//! [`YamlMapping`]: a positioned view over the document rather than a plain value, so every
+//! downstream error can name the line it came from.
 //!
 //! Writing goes through [`emit_yaml`] (`emit.rs`), kept in this module so the emit rules match the
 //! parse rules: what ambit writes is guaranteed readable by what ambit reads.
@@ -19,8 +19,7 @@
 
 mod emit;
 mod frontmatter;
-mod schema;
-mod tree;
+mod load;
 
 #[cfg(test)]
 mod tests;
@@ -29,6 +28,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use indexmap::IndexMap;
+use saphyr::ScalarOwned;
 
 use crate::errors::{AmbitError, Result, at, config_error};
 use crate::util::cmp::js_cmp;
@@ -37,10 +37,8 @@ use crate::util::json::format_f64;
 use crate::util::text::js_trim;
 
 pub use emit::emit_yaml;
-pub use frontmatter::split_frontmatter;
 
-use schema::Scalar;
-use tree::{NodeId, NodeKind, is_integer};
+use load::{Document, Node, is_integer};
 
 /// One string from a sequence, with where it was written.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -65,8 +63,8 @@ pub enum YamlEntry {
 /// take a default is to omit the key.
 #[derive(Clone, Debug)]
 pub struct YamlMapping {
-    document: Rc<tree::Document>,
-    node: tree::NodeId,
+    document: Rc<Document>,
+    node: Rc<Node>,
     /// Dotted path from the document root, so nested errors read `catalogs[0].ref`.
     prefix: String,
 }
@@ -83,15 +81,15 @@ impl YamlMapping {
     /// line is optional for values nothing positioned.
     #[allow(clippy::unnecessary_wraps)]
     pub fn line(&self) -> Option<usize> {
-        Some(self.document.line_of(self.node))
+        Some(self.document.line_of(&self.node))
     }
 
     /// Keys in document order. Duplicates cannot occur: the loader rejects them.
     pub fn keys(&self) -> Vec<String> {
         self.document
-            .pairs(self.node)
-            .iter()
-            .filter_map(|&(key, _)| self.document.string(key).map(str::to_owned))
+            .pairs(&self.node)
+            .into_iter()
+            .filter_map(|(key, _)| self.document.string(key).map(str::to_owned))
             .collect()
     }
 
@@ -177,7 +175,8 @@ impl YamlMapping {
         let value = self.value(pair, key, "an integer", true)?;
 
         match self.document.scalar(value) {
-            Some(Scalar::Number(n)) if is_integer(*n) => Ok(*n as i64),
+            Some(ScalarOwned::Integer(n)) => Ok(*n),
+            Some(ScalarOwned::FloatingPoint(n)) if is_integer(n.0) => Ok(n.0 as i64),
             _ => Err(self.mismatch(key, "an integer", value)),
         }
     }
@@ -205,7 +204,7 @@ impl YamlMapping {
         let value = self.value(pair, key, "a boolean", true)?;
 
         match self.document.scalar(value) {
-            Some(Scalar::Bool(b)) => Ok(Some(*b)),
+            Some(ScalarOwned::Boolean(b)) => Ok(Some(*b)),
             _ => Err(self.mismatch(key, "a boolean", value)),
         }
     }
@@ -241,7 +240,7 @@ impl YamlMapping {
         items
             .iter()
             .enumerate()
-            .map(|(index, &item)| {
+            .map(|(index, item)| {
                 let value = self.read_item_string(item, key, index, "a string")?;
                 let line = Some(self.document.line_of(item));
 
@@ -287,7 +286,7 @@ impl YamlMapping {
         items
             .iter()
             .enumerate()
-            .map(|(index, &item)| {
+            .map(|(index, item)| {
                 if !self.document.is_map(item) {
                     return Err(self.item_mismatch(key, index, "a mapping", item));
                 }
@@ -320,7 +319,7 @@ impl YamlMapping {
         items
             .iter()
             .enumerate()
-            .map(|(index, &item)| {
+            .map(|(index, item)| {
                 if self.document.is_map(item) {
                     return Ok(YamlEntry::Mapping(
                         self.child(item, format!("{}[{index}]", self.label(key))),
@@ -354,10 +353,10 @@ impl YamlMapping {
         Ok(entries)
     }
 
-    fn child(&self, node: NodeId, prefix: String) -> YamlMapping {
+    fn child(&self, node: &Node, prefix: String) -> YamlMapping {
         YamlMapping {
             document: Rc::clone(&self.document),
-            node,
+            node: Rc::new(node.clone()),
             prefix,
         }
     }
@@ -371,15 +370,14 @@ impl YamlMapping {
     }
 
     /// The `(key, value)` nodes of the pair whose key is the string `key`.
-    fn pair_for(&self, key: &str) -> Option<(NodeId, NodeId)> {
+    fn pair_for(&self, key: &str) -> Option<(&Node, &Node)> {
         self.document
-            .pairs(self.node)
-            .iter()
-            .copied()
+            .pairs(&self.node)
+            .into_iter()
             .find(|&(name, _)| self.document.string(name) == Some(key))
     }
 
-    fn require(&self, key: &str, expected: &str) -> Result<(NodeId, NodeId)> {
+    fn require(&self, key: &str, expected: &str) -> Result<(&Node, &Node)> {
         self.pair_for(key).ok_or_else(|| {
             config_error(
                 format!(
@@ -397,14 +395,14 @@ impl YamlMapping {
 
     /// The value node behind `key`, rejecting an explicit null: the way to take a default is to
     /// omit the key, so a written-out `null` is always a mistake.
-    fn value(
+    fn value<'n>(
         &self,
-        (_, value): (NodeId, NodeId),
+        (_, value): (&'n Node, &'n Node),
         key: &str,
         expected: &str,
         required: bool,
-    ) -> Result<NodeId> {
-        if self.document.scalar(value) == Some(&Scalar::Null) {
+    ) -> Result<&'n Node> {
+        if self.document.is_null(value) {
             return Err(self.key_error(
                 key,
                 &format!("\"{}\" must not be null", self.label(key)),
@@ -422,7 +420,7 @@ impl YamlMapping {
         Ok(value)
     }
 
-    fn read_string(&self, pair: (NodeId, NodeId), key: &str, required: bool) -> Result<String> {
+    fn read_string(&self, pair: (&Node, &Node), key: &str, required: bool) -> Result<String> {
         let value = self.value(pair, key, "a string", required)?;
 
         self.coerce_string(value, &self.label(key), self.line_of(key), "a string")
@@ -430,14 +428,14 @@ impl YamlMapping {
 
     fn read_item_string(
         &self,
-        item: NodeId,
+        item: &Node,
         key: &str,
         index: usize,
         expected: &str,
     ) -> Result<String> {
         let label = format!("{}[{index}]", self.label(key));
 
-        if self.document.scalar(item) == Some(&Scalar::Null) {
+        if self.document.is_null(item) {
             return Err(config_error(
                 format!(
                     "\"{label}\" must not be null {}",
@@ -460,7 +458,7 @@ impl YamlMapping {
     /// `ref: 1e5` as `"100000"` is how a config comes to point at the wrong commit.
     fn coerce_string(
         &self,
-        value: NodeId,
+        value: &Node,
         label: &str,
         line: Option<usize>,
         expected: &str,
@@ -468,7 +466,7 @@ impl YamlMapping {
         let file = self.file();
 
         match self.document.scalar(value) {
-            Some(Scalar::String(text)) => {
+            Some(ScalarOwned::String(text)) => {
                 if js_trim(text).is_empty() {
                     return Err(config_error(
                         format!("\"{label}\" must not be empty {}", at(file, line)),
@@ -481,10 +479,15 @@ impl YamlMapping {
 
                 Ok(text.clone())
             }
-            Some(scalar @ (Scalar::Number(_) | Scalar::Bool(_))) => {
+            Some(
+                scalar @ (ScalarOwned::Integer(_)
+                | ScalarOwned::FloatingPoint(_)
+                | ScalarOwned::Boolean(_)),
+            ) => {
                 let (shown, kind) = match scalar {
-                    Scalar::Bool(b) => (b.to_string(), "a boolean"),
-                    Scalar::Number(n) => (number_string(*n), "a number"),
+                    ScalarOwned::Boolean(b) => (b.to_string(), "a boolean"),
+                    ScalarOwned::Integer(n) => (n.to_string(), "a number"),
+                    ScalarOwned::FloatingPoint(n) => (number_string(n.0), "a number"),
                     _ => unreachable!("matched a number or a boolean"),
                 };
                 let written = self.document.text_of(value).map_or(shown, str::to_owned);
@@ -508,20 +511,20 @@ impl YamlMapping {
     }
 
     /// The items of an optional sequence-valued key, or `None` when the key is absent.
-    fn sequence(&self, key: &str, expected: &str) -> Result<Option<Vec<NodeId>>> {
+    fn sequence(&self, key: &str, expected: &str) -> Result<Option<&[Node]>> {
         let Some(pair) = self.pair_for(key) else {
             return Ok(None);
         };
 
         let value = self.value(pair, key, expected, false)?;
 
-        match self.document.kind(value) {
-            NodeKind::Seq(items) => Ok(Some(items.clone())),
-            _ => Err(self.mismatch(key, expected, value)),
+        match self.document.items(value) {
+            Some(items) => Ok(Some(items)),
+            None => Err(self.mismatch(key, expected, value)),
         }
     }
 
-    fn mismatch(&self, key: &str, expected: &str, value: NodeId) -> AmbitError {
+    fn mismatch(&self, key: &str, expected: &str, value: &Node) -> AmbitError {
         self.key_error(
             key,
             &format!("\"{}\" must be {expected}", self.label(key)),
@@ -532,7 +535,7 @@ impl YamlMapping {
         )
     }
 
-    fn item_mismatch(&self, key: &str, index: usize, expected: &str, value: NodeId) -> AmbitError {
+    fn item_mismatch(&self, key: &str, index: usize, expected: &str, value: &Node) -> AmbitError {
         let label = format!("{}[{index}]", self.label(key));
         let line = Some(self.document.line_of(value));
 
@@ -573,32 +576,27 @@ fn quote_hint(label: &str, written: &str) -> String {
 /// a plain value, so callers can read node positions off it.
 ///
 /// `line_offset` is the number of lines of the containing file above `text`, for a frontmatter
-/// block.
-fn parse_checked(text: &str, file: &str, line_offset: usize) -> Result<YamlMapping> {
-    let document = tree::parse(text, file, line_offset)?;
+/// block. `empty` is the error for a document holding nothing but whitespace and comments.
+fn parse_checked(
+    text: &str,
+    file: &str,
+    line_offset: usize,
+    empty: impl FnOnce() -> AmbitError,
+) -> Result<YamlMapping> {
+    let mut document = load::parse(text, file, line_offset)?;
 
-    if let Some(problem) = tree::structural_problem(&document) {
-        return Err(problem);
-    }
-
-    let Some(root) = document.root else {
-        return Err(config_error(
-            format!("{file} is empty"),
-            [
-                "expected a YAML mapping",
-                "add the keys this format requires",
-            ],
-        ));
+    let Some(root) = document.root.take() else {
+        return Err(empty());
     };
 
-    if !document.is_map(root) {
+    if !document.is_map(&root) {
         return Err(config_error(
             format!(
                 "root is not a mapping {}",
-                at(file, Some(document.line_of(root)))
+                at(file, Some(document.line_of(&root)))
             ),
             [
-                format!("found {} at the document root", document.describe(root)),
+                format!("found {} at the document root", document.describe(&root)),
                 "write the document as `key: value` pairs".to_owned(),
             ],
         ));
@@ -606,7 +604,7 @@ fn parse_checked(text: &str, file: &str, line_offset: usize) -> Result<YamlMappi
 
     Ok(YamlMapping {
         document: Rc::new(document),
-        node: root,
+        node: Rc::new(root),
         prefix: String::new(),
     })
 }
@@ -620,7 +618,15 @@ fn parse_checked(text: &str, file: &str, line_offset: usize) -> Result<YamlMappi
 ///
 /// Exit 2, naming the offending file, identifier, and line.
 pub fn parse_yaml_mapping(text: &str, file: &str) -> Result<YamlMapping> {
-    parse_checked(text, file, 0)
+    parse_checked(text, file, 0, || {
+        config_error(
+            format!("{file} is empty"),
+            [
+                "expected a YAML mapping",
+                "add the keys this format requires",
+            ],
+        )
+    })
 }
 
 /// Parses the frontmatter block of a Markdown document (`SKILL.md`'s, in practice) under the same
@@ -633,14 +639,11 @@ pub fn parse_yaml_mapping(text: &str, file: &str) -> Result<YamlMapping> {
 ///
 /// Exit 2 if there is no frontmatter, or it violates a rule.
 pub fn parse_frontmatter_mapping(text: &str, file: &str) -> Result<YamlMapping> {
-    let split = split_frontmatter(text, file)?;
+    let found = frontmatter::frontmatter(text, file)?;
 
-    parse_checked(&split.block, file, line_count(&split.open))
-}
-
-/// How many lines `text` occupies above whatever follows it.
-fn line_count(text: &str) -> usize {
-    text.matches('\n').count()
+    parse_checked(&found.block, file, found.line_offset, || {
+        frontmatter::empty(file)
+    })
 }
 
 fn read_source(path: &Path, file: &str) -> Result<String> {
@@ -648,7 +651,7 @@ fn read_source(path: &Path, file: &str) -> Result<String> {
         config_error(
             format!("cannot read {file}"),
             [
-                io_message(&error, "open", path),
+                io_message(&error, path),
                 "check the path and its permissions".to_owned(),
             ],
         )

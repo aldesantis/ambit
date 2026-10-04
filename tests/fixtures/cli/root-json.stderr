@@ -1,2 +1,5 @@
-error: unknown option '--json'
-(run `ambit --help` for usage)
+error: unexpected argument '--json' found
+
+Usage: ambit <COMMAND>
+
+For more information, try '--help'.

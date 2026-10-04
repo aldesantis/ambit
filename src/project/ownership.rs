@@ -49,7 +49,7 @@ fn exists(target: &Path, file: &str) -> Result<bool> {
         Err(error) => Err(config_error(
             format!("cannot inspect {file}"),
             [
-                fs::io_message(&error, "lstat", target),
+                fs::io_message(&error, target),
                 format!(
                     "make {} readable, so ambit can tell whether it would overwrite something",
                     target.display()
@@ -118,7 +118,7 @@ fn blocking_ancestor(path: &str, target: &Path) -> Result<Option<String>> {
                 return Err(config_error(
                     format!("cannot inspect {walked}"),
                     [
-                        fs::io_message(&error, "stat", directory),
+                        fs::io_message(&error, directory),
                         format!(
                             "make {} readable, so ambit can tell whether it can write beneath it",
                             directory.display()

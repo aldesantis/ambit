@@ -22,12 +22,12 @@ pub struct PackageFile {
 pub type PackageFiles = IndexMap<String, PackageFile>;
 
 /// The error for a filesystem call that failed while exporting, worded as every unanticipated
-/// export failure is: exit 2, the Node-worded message from [`io_message`], and where to look.
-pub(crate) fn io_failed(error: &std::io::Error, syscall: &str, path: &Path) -> AmbitError {
+/// export failure is: exit 2, the message from [`io_message`], and where to look.
+pub(crate) fn io_failed(error: &std::io::Error, path: &Path) -> AmbitError {
     config_error(
         "cannot export Claude plugins",
         [
-            io_message(error, syscall, path),
+            io_message(error, path),
             "check the source files and output directory permissions".to_owned(),
         ],
     )
@@ -106,9 +106,8 @@ pub fn collect_files(
     catalog_root: &Path,
     exclude: &[String],
 ) -> Result<()> {
-    let root =
-        canonicalize(catalog_root).map_err(|error| io_failed(&error, "realpath", catalog_root))?;
-    let metadata = std::fs::metadata(source).map_err(|error| io_failed(&error, "stat", source))?;
+    let root = canonicalize(catalog_root).map_err(|error| io_failed(&error, catalog_root))?;
+    let metadata = std::fs::metadata(source).map_err(|error| io_failed(&error, source))?;
 
     if !metadata.is_dir() {
         return Err(config_error(
@@ -139,7 +138,7 @@ impl Walker<'_> {
         ancestors: &[PathBuf],
         top: bool,
     ) -> Result<()> {
-        let actual = canonicalize(file).map_err(|error| io_failed(&error, "realpath", file))?;
+        let actual = canonicalize(file).map_err(|error| io_failed(&error, file))?;
 
         if !is_within(self.root, &actual) {
             return Err(config_error(
@@ -155,8 +154,7 @@ impl Walker<'_> {
             ));
         }
 
-        let info =
-            std::fs::metadata(&actual).map_err(|error| io_failed(&error, "stat", &actual))?;
+        let info = std::fs::metadata(&actual).map_err(|error| io_failed(&error, &actual))?;
 
         if info.is_dir() {
             if files
@@ -181,8 +179,7 @@ impl Walker<'_> {
             let mut next = ancestors.to_vec();
             next.push(actual.clone());
 
-            let mut names =
-                read_dir_names(&actual).map_err(|error| io_failed(&error, "scandir", &actual))?;
+            let mut names = read_dir_names(&actual).map_err(|error| io_failed(&error, &actual))?;
             names.sort_by(|a, b| js_cmp(a, b));
 
             for name in names {
@@ -199,8 +196,7 @@ impl Walker<'_> {
                 )?;
             }
         } else if info.is_file() {
-            let data =
-                std::fs::read(&actual).map_err(|error| io_failed(&error, "open", &actual))?;
+            let data = std::fs::read(&actual).map_err(|error| io_failed(&error, &actual))?;
 
             add_file(files, target, data, mode_of(&info))?;
 

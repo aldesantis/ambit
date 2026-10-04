@@ -1,9 +1,9 @@
-Usage: ambit validate [options]
-
 validate everything this project configures, for CI
 
+Usage: ambit validate [OPTIONS]
+
 Options:
-  --project <dir>  project directory
-  --json           machine-readable output
-  --offline        use only cached catalogs
-  --help           show usage
+      --project <dir>  project directory
+      --json           machine-readable output
+      --offline        use only cached catalogs
+  -h, --help           Print help

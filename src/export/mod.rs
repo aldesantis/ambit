@@ -61,7 +61,7 @@ fn sibling_tempdir(output: &Path) -> Result<PathBuf> {
         .prefix(STAGING_PREFIX)
         .tempdir_in(parent)
         .map(tempfile::TempDir::keep)
-        .map_err(|error| io_failed(&error, "mkdtemp", parent))
+        .map_err(|error| io_failed(&error, parent))
 }
 
 /// Sets a written file's permission bits. Windows has none beyond read-only, so nothing is set
@@ -93,7 +93,7 @@ fn write_tree(staging: &Path, tree: &ExportTree, current: &ExportTree) -> Result
                 symlink_file(Path::new(link), &target)
             };
 
-            created.map_err(|error| io_failed(&error, "symlink", &target))?;
+            created.map_err(|error| io_failed(&error, &target))?;
         } else if let Some(data) = &file.data {
             // Retain JSON formatting for unchanged values to avoid unrelated marketplace diffs.
             let data = match current.get(relative) {
@@ -105,10 +105,10 @@ fn write_tree(staging: &Path, tree: &ExportTree, current: &ExportTree) -> Result
                 _ => data,
             };
 
-            std::fs::write(&target, data).map_err(|error| io_failed(&error, "open", &target))?;
-            set_mode(&target, file.mode).map_err(|error| io_failed(&error, "chmod", &target))?;
+            std::fs::write(&target, data).map_err(|error| io_failed(&error, &target))?;
+            set_mode(&target, file.mode).map_err(|error| io_failed(&error, &target))?;
         } else {
-            mkdir_p(&target).map_err(|error| io_failed(&error, "mkdir", &target))?;
+            mkdir_p(&target).map_err(|error| io_failed(&error, &target))?;
         }
     }
 
@@ -138,10 +138,7 @@ fn swap_into_place(staging: &Path, output: &Path, existing: bool) -> Result<()> 
             Err(error) => Err(config_error(
                 format!("cannot replace export at {}", output.display()),
                 [
-                    format!(
-                        "Error: {}",
-                        crate::util::fs::io_message(&error, "rename", output)
-                    ),
+                    crate::util::fs::io_message(&error, output),
                     format!("previous export backup: {}", backup.display()),
                 ],
             )),
@@ -149,11 +146,11 @@ fn swap_into_place(staging: &Path, output: &Path, existing: bool) -> Result<()> 
     }
 
     // Reserve exclusively so concurrent exports cannot replace another writer's output.
-    std::fs::create_dir(output).map_err(|error| io_failed(&error, "mkdir", output))?;
+    std::fs::create_dir(output).map_err(|error| io_failed(&error, output))?;
 
     if let Err(error) = std::fs::rename(staging, output) {
         let _ = rm_rf(output);
-        return Err(io_failed(&error, "rename", staging));
+        return Err(io_failed(&error, staging));
     }
 
     Ok(())
@@ -178,7 +175,7 @@ pub fn export_plugins(context: &SourceContext, options: &ExportOptions) -> Resul
     let existing = match std::fs::symlink_metadata(&output) {
         Ok(metadata) => Some(metadata),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-        Err(error) => return Err(io_failed(&error, "lstat", &output)),
+        Err(error) => return Err(io_failed(&error, &output)),
     };
 
     if existing.is_some() && !options.force && !options.check {
@@ -328,7 +325,7 @@ pub fn export_plugins(context: &SourceContext, options: &ExportOptions) -> Resul
     }
 
     if let Some(parent) = output.parent() {
-        mkdir_p(parent).map_err(|error| io_failed(&error, "mkdir", parent))?;
+        mkdir_p(parent).map_err(|error| io_failed(&error, parent))?;
     }
 
     let staging = sibling_tempdir(&output)?;

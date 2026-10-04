@@ -104,21 +104,6 @@ impl Http for UreqHttp {
     }
 }
 
-/// A parsed release version. Build metadata is not kept: it does not order two versions.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Version {
-    pub major: u64,
-    pub minor: u64,
-    pub patch: u64,
-    /// The dot-separated identifiers after `-`, empty for a normal release.
-    pub prerelease: Vec<String>,
-}
-
-static VERSION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$")
-        .expect("a valid pattern")
-});
-
 /// One line of a `.sha256` file: the hash, then the file name, which `sha256sum` prefixes with `*`
 /// in binary mode.
 static CHECKSUM_LINE: LazyLock<Regex> =
@@ -142,76 +127,21 @@ pub fn as_tag(version: &str) -> String {
 }
 
 /// A version, or `None` for anything that is not one. Callers never guess at an ordering.
-pub fn parse_version(text: &str) -> Option<Version> {
-    let captures = VERSION_PATTERN.captures(js_trim(text))?;
-    let number = |index: usize| captures[index].parse::<u64>().ok();
-
-    Some(Version {
-        major: number(1)?,
-        minor: number(2)?,
-        patch: number(3)?,
-        prerelease: captures
-            .get(4)
-            .map(|m| m.as_str().split('.').map(str::to_owned).collect())
-            .unwrap_or_default(),
-    })
-}
-
-fn is_numeric(identifier: &str) -> bool {
-    !identifier.is_empty() && identifier.bytes().all(|byte| byte.is_ascii_digit())
-}
-
-/// Orders two prerelease identifiers the way semver does: numeric ones compare as numbers and sort
-/// below alphanumeric ones, which compare as text.
-fn compare_identifiers(a: &str, b: &str) -> Ordering {
-    match (is_numeric(a), is_numeric(b)) {
-        (true, true) => {
-            // Compared as digit strings, so a number too long for any integer still orders.
-            let a = a.trim_start_matches('0');
-            let b = b.trim_start_matches('0');
-
-            a.len().cmp(&b.len()).then_with(|| a.cmp(b))
-        }
-        (true, false) => Ordering::Less,
-        (false, true) => Ordering::Greater,
-        (false, false) => crate::util::cmp::js_cmp(a, b),
-    }
-}
-
-/// How `a` orders against `b`: `Less` when `a` is older.
 ///
-/// A prerelease sorts below the release it leads to, so `1.0.0-rc.1` never counts as an update for
-/// someone already on `1.0.0`.
-pub fn compare_versions(a: &Version, b: &Version) -> Ordering {
-    a.major
-        .cmp(&b.major)
-        .then(a.minor.cmp(&b.minor))
-        .then(a.patch.cmp(&b.patch))
-        .then_with(
-            || match (a.prerelease.is_empty(), b.prerelease.is_empty()) {
-                (true, true) => Ordering::Equal,
-                (true, false) => Ordering::Greater,
-                (false, true) => Ordering::Less,
-                (false, false) => {
-                    for (left, right) in a.prerelease.iter().zip(&b.prerelease) {
-                        let order = compare_identifiers(left, right);
+/// A tag carries a leading `v` and `Cargo.toml` does not, so either spelling is accepted.
+fn parse_version(text: &str) -> Option<semver::Version> {
+    let text = js_trim(text);
 
-                        if order != Ordering::Equal {
-                            return order;
-                        }
-                    }
-
-                    // A shorter set of identifiers sorts below an otherwise identical longer one.
-                    a.prerelease.len().cmp(&b.prerelease.len())
-                }
-            },
-        )
+    semver::Version::parse(text.strip_prefix('v').unwrap_or(text)).ok()
 }
 
 /// Whether `candidate` is a release worth moving to from `current`. Unparseable means no.
+///
+/// Compared by semver precedence, so a prerelease sorts below the release it leads to and build
+/// metadata orders nothing: `1.0.0-rc.1` never counts as an update for someone already on `1.0.0`.
 pub fn is_newer(current: &str, candidate: &str) -> bool {
     match (parse_version(current), parse_version(candidate)) {
-        (Some(from), Some(to)) => compare_versions(&to, &from) == Ordering::Greater,
+        (Some(from), Some(to)) => to.cmp_precedence(&from) == Ordering::Greater,
         _ => false,
     }
 }

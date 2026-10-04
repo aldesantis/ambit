@@ -1,2 +1,5 @@
-error: option '--copy' cannot be used with option '--link'
-(run `ambit --help` for usage)
+error: the argument '--copy' cannot be used with '--link'
+
+Usage: ambit install --copy
+
+For more information, try '--help'.
