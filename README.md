@@ -179,12 +179,24 @@ requires:
 | ----------- | ------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `version`   | int          | yes      | Must be `1`.                                                                                                                       |
 | `harnesses` | string[]     | no       | Any of `claude`, `codex`, `cursor`, `opencode`, `vscode`. Default `[claude]`.                                                      |
-| `catalogs`  | list of maps | no       | `name`, `source`, `ref?`. `name` must be unique and hold no `/`, since it is the first half of an address. Dots are fine.          |
+| `catalogs`  | list of maps | no       | `name`, `source`, `ref?`, `path?`. `name` must be unique and hold no `/`, since it is the first half of an address. Dots are fine. |
 | `requires`  | list of maps | no       | Each entry: exactly one key of `pack`/`skill`/`mcp`/`hook`, carrying `<catalog>/<pattern>`. An entry matching nothing is an error. |
 
 **Source formats:** `owner/repo`, `owner/repo@ref` (GitHub shorthand),
 `https://github.com/owner/repo`, `git@host:owner/repo.git`, `git:<any-git-url>`,
 `path:./relative/dir`.
+
+**Catalogs in a subdirectory:** set `path` when the catalog's `skills/`, `mcps/`, `hooks/`, and
+`packs/` sit in a directory of the source rather than at its root. It is relative to the source's
+root and cannot leave it.
+
+```yaml
+catalogs:
+  - name: pstack
+    source: cursor/plugins
+    ref: main
+    path: pstack
+```
 
 ### One install for every project
 
@@ -220,7 +232,9 @@ run `ambit validate` to check the result.
 
 ### Skills
 
-A skill is a directory holding `SKILL.md`. ambit reads two optional keys from its frontmatter:
+A skill is a directory holding `SKILL.md`, named by its path under `skills/` with `/` read as `.`.
+A frontmatter `name` that disagrees is reported by `ambit validate` and otherwise ignored. ambit reads
+two optional keys from its frontmatter:
 
 ```yaml
 ---

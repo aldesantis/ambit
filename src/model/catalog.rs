@@ -108,12 +108,12 @@ pub const ANNOTATION_KEYS: &[AnnotationKey] = AnnotationKey::ALL;
 /// carried on past a broken skill would install something nobody described.
 #[derive(Debug, Default)]
 pub struct CatalogParseOptions<'a> {
-    /// Receives a problem that would otherwise have been returned, letting parsing continue past
-    /// it.
+    /// Receives the one problem parsing recovers from on its own: a skill whose frontmatter `name`
+    /// disagrees with its path.
     ///
-    /// Exactly one problem takes this route: a skill whose frontmatter `name` disagrees with its
-    /// path. It is the one violation parsing can recover from, by taking the path's answer, because
-    /// every other tool derives the name from the path anyway.
+    /// The path's name is taken either way, because every other tool derives the name from the
+    /// path. Without a collector the disagreement is dropped, so one misnamed skill in a third-party
+    /// catalog does not refuse the whole catalog. Validation collects it, so authors still see it.
     pub collect: Option<&'a mut Vec<AmbitError>>,
 }
 
@@ -449,10 +449,12 @@ fn under(parent: &str, relative: &str) -> String {
 /// `ambit.lock`: the catalog resolves to that commit rather than to whatever its `ref` names now
 /// (see [`SourceRequest::pin`]).
 ///
+/// The returned root is the catalog's `path` inside the source when one is set.
+///
 /// # Errors
 ///
-/// Exit 2 for a source ambit cannot read, a missing directory, or an unknown ref; exit 4 if a fetch
-/// fails.
+/// Exit 2 for a source ambit cannot read, a missing directory, an unknown ref, or a `path` that is
+/// not a directory inside the source; exit 4 if a fetch fails.
 pub fn resolve_catalog_root(
     catalog: &CatalogRef,
     context: &SourceContext,
@@ -460,7 +462,7 @@ pub fn resolve_catalog_root(
     refresh: Option<RefreshMode>,
     pin: Option<&str>,
 ) -> Result<ResolvedSource> {
-    resolve_source(
+    let resolved = resolve_source(
         &SourceRequest {
             source: catalog.source.clone(),
             r#ref: catalog.r#ref.clone(),
@@ -470,7 +472,56 @@ pub fn resolve_catalog_root(
             pin: pin.map(str::to_owned),
         },
         context,
-    )
+    )?;
+
+    let Some(path) = &catalog.path else {
+        return Ok(resolved);
+    };
+
+    Ok(ResolvedSource {
+        root: resolve_catalog_path(catalog, &resolved.root, path, file)?,
+        ..resolved
+    })
+}
+
+/// The directory `path` names inside a resolved source.
+///
+/// Config parsing already refused a `path` that leaves the source lexically. The canonical
+/// comparison here catches the remaining way out: a symlink inside the source pointing elsewhere.
+///
+/// # Errors
+///
+/// Exit 2 if the directory is missing, is not a directory, or resolves outside the source.
+fn resolve_catalog_path(
+    catalog: &CatalogRef,
+    source_root: &Path,
+    path: &str,
+    file: &str,
+) -> Result<PathBuf> {
+    let root = source_root.join(path);
+    let inside = match (root.canonicalize(), source_root.canonicalize()) {
+        (Ok(target), Ok(base)) => target.is_dir() && target.starts_with(base),
+        _ => false,
+    };
+
+    if inside {
+        return Ok(root);
+    }
+
+    Err(config_error(
+        format!(
+            "catalog \"{}\" has no directory at path \"{path}\" {}",
+            catalog.name,
+            at(file, None)
+        ),
+        [
+            format!(
+                "{} does not exist, is not a directory, or leads outside the source",
+                root.display()
+            ),
+            "correct `path`, or drop it to read the source's root".to_owned(),
+        ],
+    ))
 }
 
 /// The refusal for a catalog that still holds the scope registry.
@@ -586,8 +637,8 @@ fn skill_annotations(
 
 /// Parses one skill directory.
 ///
-/// With a `collect`or, a name that disagrees with its path is reported through it and the path's
-/// name is used, rather than returned as the error; see [`CatalogParseOptions`].
+/// A name that disagrees with its path is reported through the `collect`or, if any, and the path's
+/// name is used; see [`CatalogParseOptions`].
 fn parse_skill(
     files: &CatalogFiles<'_>,
     relative: &str,
@@ -611,7 +662,9 @@ fn parse_skill(
     let name = mapping.require_string("name")?;
     let derived = skill_name_from_path(relative);
 
-    if name != derived {
+    if name != derived
+        && let Some(collected) = collect
+    {
         let problem = mapping.key_error(
             "name",
             &format!("skill name \"{name}\" does not match its path"),
@@ -621,10 +674,7 @@ fn parse_skill(
             ],
         );
 
-        match collect {
-            None => return Err(problem),
-            Some(collected) => collected.push(from_catalog(catalog, problem)),
-        }
+        collected.push(from_catalog(catalog, problem));
     }
 
     let (description, requires, expects) = skill_annotations(&mapping)?;

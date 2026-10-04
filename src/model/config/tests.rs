@@ -83,11 +83,13 @@ fn parses_the_specs_own_example_into_a_typed_object() {
                     name: "company".to_owned(),
                     source: "git@github.com:acme/skills.git".to_owned(),
                     r#ref: Some("a1b2c3d4".to_owned()),
+                    path: None,
                 },
                 CatalogRef {
                     name: "personal".to_owned(),
                     source: "git@github.com:jane/skills-private.git".to_owned(),
                     r#ref: Some("main".to_owned()),
+                    path: None,
                 },
             ],
             requires: vec![
@@ -199,6 +201,7 @@ fn omits_an_absent_catalog_ref_rather_than_inventing_one() {
             name: "company".to_owned(),
             source: "acme/skills".to_owned(),
             r#ref: None,
+            path: None,
         }
     );
 }
@@ -320,6 +323,41 @@ mod rejections {
             rejection("version: 1\ncatalogs:\n  - name: c\n    source: a/b\n    branch: main\n")
                 .format()
                 .contains("unknown key \"catalogs[0].branch\"")
+        );
+    }
+
+    #[test]
+    fn normalizes_a_catalog_path() {
+        let config = parse(
+            "version: 1\ncatalogs:\n  - name: c\n    source: a/b\n    path: ./plugins//acme/\n",
+        );
+
+        assert_eq!(config.catalogs[0].path.as_deref(), Some("plugins/acme"));
+    }
+
+    #[test]
+    fn reads_a_catalog_path_naming_the_root_as_no_path() {
+        let config = parse("version: 1\ncatalogs:\n  - name: c\n    source: a/b\n    path: .\n");
+
+        assert_eq!(config.catalogs[0].path, None);
+    }
+
+    #[test]
+    fn rejects_a_catalog_path_that_leaves_its_source() {
+        let error =
+            rejection("version: 1\ncatalogs:\n  - name: c\n    source: a/b\n    path: x/../../y\n");
+
+        assert!(error.format().contains(&format!(
+            "catalog path \"x/../../y\" leaves its source ({FILE} line 5)"
+        )));
+    }
+
+    #[test]
+    fn rejects_an_absolute_catalog_path() {
+        assert!(
+            rejection("version: 1\ncatalogs:\n  - name: c\n    source: a/b\n    path: /plugins\n")
+                .format()
+                .contains("catalog path \"/plugins\" is absolute")
         );
     }
 

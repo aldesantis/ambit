@@ -34,6 +34,9 @@ pub struct CatalogRef {
     pub source: String,
     /// Tag, branch, or commit. Absent means the source's default branch.
     pub r#ref: Option<String>,
+    /// The directory inside the source that holds the catalog, `/`-separated and normalized.
+    /// Absent means the source's root.
+    pub path: Option<String>,
 }
 
 /// Where the config came from, and where inside it the values live that a later stage judges.
@@ -86,7 +89,7 @@ pub struct FoundConfig {
 }
 
 const CONFIG_KEYS: &[&str] = &["catalogs", "harnesses", REQUIRES_KEY, "version"];
-const CATALOG_KEYS: &[&str] = &["name", "ref", "source"];
+const CATALOG_KEYS: &[&str] = &["name", "path", "ref", "source"];
 
 /// The second half of every rewrite below.
 ///
@@ -341,6 +344,55 @@ fn assert_addressable_alias(entry: &YamlMapping, name: &str) -> Result<()> {
     ))
 }
 
+/// A catalog's `path`, normalized, or `None` when absent or naming the source's root.
+///
+/// Only a relative path that stays inside the source is accepted. The check is lexical; a symlink
+/// leading out of the source is caught once the source is on disk (see
+/// [`resolve_catalog_root`](crate::model::catalog::resolve_catalog_root)).
+fn parse_catalog_path(entry: &YamlMapping) -> Result<Option<String>> {
+    let Some(written) = entry.optional_string("path")? else {
+        return Ok(None);
+    };
+
+    if written.starts_with(['/', '\\']) || Path::new(&written).is_absolute() {
+        return Err(entry.key_error(
+            "path",
+            &format!("catalog path \"{written}\" is absolute"),
+            vec![
+                "`path` names a directory inside the source, relative to its root".to_owned(),
+                "drop the leading separator, as `path: plugins/acme`".to_owned(),
+            ],
+        ));
+    }
+
+    let mut parts = Vec::new();
+
+    for part in written.split(['/', '\\']) {
+        match part {
+            "" | "." => {}
+            ".." => {
+                return Err(entry.key_error(
+                    "path",
+                    &format!("catalog path \"{written}\" leaves its source"),
+                    vec![
+                        "`path` names a directory inside the source, so it cannot hold `..`"
+                            .to_owned(),
+                        "write the directory relative to the source's root, as `path: plugins/acme`"
+                            .to_owned(),
+                    ],
+                ));
+            }
+            _ => parts.push(part),
+        }
+    }
+
+    if parts.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(parts.join("/")))
+}
+
 fn parse_catalogs(root: &YamlMapping) -> Result<Vec<CatalogRef>> {
     let mut tracker = NameTracker {
         file: root.file(),
@@ -359,11 +411,13 @@ fn parse_catalogs(root: &YamlMapping) -> Result<Vec<CatalogRef>> {
         tracker.track(&name, entry.line_of("name"))?;
 
         let r#ref = entry.optional_string("ref")?;
+        let path = parse_catalog_path(&entry)?;
 
         catalogs.push(CatalogRef {
             name,
             source: entry.require_string("source")?,
             r#ref,
+            path,
         });
     }
 

@@ -319,6 +319,7 @@ fn config(catalogs: &[&str]) -> ProjectConfig {
                 name: (*name).to_owned(),
                 source: format!("path:{name}"),
                 r#ref: None,
+                path: None,
             })
             .collect(),
         requires: Vec::new(),
