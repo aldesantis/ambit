@@ -12,9 +12,9 @@
 //! installation, and lets `ambit prune` (`clean.rs`) reach the same bundle without materializing
 //! it.
 //!
-//! The digests the lock records and `--frozen` are both checked before anything is written, so a CI
-//! run with a stale committed lock, or a catalog tree that no longer matches it, leaves the project
-//! untouched (planning and reading state are both reads).
+//! The digests the lock records, `--frozen`, and the content audit are all checked before anything
+//! is written, so a CI run with a stale committed lock, a catalog tree that no longer matches it, or
+//! hidden text in a skill leaves the project untouched (planning and reading state are both reads).
 //!
 //! Every adapter plans before any of them applies, so ownership (`ownership.rs`) is checked against
 //! the complete set of targets while the project is still untouched.
@@ -47,6 +47,9 @@ use crate::model::git::RefreshMode;
 use crate::model::sources::SourceContext;
 use crate::model::state::{
     ArtifactMode, OwnedArtifact, STATE_VERSION, State, read_state, write_state,
+};
+use crate::project::audit::{
+    AuditFinding, AuditItems, audit_items, catalog_roots, refuse_failures,
 };
 use crate::project::gitignore::{GitignoreStatus, gitignore_status, write_gitignore_blocks};
 use crate::project::lock::{
@@ -81,6 +84,8 @@ pub struct InstallOptions {
     /// `--copy` / `--link`: materialize every skill this way, whatever its source would have
     /// chosen. Absent means each skill follows its source, which is the mode to leave alone.
     pub mode: Option<ArtifactMode>,
+    /// `--no-audit`: skip the content audit of the bundle entirely.
+    pub no_audit: bool,
 }
 
 /// One adapter and the artifacts it would write.
@@ -112,6 +117,8 @@ pub struct PlannedInstall {
     pub lock: Lock,
     /// The lock as the bytes an install would write, which is what `--frozen` compares.
     pub lock_text: String,
+    /// Each loaded catalog's root, keyed by name, for auditing the files the bundle came from.
+    pub roots: IndexMap<String, PathBuf>,
 }
 
 /// What `install --dry-run` reports: everything the run would do, with the project untouched.
@@ -129,6 +136,8 @@ pub struct InstallPreview {
     pub lock_changed: bool,
     /// Whether each managed `.gitignore` block would change, one row per file.
     pub gitignore: Vec<GitignoreStatus>,
+    /// The audit's warnings about the bundle. Empty under `--no-audit`.
+    pub audit: Vec<AuditFinding>,
 }
 
 /// What an install did, for the command to report.
@@ -145,6 +154,8 @@ pub struct InstallResult {
     /// it; the tests read it.
     #[cfg_attr(not(test), allow(dead_code))]
     pub pruned: Vec<PrunedArtifact>,
+    /// The audit's warnings about the bundle. Empty under `--no-audit`.
+    pub audit: Vec<AuditFinding>,
 }
 
 /// The platform's own answer for the home directory, used only when the passed environment has no
@@ -461,20 +472,28 @@ pub fn plan_install(
         prior: read_state(project_dir)?,
         lock_text: serialize_lock(&lock),
         lock,
+        roots: catalog_roots(&loaded),
         bundle,
     })
 }
 
-/// Everything an install checks about the lock before it writes, in the order it checks it.
+/// Everything an install checks about a plan before it writes, in the order it checks it.
 ///
 /// The digests first: a tree that no longer matches the lock is a sharper answer than `--frozen`'s
-/// "the lock would change", which it would also trip. Then `--frozen`.
+/// "the lock would change", which it would also trip. Then `--frozen`. Then the audit, which reads
+/// only the bundle's own files and is skipped entirely under `--no-audit`.
+///
+/// Returns the audit's warnings, for the command to print.
 ///
 /// # Errors
 ///
-/// Exit 2 for an unreadable lock; exit 5 for a digest mismatch or, under `--frozen`, a lock that
-/// would change.
-fn check_plan(project_dir: &Path, planned: &PlannedInstall, options: InstallOptions) -> Result<()> {
+/// Exit 2 for an unreadable lock or an unreadable catalog file; exit 5 for a digest mismatch or,
+/// under `--frozen`, a lock that would change; exit 6 for an audit failure.
+fn check_plan(
+    project_dir: &Path,
+    planned: &PlannedInstall,
+    options: InstallOptions,
+) -> Result<Vec<AuditFinding>> {
     if let Some(previous) = read_locked_items(project_dir)? {
         verify_digests(&previous, &planned.lock)?;
     }
@@ -483,7 +502,14 @@ fn check_plan(project_dir: &Path, planned: &PlannedInstall, options: InstallOpti
         assert_lock_current(project_dir, &planned.lock_text)?;
     }
 
-    Ok(())
+    if options.no_audit {
+        return Ok(Vec::new());
+    }
+
+    let report = audit_items(AuditItems::of_bundle(&planned.bundle), &planned.roots)?;
+
+    refuse_failures(&report)?;
+    Ok(report.warnings().cloned().collect())
 }
 
 /// What an install would do, without doing any of it: `install --dry-run`.
@@ -501,7 +527,7 @@ fn check_plan(project_dir: &Path, planned: &PlannedInstall, options: InstallOpti
 ///
 /// Everything [`install_project`] returns before its first write: exit 2 for a malformed config or
 /// an unowned target, exit 3 for a resolution error, exit 4 for a fetch, exit 5 for a tree that no
-/// longer matches its recorded digest or under `--frozen`.
+/// longer matches its recorded digest or under `--frozen`, exit 6 for an audit failure.
 pub fn preview_install(
     project_dir: &Path,
     env: &Env,
@@ -519,7 +545,7 @@ pub fn preview_install(
         },
     )?;
 
-    check_plan(project_dir, &planned, options)?;
+    let audit = check_plan(project_dir, &planned, options)?;
 
     authorize_plan(
         &planned.artifacts,
@@ -542,6 +568,7 @@ pub fn preview_install(
         pruned,
         lock_changed,
         gitignore,
+        audit,
     })
 }
 
@@ -558,7 +585,7 @@ pub fn preview_install(
 /// does not own and was not told to adopt, or a locked commit the repository does not have; exit 4
 /// if a fetch fails, or under `--offline` when the cache cannot answer; exit 5 under `--frozen` when
 /// the committed lock is not what resolution produces, and for a catalog tree that no longer matches
-/// the digest the lock records for its commit.
+/// the digest the lock records for its commit; exit 6 when the audit finds hidden text in the bundle.
 pub fn install_project(
     project_dir: &Path,
     env: &Env,
@@ -575,7 +602,7 @@ pub fn install_project(
         },
     )?;
 
-    check_plan(project_dir, &planned, options)?;
+    let audit = check_plan(project_dir, &planned, options)?;
 
     let owner = authorize_plan(
         &planned.artifacts,
@@ -616,6 +643,7 @@ pub fn install_project(
         artifacts,
         skipped: planned.skipped,
         pruned,
+        audit,
     })
 }
 

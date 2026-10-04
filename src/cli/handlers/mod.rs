@@ -1,6 +1,7 @@
 //! One module per command, plus the projections several commands share.
 
 pub mod artifacts;
+pub mod audit;
 pub mod clean;
 pub mod doctor;
 pub mod export;

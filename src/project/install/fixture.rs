@@ -176,6 +176,11 @@ impl Project {
         write_file(&self.path(relative), contents);
     }
 
+    /// Reads a file from this test's copy of the catalog.
+    pub fn read_catalog(&self, relative: &str) -> String {
+        read_file(&join(&self.catalog, relative))
+    }
+
     /// Writes a file into this test's copy of the catalog.
     pub fn write_catalog(&self, relative: &str, contents: &str) {
         write_file(&join(&self.catalog, relative), contents);

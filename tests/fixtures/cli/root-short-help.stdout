@@ -16,6 +16,7 @@ Commands:
   clean        remove everything ambit owns
   validate     validate everything this project configures, for CI
   doctor       check preconditions, drift, ownership
+  audit        scan catalog content for hidden text and risky commands
   self-update  replace this ambit binary with a released one
   help         Print this message or the help of the given subcommand(s)
 

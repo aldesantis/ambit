@@ -15,7 +15,7 @@ pub enum ExitCode {
     Network = 4,
     /// Drift detected (`status --check`, `install --frozen`, `export --check`).
     Drift = 5,
-    /// A health check found something: `doctor` failures.
+    /// A health check found something: `doctor` or `audit` failures, or an install the audit refused.
     Doctor = 6,
 }
 

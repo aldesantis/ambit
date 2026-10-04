@@ -26,6 +26,7 @@ use crate::cli::output::{print_sections, section};
 use crate::errors::{ExitCode, Result};
 use crate::harness::adapter::{HookSkipReason, SkippedHook};
 use crate::model::state::ArtifactMode;
+use crate::project::audit::{AuditFinding, item_label};
 use crate::project::install::{
     InstallOptions, InstallPreview, InstallResult, install_project, preview_install,
 };
@@ -58,6 +59,7 @@ fn options_of(ctx: &CommandContext<'_>) -> InstallOptions {
         offline: offline_requested(ctx),
         adopt: ctx.options.flag("adopt"),
         mode: mode_override(ctx),
+        no_audit: ctx.options.flag("noAudit"),
     }
 }
 
@@ -93,6 +95,17 @@ pub fn skip_warnings(skipped: &[SkippedHook]) -> Vec<String> {
                 skip_reason(skip)
             )
         })
+        .collect()
+}
+
+/// One line per audit warning about the bundle.
+///
+/// Shared with `ambit update`, which installs through the same audit. Stderr, beside the skipped
+/// hooks, for the same reason: the install went ahead, and stdout is the report of what it wrote.
+pub fn audit_warnings(findings: &[AuditFinding]) -> Vec<String> {
+    findings
+        .iter()
+        .map(|finding| format!("warning: {}: {}", item_label(finding), finding.message))
         .collect()
 }
 
@@ -207,7 +220,10 @@ pub fn install_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
             print_sections(&preview_text(&preview), ctx.io);
         }
 
-        for line in skip_warnings(&preview.skipped) {
+        for line in skip_warnings(&preview.skipped)
+            .into_iter()
+            .chain(audit_warnings(&preview.audit))
+        {
             ctx.io.stderr(&line);
         }
 
@@ -222,7 +238,10 @@ pub fn install_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
         print_sections(&to_text(&result), ctx.io);
     }
 
-    for line in skip_warnings(&result.skipped) {
+    for line in skip_warnings(&result.skipped)
+        .into_iter()
+        .chain(audit_warnings(&result.audit))
+    {
         ctx.io.stderr(&line);
     }
 
