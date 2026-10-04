@@ -115,7 +115,7 @@ fn blocks() -> Vec<ScaffoldBlock> {
         },
         ScaffoldBlock {
             comment: lines(&[
-                "The agent harnesses to install into: `claude`, `codex`, `cursor`, `opencode`, `vscode`.",
+                "The agent harnesses to install into: `claude`, `codex`, `copilot`, `cursor`, `opencode`.",
                 "",
                 "Skills go to `.agents/skills/` whichever are listed — one copy, however many tools read it.",
                 "`claude` and `cursor` also get `.claude/skills` as a link to it, since neither reads the",

@@ -37,7 +37,7 @@ use crate::util::fs::{EntryKind, lstat_kind, mkdir_p, read_text, rm_rf, write_te
 use crate::util::json::{JsonValue, parse, stringify_pretty};
 use crate::util::path::{join, to_slash};
 
-/// The file Claude Code reads, and VS Code with it.
+/// The file Claude Code reads, and Copilot with it.
 const SETTINGS: &str = ".claude/settings.json";
 
 /// One hook as its own document: the directory it sits in, and the lines beyond `name`.
@@ -339,8 +339,8 @@ mod claude_settings {
     }
 }
 
-mod claude_and_vscode {
-    //! VS Code reads Claude's settings file natively, so the two share it.
+mod claude_and_copilot {
+    //! Copilot reads Claude's settings file natively, so the two share it.
     //!
     //! The same relationship as Claude and Cursor sharing one skills link: two harnesses naming one
     //! target is one artifact, not two that collide.
@@ -349,7 +349,7 @@ mod claude_and_vscode {
 
     fn fixture() -> Fixture {
         let fixture = Fixture::new();
-        fixture.write_profile(&[format_hook()], &["claude", "vscode"]);
+        fixture.write_profile(&[format_hook()], &["claude", "copilot"]);
         fixture
     }
 
@@ -374,7 +374,7 @@ mod claude_and_vscode {
     }
 
     #[test]
-    fn leaves_vs_codes_own_config_alone_having_nothing_to_put_in_it() {
+    fn leaves_copilots_own_config_alone_having_nothing_to_put_in_it() {
         let f = fixture();
         f.cli(&["install"]);
 
@@ -1116,7 +1116,7 @@ mod opencode_skip {
 mod claude_and_cursor {
     //! Claude and Cursor together: two harnesses, two files, two renderings.
     //!
-    //! The counterpart of the Claude/VS Code case above. There the two shared a file because they
+    //! The counterpart of the Claude/Copilot case above. There the two shared a file because they
     //! render one entry; here they render different entries into different files, so `plan_for`
     //! collapses nothing.
 
@@ -1177,7 +1177,7 @@ mod script_hook {
     ///
     /// The declaration is `command: hook.sh`, which names a file relative to the hook's directory
     /// *in the catalog*, so what reaches a config file has to name the installed copy instead,
-    /// spelled the way that harness resolves a path. Claude and VS Code get Claude's documented
+    /// spelled the way that harness resolves a path. Claude and Copilot get Claude's documented
     /// `${CLAUDE_PROJECT_DIR}`; Cursor and Codex interpolate nothing, so they get the path
     /// project-relative.
     fn claude_command() -> String {
@@ -1367,7 +1367,7 @@ mod script_hook {
     #[test]
     fn writes_the_materialized_path_the_way_each_harness_resolves_one() {
         let f = fixture();
-        write_catalog(&f, &["claude", "codex", "cursor", "vscode"]);
+        write_catalog(&f, &["claude", "codex", "cursor", "copilot"]);
 
         let result = f.cli(&["install"]);
 
@@ -1376,7 +1376,7 @@ mod script_hook {
         // One script, however many harnesses read it.
         assert_eq!(f.file_text(&format!("{HOOK_DIR}/{SCRIPT}")), SCRIPT_BODY);
 
-        // Claude, and VS Code out of the same file: Claude's own documented placeholder, which holds
+        // Claude, and Copilot out of the same file: Claude's own documented placeholder, which holds
         // the project root, so the script is found whatever a session's cwd is.
         assert_eq!(
             f.settings(),

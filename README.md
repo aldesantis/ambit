@@ -2,7 +2,7 @@
 
 **ambit is a dependency manager for AI agents.**
 
-Every agent harness (Claude Code, Codex, Cursor, opencode, VS Code) loads skills, hooks, and MCP
+Every agent harness (Claude Code, Codex, Copilot, Cursor, opencode) loads skills, hooks, and MCP
 servers. Today you copy those files between projects by hand, and they drift. ambit lets you keep
 them in a git repo, declare which ones a project wants, and install them into whatever harness your
 team uses.
@@ -145,7 +145,7 @@ pack `function.engineering`.
 Your project is also a catalog. `ambit init` lists it as one, so a skill you write locally is
 selected exactly like a skill from a shared repo.
 
-Supported harnesses: `claude`, `codex`, `cursor`, `opencode`, `vscode`.
+Supported harnesses: `claude`, `codex`, `copilot`, `cursor`, `opencode`.
 
 ## Configuring your project
 
@@ -178,7 +178,7 @@ requires:
 | Field       | Type         | Required | Notes                                                                                                                              |
 | ----------- | ------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `version`   | int          | yes      | Must be `1`.                                                                                                                       |
-| `harnesses` | string[]     | no       | Any of `claude`, `codex`, `cursor`, `opencode`, `vscode`. Default `[claude]`.                                                      |
+| `harnesses` | string[]     | no       | Any of `claude`, `codex`, `copilot`, `cursor`, `opencode`. Default `[claude]`.                                                     |
 | `catalogs`  | list of maps | no       | `name`, `source`, `ref?`, `path?`. `name` must be unique and hold no `/`, since it is the first half of an address. Dots are fine. |
 | `requires`  | list of maps | no       | Each entry: exactly one key of `pack`/`skill`/`mcp`/`hook`, carrying `<catalog>/<pattern>`. An entry matching nothing is an error. |
 
@@ -343,12 +343,12 @@ untouched. `${VAR}` in a `command` is left as written, since the harness runs it
 
 Hook support varies by harness:
 
-| Harness            | Written to              | Notes                                                                                         |
-| ------------------ | ----------------------- | --------------------------------------------------------------------------------------------- |
-| `claude`, `vscode` | `.claude/settings.json` | VS Code reads Claude's file natively, so it is written once.                                  |
-| `cursor`           | `.cursor/hooks.json`    | Different event names, and no `matcher` field, so a matcher is dropped.                       |
-| `codex`            | `.codex/hooks.json`     | Experimental: needs `[features] codex_hooks = true` in the user's own config. `doctor` warns. |
-| `opencode`         | —                       | No declarative hooks. A selected hook is skipped with a warning and the install succeeds.     |
+| Harness             | Written to              | Notes                                                                                         |
+| ------------------- | ----------------------- | --------------------------------------------------------------------------------------------- |
+| `claude`, `copilot` | `.claude/settings.json` | Copilot reads Claude's file natively, so it is written once.                                  |
+| `cursor`            | `.cursor/hooks.json`    | Different event names, and no `matcher` field, so a matcher is dropped.                       |
+| `codex`             | `.codex/hooks.json`     | Experimental: needs `[features] codex_hooks = true` in the user's own config. `doctor` warns. |
+| `opencode`          | —                       | No declarative hooks. A selected hook is skipped with a warning and the install succeeds.     |
 
 ### Packs
 

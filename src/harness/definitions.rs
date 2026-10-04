@@ -4,9 +4,9 @@
 //! by hand, so an ambit-generated config is indistinguishable from a hand-written one.
 //!
 //! Skills: Claude Code and Cursor read `.claude/skills`, so both get a link to the shared
-//! directory. Codex, VS Code and opencode read `.agents/skills` natively and need no link.
+//! directory. Codex, Copilot and opencode read `.agents/skills` natively and need no link.
 //!
-//! Hooks: Claude and VS Code share both the file (`.claude/settings.json`) and its renderer. Codex
+//! Hooks: Claude and Copilot share both the file (`.claude/settings.json`) and its renderer. Codex
 //! shares the renderer but not the file (its entries live in `.codex/hooks.json`). Cursor shares
 //! neither: its own file, its own event names, its own entry shape. opencode has no declarative
 //! hooks; a hook selected for it is reported as skipped (`skipped_hooks`, `profile.rs`).
@@ -36,7 +36,7 @@ use crate::util::json::{JsonObject, JsonValue};
 /// Where Claude Code and Cursor look for skills.
 const CLAUDE_SKILLS_LINK: &str = ".claude/skills";
 
-/// Claude Code's hooks file. Also read natively by VS Code.
+/// Claude Code's hooks file. Also read natively by Copilot.
 ///
 /// The section is `Array`-shaped, not `Map`-shaped, because the file is the user's own: their
 /// `model`, `permissions`, and hand-written hooks live in it. ambit owns entries inside
@@ -58,8 +58,8 @@ fn claude_hooks() -> HookLayout {
 /// relative to the project root, regardless of the session's working directory. A relative path
 /// cannot promise that.
 ///
-/// Also written for VS Code, which reads this same file. Whether VS Code interpolates this
-/// placeholder is undocumented either way; see [`VSCODE`].
+/// Also written for Copilot, which reads this same file. Whether Copilot interpolates this
+/// placeholder is undocumented either way; see [`COPILOT`].
 fn claude_hook_root() -> String {
     format!("${{CLAUDE_PROJECT_DIR}}/{SHARED_HOOKS_DIR}")
 }
@@ -109,7 +109,7 @@ fn hook_root(project: &ProjectPaths, project_scoped: &str) -> String {
 /// One entry carries one command, because one declaration is one hook; grouping several under one
 /// entry would make a digest name a set whose membership changes as other hooks come and go.
 ///
-/// VS Code reads exactly this shape and ignores `matcher`. Codex reads it too, differing only in
+/// Copilot reads exactly this shape and ignores `matcher`. Codex reads it too, differing only in
 /// `root`, which is why `root` is a parameter here rather than a constant.
 ///
 /// Key order here is the digest's input, so it is fixed in this one place only.
@@ -158,7 +158,7 @@ fn codex_hooks() -> HookLayout {
 
 /// How Cursor spells each of ambit's events: the same names, camelCased.
 ///
-/// The only harness that needs a map; Claude, VS Code and Codex read the `PascalCase` spellings
+/// The only harness that needs a map; Claude, Copilot and Codex read the `PascalCase` spellings
 /// verbatim. Written out rather than derived, because the mapping is a fact about Cursor: the
 /// `match` is total over [`HookEvent`], so adding an event without a spelling here is a compile
 /// error.
@@ -377,7 +377,7 @@ pub static CURSOR: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     hook_config: Some(cursor_hook_config),
 });
 
-fn vscode_server(mcp: &MergedMcp) -> JsonValue {
+fn copilot_server(mcp: &MergedMcp) -> JsonValue {
     match &mcp.transport {
         McpTransport::Stdio(transport) => {
             let mut server = JsonObject::new();
@@ -390,24 +390,24 @@ fn vscode_server(mcp: &MergedMcp) -> JsonValue {
     }
 }
 
-/// VS Code (Copilot). Its section is `servers`, and it wants an explicit `type` on both
+/// GitHub Copilot in VS Code. Its section is `servers`, and it wants an explicit `type` on both
 /// transports.
 ///
 /// Uses `${env:VAR}` throughout, including in a stdio server's `env`. VS Code also supports
 /// `${input:VAR}`, which prompts the user, but only when the file declares a matching entry in its
 /// own `inputs` array; ambit does not write one, so this form is not used.
 ///
-/// Its hooks are Claude's outright: VS Code reads `.claude/settings.json` natively, so this
+/// Its hooks are Claude's outright: Copilot reads `.claude/settings.json` natively, so this
 /// profile reuses Claude's layout and renderer, including the `${CLAUDE_PROJECT_DIR}` placeholder.
-/// That placeholder is undocumented for VS Code specifically: VS Code documents parsing Claude's
+/// That placeholder is undocumented for Copilot specifically: VS Code documents parsing Claude's
 /// format and expanding `${CLAUDE_PLUGIN_ROOT}` for Claude-format plugins, but no project-root
 /// token, so this may resolve to a literal string rather than a path.
 ///
 /// Written anyway: a separate spelling would require two entries in one array for one declared
-/// hook, and both VS Code and Claude would run it, so every project would see the hook twice.
+/// hook, and both Copilot and Claude would run it, so every project would see the hook twice.
 /// `doctor` is where a harness limitation like this gets surfaced if it turns out to matter.
-pub static VSCODE: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
-    name: "vscode",
+pub static COPILOT: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
+    name: "copilot",
     skills_link: None,
     mcp: McpLayout {
         file: ".vscode/mcp.json",
@@ -415,7 +415,7 @@ pub static VSCODE: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
         section: "servers",
         format: DocumentFormat::Json,
     },
-    server_config: vscode_server,
+    server_config: copilot_server,
     hooks: Some(claude_hooks()),
     hook_config: Some(claude_hook_config),
 });
@@ -539,7 +539,7 @@ pub static OPENCODE: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile 
 
 /// Every profile this build ships, in the order `--help` and error messages list them.
 pub static PROFILES: LazyLock<Vec<&'static HarnessProfile>> =
-    LazyLock::new(|| vec![&*CLAUDE, &*CODEX, &*CURSOR, &*OPENCODE, &*VSCODE]);
+    LazyLock::new(|| vec![&*CLAUDE, &*CODEX, &*COPILOT, &*CURSOR, &*OPENCODE]);
 
 #[cfg(test)]
 mod tests;

@@ -297,7 +297,7 @@ fn leaves_a_codex_configs_own_settings_and_comments_exactly_as_they_were() {
 
 // all five harnesses at once
 
-const ALL_HARNESSES: &[&str] = &["claude", "codex", "cursor", "opencode", "vscode"];
+const ALL_HARNESSES: &[&str] = &["claude", "codex", "copilot", "cursor", "opencode"];
 
 #[test]
 fn writes_one_skills_tree_one_link_and_five_config_files() {

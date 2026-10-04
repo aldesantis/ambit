@@ -7,7 +7,7 @@
 //! does not put `url` before `type`.
 //!
 //! The layouts come from dotagents 1.19.0's own target definitions rather than from memory, with
-//! one deliberate deviation for VS Code that is called out where it is asserted.
+//! one deliberate deviation for Copilot that is called out where it is asserted.
 //!
 //! Every comparison goes through [`same`], which compares the serialized bytes, so key order is
 //! asserted along with the values.
@@ -119,7 +119,7 @@ fn ships_exactly_five_profiles_in_the_order_errors_and_help_list_them() {
             .iter()
             .map(|profile| profile.name)
             .collect::<Vec<_>>(),
-        ["claude", "codex", "cursor", "opencode", "vscode"]
+        ["claude", "codex", "copilot", "cursor", "opencode"]
     );
 }
 
@@ -157,6 +157,10 @@ fn names_each_harnesss_config_file_section_and_format() {
                 )
             ),
             (
+                "copilot",
+                layout(".vscode/mcp.json", None, "servers", DocumentFormat::Json)
+            ),
+            (
                 "cursor",
                 layout(".cursor/mcp.json", None, "mcpServers", DocumentFormat::Json)
             ),
@@ -169,22 +173,18 @@ fn names_each_harnesss_config_file_section_and_format() {
                     DocumentFormat::Jsonc
                 )
             ),
-            (
-                "vscode",
-                layout(".vscode/mcp.json", None, "servers", DocumentFormat::Json)
-            ),
         ]
     );
 }
 
 #[test]
 fn gives_the_two_harnesses_that_need_one_the_same_skills_link_and_the_other_three_none() {
-    // Claude Code and Cursor read `.claude/skills`; Codex, VS Code and opencode read the shared
+    // Claude Code and Cursor read `.claude/skills`; Codex, Copilot and opencode read the shared
     // directory natively. Naming the same link is what makes a project using both plan it once.
     assert_eq!(CLAUDE.skills_link, Some(LINK));
     assert_eq!(CURSOR.skills_link, Some(LINK));
     assert_eq!(CODEX.skills_link, None);
-    assert_eq!(VSCODE.skills_link, None);
+    assert_eq!(COPILOT.skills_link, None);
     assert_eq!(OPENCODE.skills_link, None);
     // And the link is not the shared directory itself, or it would point at itself.
     assert_ne!(LINK, SHARED_SKILLS_DIR);
@@ -278,7 +278,7 @@ fn cases() -> Vec<Case> {
             bare_http: json!({ "url": URL }),
         },
         Case {
-            profile: &VSCODE,
+            profile: &COPILOT,
             // An explicit `type` on both transports, and `${env:VAR}` throughout, including in
             // `env`, where dotagents writes `${input:VAR}`. That form only works when the file
             // also declares a matching `inputs` array, which ambit does not write, so emitting it
@@ -428,7 +428,10 @@ fn is_translated_too_so_a_per_tenant_endpoint_works_on_every_harness() {
     assert_eq!(tenant(&CLAUDE), "https://${TENANT}.mcp.invalid/fixture");
     assert_eq!(tenant(&CODEX), "https://${TENANT}.mcp.invalid/fixture");
     assert_eq!(tenant(&CURSOR), "https://${env:TENANT}.mcp.invalid/fixture");
-    assert_eq!(tenant(&VSCODE), "https://${env:TENANT}.mcp.invalid/fixture");
+    assert_eq!(
+        tenant(&COPILOT),
+        "https://${env:TENANT}.mcp.invalid/fixture"
+    );
     assert_eq!(
         tenant(&OPENCODE),
         "https://{env:TENANT}.mcp.invalid/fixture"
@@ -472,7 +475,7 @@ fn writes_the_declared_name_against_the_variable_that_supplies_it_in_every_spell
         &json!({ "PLANNER_TOKEN": "${ACME_PLANNER_TOKEN}" }),
     );
     same(
-        &env_of(&VSCODE),
+        &env_of(&COPILOT),
         &json!({ "PLANNER_TOKEN": "${env:ACME_PLANNER_TOKEN}" }),
     );
 }
@@ -515,12 +518,12 @@ fn reaches_every_harness_in_that_harnesss_own_spelling() {
     assert_eq!(last_arg(&CODEX), "Authorization: Bearer ${TOKEN}");
     assert_eq!(last_arg(&CURSOR), "Authorization: Bearer ${TOKEN}");
     assert_eq!(last_arg(&OPENCODE), "Authorization: Bearer ${TOKEN}");
-    assert_eq!(last_arg(&VSCODE), "Authorization: Bearer ${env:TOKEN}");
+    assert_eq!(last_arg(&COPILOT), "Authorization: Bearer ${env:TOKEN}");
 }
 
 // the hook each profile emits
 //
-// Four harnesses express hooks, in two shapes: Claude, VS Code and Codex render one entry (the
+// Four harnesses express hooks, in two shapes: Claude, Copilot and Codex render one entry (the
 // first two into one shared file, Codex into its own) and Cursor shares nothing with any of them.
 // So the claims are each entry's exact shape, its key order, and which harnesses render the same
 // bytes. Key order is load-bearing here in a way it is not for a server: the managed key is a
@@ -593,7 +596,7 @@ fn layout_of(
 }
 
 #[test]
-fn gives_claude_and_vscode_one_shared_file_and_codex_one_of_its_own() {
+fn gives_claude_and_copilot_one_shared_file_and_codex_one_of_its_own() {
     let layout = (
         ".claude/settings.json",
         "hooks",
@@ -605,7 +608,7 @@ fn gives_claude_and_vscode_one_shared_file_and_codex_one_of_its_own() {
 
     assert_eq!(layout_of(CLAUDE.hooks.as_ref().unwrap()), layout);
     // The same file, so a project configuring both writes it once.
-    assert_eq!(layout_of(VSCODE.hooks.as_ref().unwrap()), layout);
+    assert_eq!(layout_of(COPILOT.hooks.as_ref().unwrap()), layout);
     // Codex differs in the file and in nothing else: Claude's section, Claude's shape, Claude's
     // entries. Not `[hooks]` in `.codex/config.toml`, which Codex also reads: that is an
     // array-of-tables, which the TOML driver refuses.
@@ -717,7 +720,7 @@ fn renders_one_entry_for_the_three_harnesses_that_read_claudes_shape() {
     let claudes = stringify(&render(&CLAUDE, &hook(), &plain_project()));
 
     assert_eq!(
-        stringify(&render(&VSCODE, &hook(), &plain_project())),
+        stringify(&render(&COPILOT, &hook(), &plain_project())),
         claudes
     );
     assert_eq!(
@@ -793,15 +796,15 @@ fn command_of(profile: &HarnessProfile, hook: &MergedHook, paths: &ProjectPaths)
 }
 
 #[test]
-fn points_claude_and_vscode_at_the_project_root_through_claudes_own_placeholder() {
+fn points_claude_and_copilot_at_the_project_root_through_claudes_own_placeholder() {
     // `${CLAUDE_PROJECT_DIR}` is documented by Claude as interpolated in `command` and as holding
-    // the project root. VS Code reads this same file and gets the same string, documented or not.
+    // the project root. Copilot reads this same file and gets the same string, documented or not.
     assert_eq!(
         command_of(&CLAUDE, &script(), &plain_project()),
         "${CLAUDE_PROJECT_DIR}/.agents/hooks/block-rm/hook.sh"
     );
     assert_eq!(
-        command_of(&VSCODE, &script(), &plain_project()),
+        command_of(&COPILOT, &script(), &plain_project()),
         "${CLAUDE_PROJECT_DIR}/.agents/hooks/block-rm/hook.sh"
     );
 }
@@ -871,7 +874,7 @@ fn leaves_a_hook_that_ships_nothing_exactly_as_declared() {
         ..hook()
     };
 
-    for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*VSCODE] {
+    for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*COPILOT] {
         assert_eq!(
             command_of(profile, &inline, &plain_project()),
             "npx --yes prettier --check",
@@ -901,7 +904,7 @@ fn home() -> ProjectPaths {
 
 #[test]
 fn names_the_install_root_outright_for_every_harness_that_expresses_hooks() {
-    for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*VSCODE] {
+    for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*COPILOT] {
         assert_eq!(
             command_of(profile, &script(), &home()),
             "/home/jane/.agents/hooks/block-rm/hook.sh",
@@ -913,7 +916,7 @@ fn names_the_install_root_outright_for_every_harness_that_expresses_hooks() {
 
 #[test]
 fn leaves_nothing_for_a_harness_or_a_project_to_resolve() {
-    for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*VSCODE] {
+    for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*COPILOT] {
         let command = command_of(profile, &script(), &home());
 
         // No placeholder, since `${CLAUDE_PROJECT_DIR}` is the project's root and not this one,
@@ -944,7 +947,7 @@ fn leaves_a_hook_that_ships_nothing_exactly_as_declared_at_a_user_level_install(
         ..hook()
     };
 
-    for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*VSCODE] {
+    for profile in [&*CLAUDE, &*CODEX, &*CURSOR, &*COPILOT] {
         assert_eq!(
             command_of(profile, &inline, &home()),
             "npx --yes prettier --check",
