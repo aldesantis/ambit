@@ -190,15 +190,24 @@ pub fn plan_prune(plan: &[PlannedArtifact], prior: &State) -> Result<Vec<PrunedA
 /// Install has no need for this: it writes the artifacts it just applied. A standalone `prune` has
 /// to subtract instead, and it subtracts the planned removals rather than the writes that happened,
 /// so a key state claimed in a file someone had already emptied by hand stops being claimed too.
+///
+/// Removed keys are unioned per path: one file can hold two sections ambit writes (Gemini's
+/// servers and hooks), recorded as two artifacts and pruned as two removals. A key names its
+/// section, so subtracting the union from each artifact takes nothing from the other.
 pub fn remaining_artifacts(prior: &State, pruned: &[PrunedArtifact]) -> Vec<OwnedArtifact> {
-    let removed: IndexMap<&str, &PrunedArtifact> = pruned
-        .iter()
-        .map(|artifact| (artifact.path.as_str(), artifact))
-        .collect();
+    let mut removed: IndexMap<&str, IndexSet<&str>> = IndexMap::new();
+
+    for artifact in pruned {
+        removed
+            .entry(artifact.path.as_str())
+            .or_default()
+            .extend(artifact.managed_keys.iter().flatten().map(String::as_str));
+    }
+
     let mut kept = Vec::new();
 
     for artifact in &prior.artifacts {
-        let Some(gone) = removed.get(artifact.path.as_str()) else {
+        let Some(gone_keys) = removed.get(artifact.path.as_str()) else {
             kept.push(artifact.clone());
             continue;
         };
@@ -207,12 +216,11 @@ pub fn remaining_artifacts(prior: &State, pruned: &[PrunedArtifact]) -> Vec<Owne
             continue;
         }
 
-        let gone_keys = gone.managed_keys.as_deref().unwrap_or_default();
         let keys: Vec<String> = artifact
             .managed_keys
             .iter()
             .flatten()
-            .filter(|key| !gone_keys.contains(key))
+            .filter(|key| !gone_keys.contains(key.as_str()))
             .cloned()
             .collect();
 
