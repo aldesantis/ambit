@@ -10,6 +10,7 @@ Options:
       --copy           copy local-source skills instead of symlinking
       --link           symlink skills instead of copying
       --no-audit       skip scanning the bundle for hidden text
+      --accept-exec    accept hooks and stdio MCP servers not in ambit.lock
       --dry-run        print the plan without touching disk
       --project <dir>  project directory
       --json           machine-readable output

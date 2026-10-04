@@ -183,6 +183,7 @@ catalogs:
   - name: company
     source: git@github.com:acme/skills.git
     ref: "a1b2c3d4" # tag, branch, or commit. Quote it. Omit for the default branch.
+    trust: full # install new hooks and servers from it without review
   - name: personal
     source: git@github.com:jane/skills-private.git
     ref: main
@@ -198,12 +199,12 @@ requires:
   - hook: "company/guards.*"
 ```
 
-| Field       | Type         | Required | Notes                                                                                                                              |
-| ----------- | ------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `version`   | int          | yes      | Must be `1`.                                                                                                                       |
-| `harnesses` | string[]     | no       | Any of the supported harnesses above. Default `[claude]`.                                                                          |
-| `catalogs`  | list of maps | no       | `name`, `source`, `ref?`, `path?`. `name` must be unique and hold no `/`, since it is the first half of an address. Dots are fine. |
-| `requires`  | list of maps | no       | Each entry: exactly one key of `pack`/`skill`/`mcp`/`hook`, carrying `<catalog>/<pattern>`. An entry matching nothing is an error. |
+| Field       | Type         | Required | Notes                                                                                                                                        |
+| ----------- | ------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`   | int          | yes      | Must be `1`.                                                                                                                                 |
+| `harnesses` | string[]     | no       | Any of the supported harnesses above. Default `[claude]`.                                                                                    |
+| `catalogs`  | list of maps | no       | `name`, `source`, `ref?`, `path?`, `trust?`. `name` must be unique and hold no `/`, since it is the first half of an address. Dots are fine. |
+| `requires`  | list of maps | no       | Each entry: exactly one key of `pack`/`skill`/`mcp`/`hook`, carrying `<catalog>/<pattern>`. An entry matching nothing is an error.           |
 
 **Source formats:** `owner/repo`, `owner/repo@ref` (GitHub shorthand),
 `https://github.com/owner/repo`, `git@host:owner/repo.git`, `git:<any-git-url>`,
@@ -220,6 +221,11 @@ catalogs:
     ref: main
     path: pstack
 ```
+
+**Trust:** `trust` is `review` or `full`. A git catalog defaults to `review`, which makes
+`ambit install` stop before adding a hook or a stdio MCP server from it that `ambit.lock` does not
+hold yet. A `path:` catalog defaults to `full`. See
+[reviewing new execution](#reviewing-new-execution).
 
 ### One install for every project
 
@@ -610,6 +616,42 @@ a few config values, not files.
 
 `ambit status` uses the same digest to report a copied skill or hook that was edited after install.
 
+### Reviewing new execution
+
+A hook runs on harness events and a stdio MCP server runs as a local process, so a catalog that
+adds or changes one changes what runs on your machine. `ambit.lock` records an `exec` digest of
+each hook's event, matcher, command and script files, and of each MCP server's command, arguments,
+environment, URL and headers.
+
+For a catalog with `trust: review`, `ambit install` and `ambit update` compare those digests with
+the lock before writing anything. A hook or stdio server that is new, or whose digest changed, stops
+the run with exit 5:
+
+```
+$ ambit install
+error: install would add execution that was not in the lock
+       hook guard-secrets  PreToolUse Bash
+         hooks/guard-secrets/guard.sh   (new, from company@f9e1a04)
+       mcp linear  stdio
+         npx -y @acme/linear-mcp        (command changed)
+       review the change, then re-run with `--accept-exec`
+```
+
+Read the hook's script or the server's definition in the catalog, then run
+`ambit install --accept-exec` (or `ambit update --accept-exec`). That installs them and records
+their digests, so the next run passes without the flag.
+
+| Case                             | What happens                                                      |
+| -------------------------------- | ----------------------------------------------------------------- |
+| No `ambit.lock` yet              | Every hook and stdio server from a `review` catalog is new.       |
+| A new or changed http MCP server | A `warning:` on stderr. The install goes ahead.                   |
+| `trust: full`                    | Nothing is compared.                                              |
+| `--frozen`                       | Nothing is compared: the lock already matches, so nothing is new. |
+| `--dry-run`                      | Stops with the same error the install would.                      |
+
+A script hook from a `path:` catalog is compared by its command line only, since a working
+directory has no commit to pin its files to.
+
 ### Auditing content
 
 A skill is a prompt, and some characters render as nothing in a diff view while a model still reads
@@ -682,23 +724,23 @@ when `AMBIT_NO_UPDATE_CHECK` is set to anything. It never delays or fails the co
 
 ### Commands
 
-| Command                                                             | What it does                                                                                                                                         |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ambit init`                                                        | Scaffold `ambit.yml`, the four item directories, and a `catalogs:` entry naming the project itself. Refuses a directory that already has a config.   |
-| `ambit search [--catalog <name>…] [--capability <kind>…] <pattern>` | Search every catalog the project lists, whether anything selects the item or not. Same patterns as `requires`. A pattern matching nothing is exit 0. |
-| `ambit resolve [--explain]`                                         | Compute the bundle and print it. `--explain` prints why each item is in it.                                                                          |
-| `ambit why <kind:name>`                                             | Explain why one item is in the bundle, as a chain back to the entry that asked for it.                                                               |
-| `ambit install [--frozen] [--adopt] [--copy\|--link] [--no-audit]`  | Resolve, write `ambit.lock`, install the files, remove what is no longer selected. See [install flags](#install-flags).                              |
-| `ambit export --format claude-plugin --output <dir>`                | Export selected packs and their local plugin dependencies into separate Claude plugin directories.                                                   |
-| `ambit outdated`                                                    | Ask each remote where its `ref` points now, and report what moving there would change.                                                               |
-| `ambit update [<catalog>…] [--adopt] [--copy\|--link] [--no-audit]` | Move those pins forward, then install. Every catalog when none is named.                                                                             |
-| `ambit status [--check]`                                            | Compare what is installed against what resolve produces. `--check` exits 5 on drift.                                                                 |
-| `ambit prune`                                                       | Remove installed files that are no longer selected.                                                                                                  |
-| `ambit clean`                                                       | Remove everything ambit installed.                                                                                                                   |
-| `ambit validate`                                                    | Validate the config and every catalog the project lists. A catalog repo runs this too, since it lists itself.                                        |
-| `ambit doctor`                                                      | Check preconditions, the lock, ownership, drift, and harness limits.                                                                                 |
-| `ambit audit`                                                       | Scan every catalog the project lists for hidden text and risky command lines. See [auditing content](#auditing-content).                             |
-| `ambit self-update [<version>]`                                     | Replace this ambit binary with a released one, checksum verified. The newest release when no version is named.                                       |
+| Command                                                                             | What it does                                                                                                                                         |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ambit init`                                                                        | Scaffold `ambit.yml`, the four item directories, and a `catalogs:` entry naming the project itself. Refuses a directory that already has a config.   |
+| `ambit search [--catalog <name>…] [--capability <kind>…] <pattern>`                 | Search every catalog the project lists, whether anything selects the item or not. Same patterns as `requires`. A pattern matching nothing is exit 0. |
+| `ambit resolve [--explain]`                                                         | Compute the bundle and print it. `--explain` prints why each item is in it.                                                                          |
+| `ambit why <kind:name>`                                                             | Explain why one item is in the bundle, as a chain back to the entry that asked for it.                                                               |
+| `ambit install [--frozen] [--adopt] [--copy\|--link] [--no-audit] [--accept-exec]`  | Resolve, write `ambit.lock`, install the files, remove what is no longer selected. See [install flags](#install-flags).                              |
+| `ambit export --format claude-plugin --output <dir>`                                | Export selected packs and their local plugin dependencies into separate Claude plugin directories.                                                   |
+| `ambit outdated`                                                                    | Ask each remote where its `ref` points now, and report what moving there would change.                                                               |
+| `ambit update [<catalog>…] [--adopt] [--copy\|--link] [--no-audit] [--accept-exec]` | Move those pins forward, then install. Every catalog when none is named.                                                                             |
+| `ambit status [--check]`                                                            | Compare what is installed against what resolve produces. `--check` exits 5 on drift.                                                                 |
+| `ambit prune`                                                                       | Remove installed files that are no longer selected.                                                                                                  |
+| `ambit clean`                                                                       | Remove everything ambit installed.                                                                                                                   |
+| `ambit validate`                                                                    | Validate the config and every catalog the project lists. A catalog repo runs this too, since it lists itself.                                        |
+| `ambit doctor`                                                                      | Check preconditions, the lock, ownership, drift, and harness limits.                                                                                 |
+| `ambit audit`                                                                       | Scan every catalog the project lists for hidden text and risky command lines. See [auditing content](#auditing-content).                             |
+| `ambit self-update [<version>]`                                                     | Replace this ambit binary with a released one, checksum verified. The newest release when no version is named.                                       |
 
 ### Global flags
 
@@ -713,27 +755,28 @@ when `AMBIT_NO_UPDATE_CHECK` is set to anything. It never delays or fails the co
 
 ### Install flags
 
-| Flag         | Notes                                                                                   |
-| ------------ | --------------------------------------------------------------------------------------- |
-| `--frozen`   | Exit 5 instead of writing when resolution would change `ambit.lock`. For CI.            |
-| `--adopt`    | Take ownership of existing files ambit did not create, instead of refusing them.        |
-| `--copy`     | Copy every skill, including those from `path:` catalogs, which are symlinked otherwise. |
-| `--link`     | Symlink every skill instead of copying it.                                              |
-| `--no-audit` | Skip the [content audit](#auditing-content) of the items being installed.               |
+| Flag            | Notes                                                                                                                                          |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--frozen`      | Exit 5 instead of writing when resolution would change `ambit.lock`. For CI.                                                                   |
+| `--adopt`       | Take ownership of existing files ambit did not create, instead of refusing them.                                                               |
+| `--copy`        | Copy every skill, including those from `path:` catalogs, which are symlinked otherwise.                                                        |
+| `--link`        | Symlink every skill instead of copying it.                                                                                                     |
+| `--no-audit`    | Skip the [content audit](#auditing-content) of the items being installed.                                                                      |
+| `--accept-exec` | Install hooks and stdio MCP servers that `ambit.lock` does not hold, and record them. See [reviewing new execution](#reviewing-new-execution). |
 
 `ambit update` takes the same flags except `--frozen`.
 
 ### Exit codes
 
-| Code | Meaning                                                                                                                                    |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0    | Success                                                                                                                                    |
-| 1    | Unexpected internal error                                                                                                                  |
-| 2    | Config, ownership, export compatibility, or usage error                                                                                    |
-| 3    | Resolution error: a pattern matching nothing, missing requirement, cycle, name conflict                                                    |
-| 4    | Network or cache error                                                                                                                     |
-| 5    | Drift detected (`status --check`, `install --frozen`, `export --check`), or a catalog's files no longer match their digest in `ambit.lock` |
-| 6    | A health check found something (`doctor` or `audit` failures), or the audit refused an install                                             |
+| Code | Meaning                                                                                                                                                                                                            |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0    | Success                                                                                                                                                                                                            |
+| 1    | Unexpected internal error                                                                                                                                                                                          |
+| 2    | Config, ownership, export compatibility, or usage error                                                                                                                                                            |
+| 3    | Resolution error: a pattern matching nothing, missing requirement, cycle, name conflict                                                                                                                            |
+| 4    | Network or cache error                                                                                                                                                                                             |
+| 5    | Drift detected (`status --check`, `install --frozen`, `export --check`), a catalog's files no longer match their digest in `ambit.lock`, or an install would add a hook or stdio MCP server the lock does not hold |
+| 6    | A health check found something (`doctor` or `audit` failures), or the audit refused an install                                                                                                                     |
 
 Every error names the file, the identifier, and one concrete next step:
 

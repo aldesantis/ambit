@@ -13,6 +13,10 @@
 //! because stdout is the report a script parses and a skip isn't part of what was installed. A
 //! warning, not an error, because the hook did install everywhere else; failing would let one
 //! harness veto every other harness's hooks.
+//!
+//! A new or changed http MCP server from a `trust: review` catalog is a warning on stderr for the
+//! same reason. Hooks and stdio servers are refused before this module sees a result (see
+//! `project/exec.rs`).
 
 use serde_json::json;
 
@@ -27,6 +31,7 @@ use crate::errors::{ExitCode, Result};
 use crate::harness::adapter::{HookSkipReason, SkippedHook};
 use crate::model::state::ArtifactMode;
 use crate::project::audit::{AuditFinding, item_label};
+use crate::project::exec::ExecChange;
 use crate::project::install::{
     InstallOptions, InstallPreview, InstallResult, install_project, preview_install,
 };
@@ -60,6 +65,7 @@ fn options_of(ctx: &CommandContext<'_>) -> InstallOptions {
         adopt: ctx.options.flag("adopt"),
         mode: mode_override(ctx),
         no_audit: ctx.options.flag("noAudit"),
+        accept_exec: ctx.options.flag("acceptExec"),
     }
 }
 
@@ -106,6 +112,24 @@ pub fn audit_warnings(findings: &[AuditFinding]) -> Vec<String> {
     findings
         .iter()
         .map(|finding| format!("warning: {}: {}", item_label(finding), finding.message))
+        .collect()
+}
+
+/// One line per http MCP server whose endpoint the lock did not hold.
+///
+/// Shared with `ambit update`, which installs through the same gate.
+pub fn endpoint_warnings(endpoints: &[ExecChange]) -> Vec<String> {
+    endpoints
+        .iter()
+        .map(|change| {
+            format!(
+                "warning: {} \"{}\" connects to {} ({})",
+                change.kind,
+                change.name,
+                change.runs,
+                change.note()
+            )
+        })
         .collect()
 }
 
@@ -222,6 +246,7 @@ pub fn install_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
 
         for line in skip_warnings(&preview.skipped)
             .into_iter()
+            .chain(endpoint_warnings(&preview.endpoints))
             .chain(audit_warnings(&preview.audit))
         {
             ctx.io.stderr(&line);
@@ -240,6 +265,7 @@ pub fn install_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
 
     for line in skip_warnings(&result.skipped)
         .into_iter()
+        .chain(endpoint_warnings(&result.endpoints))
         .chain(audit_warnings(&result.audit))
     {
         ctx.io.stderr(&line);

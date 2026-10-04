@@ -107,6 +107,11 @@ fn blocks() -> Vec<ScaffoldBlock> {
                 "",
                 "The order carries no meaning: none takes precedence over another, and selecting one name from",
                 "two of them is refused rather than settled here.",
+                "",
+                "A git catalog defaults to `trust: review`: `ambit install` refuses a hook or a stdio MCP server",
+                "from it that `ambit.lock` does not hold yet, the first install included, until you re-run it",
+                "with `--accept-exec`. Write `trust: full` on a catalog you trust to skip that. A `path:`",
+                "catalog defaults to `full`.",
             ]),
             values: Some(object(json!({
                 "catalogs": [{ "name": LOCAL_CATALOG, "source": LOCAL_SOURCE }],

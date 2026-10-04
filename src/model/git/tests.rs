@@ -104,7 +104,7 @@ fn write_project(dir: &Path, source: &str, r#ref: Option<&str>, extra: &[&str]) 
     std::fs::write(
         dir.join("ambit.yml"),
         format!(
-            "version: 1\ncatalogs:\n  - name: {CATALOG_NAME}\n    source: {source}\n{ref_line}requires:\n{}\n{extra}",
+            "version: 1\ncatalogs:\n  - name: {CATALOG_NAME}\n    source: {source}\n    trust: full\n{ref_line}requires:\n{}\n{extra}",
             requires.join("\n")
         ),
     )

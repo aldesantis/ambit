@@ -105,11 +105,13 @@ const SHUFFLED: [ReadOrder; 2] = [ReadOrder::Reversed, ReadOrder::Rotated];
 /// Both are named by `--project`, the only directory flag there is. `Empty` is a project directory
 /// with nothing in it, which exists for the one surface whose subject is the *absence* of a
 /// project: `ambit init` refuses a directory that already holds a config, so it cannot be aimed at
-/// `Project` like the rest.
+/// `Project` like the rest. `Reviewed` is the same profile with its catalog at `trust: review` and
+/// never installed, for the execution gate's refusal, whose order is the bundle's.
 #[derive(Clone, Copy, Debug)]
 enum Subject {
     Project,
     Empty,
+    Reviewed,
 }
 
 /// One thing ambit prints, and which directory it is pointed at.
@@ -126,6 +128,7 @@ impl Surface {
         let dir = match self.dir {
             Subject::Project => "project",
             Subject::Empty => "empty",
+            Subject::Reviewed => "reviewed",
         };
 
         format!("ambit {} --project <{dir}>", self.argv.join(" "))
@@ -214,6 +217,8 @@ surfaces! {
     outdated_json: ["outdated", "--json"] in Project;
     update_dry_run: ["update", "--dry-run"] in Project;
     update_dry_run_json: ["update", "--dry-run", "--json"] in Project;
+    install_dry_run_refused: ["install", "--dry-run"] in Reviewed;
+    install_dry_run_refused_json: ["install", "--dry-run", "--json"] in Reviewed;
 }
 
 /// One installed project beside its catalog, and an empty directory, under one temporary root.
@@ -223,6 +228,7 @@ struct Fixture {
     catalog: PathBuf,
     project: PathBuf,
     empty: PathBuf,
+    reviewed: PathBuf,
     /// The project as install left it.
     installed: BTreeMap<String, String>,
     /// The catalog as the fixture builder left it.
@@ -236,12 +242,15 @@ impl Fixture {
         let catalog = root.path().join("catalog");
         let project = root.path().join("project");
         let empty = root.path().join("empty");
+        let reviewed = root.path().join("reviewed");
 
         build_fixture_catalog(&catalog).expect("build the fixture catalog");
         write_extra_hooks(&catalog);
         fs::create_dir_all(&project).expect("create the project");
         fs::create_dir_all(&empty).expect("create the empty directory");
+        fs::create_dir_all(&reviewed).expect("create the reviewed project");
         write_profile(&project);
+        write_reviewed_profile(&reviewed);
 
         let install = cli(
             &["install", "--project", path_str(&project)],
@@ -260,6 +269,7 @@ impl Fixture {
             catalog,
             project,
             empty,
+            reviewed,
             installed,
             built,
         }
@@ -269,6 +279,7 @@ impl Fixture {
         match subject {
             Subject::Project => &self.project,
             Subject::Empty => &self.empty,
+            Subject::Reviewed => &self.reviewed,
         }
     }
 
@@ -315,6 +326,23 @@ fn write_profile(dir: &Path) {
         format!(
             "version: 1\ncatalogs:\n  - name: {CATALOG_NAME}\n    source: path:../catalog\nrequires:\n{}\n",
             entries.join("\n")
+        ),
+    )
+    .expect("write ambit.yml");
+}
+
+/// [`write_profile`], with the catalog at `trust: review`.
+fn write_reviewed_profile(dir: &Path) {
+    write_profile(dir);
+
+    let config = dir.join("ambit.yml");
+    let text = fs::read_to_string(&config).expect("read ambit.yml");
+
+    fs::write(
+        &config,
+        text.replace(
+            "    source: path:../catalog\n",
+            "    source: path:../catalog\n    trust: review\n",
         ),
     )
     .expect("write ambit.yml");
@@ -528,6 +556,29 @@ fn prints_no_date_and_no_clock_time() {
     }
 }
 
+// The `Reviewed` rows are only worth having if what they pin is the refusal.
+
+#[test]
+fn the_reviewed_project_is_refused_by_the_execution_gate() {
+    let fixture = Fixture::new();
+    let result = fixture.run(
+        Surface {
+            argv: &["install", "--dry-run"],
+            dir: Subject::Reviewed,
+        },
+        ReadOrder::Natural,
+    );
+
+    assert_eq!(result.code, ExitCode::Drift, "{}", result.stderr);
+    assert!(
+        result
+            .stderr
+            .starts_with("error: install would add execution that was not in the lock"),
+        "{}",
+        result.stderr
+    );
+}
+
 // Nothing in the surface table touches disk: the guard on sharing one project and one catalog
 // across every surface. Each row is either read-only or a `--dry-run`, and a row that turned out
 // to write would have corrupted the fixture for whatever ran after it.
@@ -554,6 +605,11 @@ fn nothing_in_the_surface_table_touches_disk() {
         snapshot(&fixture.empty),
         BTreeMap::new(),
         "leaves the empty directory empty, which is what `init --dry-run` promises"
+    );
+    assert_eq!(
+        snapshot(&fixture.reviewed).into_keys().collect::<Vec<_>>(),
+        ["ambit.yml"],
+        "leaves the reviewed project holding only its config, as a refused install must"
     );
 }
 
