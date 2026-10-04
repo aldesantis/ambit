@@ -1,5 +1,6 @@
-//! What ambit does to a project: install, prune, clean, status, doctor, update, init.
+//! What ambit does to a project: install, prune, clean, status, doctor, audit, update, init.
 
+pub mod audit;
 pub mod bundle_diff;
 pub mod clean;
 pub mod doctor;

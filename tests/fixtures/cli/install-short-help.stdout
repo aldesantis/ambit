@@ -7,6 +7,7 @@ Options:
       --adopt          take ownership of existing unowned artifacts
       --copy           copy local-source skills instead of symlinking
       --link           symlink skills instead of copying
+      --no-audit       skip scanning the bundle for hidden text
       --dry-run        print the plan without touching disk
       --project <dir>  project directory
       --json           machine-readable output

@@ -21,8 +21,8 @@ use crate::cli::commands::{
 use crate::cli::handlers::outdated::refuses_offline_rule;
 use crate::cli::handlers::self_update::refuses_offline_self_update_rule;
 use crate::cli::handlers::{
-    clean, doctor, export, init, install, outdated, prune, resolve, search, self_update, status,
-    update, validate, why,
+    audit, clean, doctor, export, init, install, outdated, prune, resolve, search, self_update,
+    status, update, validate, why,
 };
 use crate::errors::{AmbitError, ExitCode};
 use crate::util::env::Env;
@@ -90,6 +90,7 @@ impl Io for CaptureIo {
 /// added without an entry reports itself unimplemented (exit 1) rather than silently succeeding.
 pub fn handlers() -> CommandHandlers {
     CommandHandlers::from_iter([
+        ("audit".to_owned(), handler(audit::audit_handler)),
         ("export".to_owned(), handler(export::export_handler)),
         ("clean".to_owned(), handler(clean::clean_handler)),
         ("doctor".to_owned(), handler(doctor::doctor_handler)),

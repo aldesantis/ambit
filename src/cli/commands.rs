@@ -214,6 +214,8 @@ enum Command {
         #[command(flatten)]
         materialize: MaterializeFlags,
         #[command(flatten)]
+        audit: AuditFlags,
+        #[command(flatten)]
         dry_run: DryRun,
         #[command(flatten)]
         globals: ProjectFlags,
@@ -243,6 +245,8 @@ enum Command {
         #[command(flatten)]
         materialize: MaterializeFlags,
         #[command(flatten)]
+        audit: AuditFlags,
+        #[command(flatten)]
         dry_run: DryRun,
         #[command(flatten)]
         globals: ProjectFlags,
@@ -270,6 +274,13 @@ enum Command {
     },
     #[command(about = "check preconditions, drift, ownership")]
     Doctor {
+        #[command(flatten)]
+        globals: ProjectFlags,
+    },
+    // Reads every item of every catalog the project lists, as `validate` does, not only the
+    // selected ones: a catalog author runs it before publishing.
+    #[command(about = "scan catalog content for hidden text and risky commands")]
+    Audit {
         #[command(flatten)]
         globals: ProjectFlags,
     },
@@ -306,6 +317,17 @@ struct MaterializeFlags {
     copy: bool,
     #[arg(long, help = "symlink skills instead of copying")]
     link: bool,
+}
+
+// `--no-audit`, on the commands that install. Its id is its `CommandOptions` key.
+#[derive(Debug, Args)]
+struct AuditFlags {
+    #[arg(
+        id = "noAudit",
+        long = "no-audit",
+        help = "skip scanning the bundle for hidden text"
+    )]
+    no_audit: bool,
 }
 
 // `--dry-run`, only on commands that touch disk. Its id is its `CommandOptions` key.

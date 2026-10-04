@@ -120,6 +120,7 @@ fn shaped_artifact(path: &str, keys: Vec<String>, shape: Option<DocumentShape>) 
         managed_keys: Some(keys),
         format: Some(DocumentFormat::Json),
         shape,
+        digest: None,
     }
 }
 
@@ -1702,6 +1703,7 @@ mod script_hook {
                     managed_keys: None,
                     format: None,
                     shape: None,
+                    digest: None,
                 },
                 config_artifact(SETTINGS, hook_keys()),
             ]

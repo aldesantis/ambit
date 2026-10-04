@@ -72,6 +72,7 @@ fn dir(path: &str, kind: ArtifactKind, mode: ArtifactMode) -> OwnedArtifact {
         managed_keys: None,
         format: None,
         shape: None,
+        digest: None,
     }
 }
 
@@ -152,6 +153,7 @@ fn leaves_a_co_owned_config_file_out_since_mcp_json_is_a_file_a_team_commits() {
         managed_keys: Some(strings(&["mcpServers.tagged"])),
         format: None,
         shape: None,
+        digest: None,
     }];
 
     assert_eq!(

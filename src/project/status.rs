@@ -11,7 +11,8 @@
 //! cannot resolve.
 //!
 //! Comparison follows the artifact kind, matching the split ownership and pruning make: a copied
-//! skill directory is compared as a tree of bytes; a symlink has none of its own, so only where it
+//! skill directory is compared as a tree of bytes, by digest where state recorded one (see
+//! [`copy_verdict`]); a symlink has none of its own, so only where it
 //! points is checked (editing through the link edits the source, and is never drift); a harness
 //! config file is co-owned, so it is compared key by key and only the keys ambit wrote are ambit's
 //! to judge.
@@ -40,6 +41,7 @@ use crate::resolution::resolve::resolve_bundle;
 use crate::util::cmp::js_cmp;
 use crate::util::env::Env;
 use crate::util::fs::{EntryKind, io_message, lstat_kind, read_dir_names};
+use crate::util::hash::tree_digest;
 use crate::util::path::{normalize, resolve, to_slash};
 use crate::util::string_enum;
 
@@ -280,6 +282,61 @@ fn first_difference(artifact: &PlannedCatalogDir) -> Result<Option<String>> {
     Ok(None)
 }
 
+/// Hashes one tree for a comparison, naming it as `label` if it cannot be read.
+///
+/// # Errors
+///
+/// Exit 2 when the tree cannot be read.
+fn digest_of(dir: &Path, label: &str) -> Result<String> {
+    tree_digest(dir).map_err(|error| unreadable(label, dir, io_message(&error, dir)))
+}
+
+/// Compares a copied directory against its source and against the digest state recorded for it.
+///
+/// Two hashes settle the common case: a copy that hashes like its source is what install would
+/// write. Otherwise the copy is walked file by file against the source, for one concrete
+/// difference to report. When that walk finds none, the recorded digest decides: a copy that still
+/// hashes to it is as installed (only a link out of the tree, which the copy holds as an absolute
+/// path, reads differently), and one that does not was edited in a way no file comparison shows,
+/// such as a link retargeted at the same bytes.
+///
+/// `recorded` absent (state written before digests were) falls back to the file walk alone.
+///
+/// # Errors
+///
+/// Exit 2 when either tree cannot be read.
+fn copy_verdict(artifact: &PlannedCatalogDir, recorded: Option<&str>) -> Result<Verdict> {
+    let Some(recorded) = recorded else {
+        return Ok(match first_difference(artifact)? {
+            None => Verdict::OK,
+            Some(difference) => Verdict::new(ArtifactState::Modified, difference),
+        });
+    };
+
+    let installed = digest_of(&artifact.target, &artifact.path)?;
+    let source = digest_of(
+        &artifact.source,
+        &format!("the source of \"{}\"", artifact.name),
+    )?;
+
+    if installed == source {
+        return Ok(Verdict::OK);
+    }
+
+    if let Some(difference) = first_difference(artifact)? {
+        return Ok(Verdict::new(ArtifactState::Modified, difference));
+    }
+
+    if installed == recorded {
+        return Ok(Verdict::OK);
+    }
+
+    Ok(Verdict::new(
+        ArtifactState::Modified,
+        "its contents changed since ambit installed it",
+    ))
+}
+
 /// Compares one installed symlink against the source it should name.
 ///
 /// The link is read rather than followed, and reported as written, with `/` separators: a relative
@@ -351,7 +408,8 @@ fn skills_link_verdict(artifact: &PlannedSkillsLink, owned: &IndexSet<String>) -
 /// whatever it holds, since install would refuse it rather than compare it.
 ///
 /// What is on disk decides how the comparison is made, not the plan's `mode`: a link is checked for
-/// pointing at its source, a directory compared byte for byte. Both modes put the same bytes in
+/// pointing at its source, a directory compared byte for byte ([`copy_verdict`], given `recorded`,
+/// the digest state holds for this path). Both modes put the same bytes in
 /// front of the harness, so a `--copy` install with intact copies reads as clean even though a
 /// plain `install` would relink it. Mode divergence is reported by `doctor` instead.
 ///
@@ -361,7 +419,11 @@ fn skills_link_verdict(artifact: &PlannedSkillsLink, owned: &IndexSet<String>) -
 /// # Errors
 ///
 /// Exit 2 when the target cannot be inspected.
-fn catalog_dir_verdict(artifact: &PlannedCatalogDir, owned: &IndexSet<String>) -> Result<Verdict> {
+fn catalog_dir_verdict(
+    artifact: &PlannedCatalogDir,
+    owned: &IndexSet<String>,
+    recorded: Option<&str>,
+) -> Result<Verdict> {
     let shape = shape_of(&artifact.target, &artifact.path)?;
 
     if shape == Shape::Absent {
@@ -389,10 +451,7 @@ fn catalog_dir_verdict(artifact: &PlannedCatalogDir, owned: &IndexSet<String>) -
         ));
     }
 
-    Ok(match first_difference(artifact)? {
-        None => Verdict::OK,
-        Some(difference) => Verdict::new(ArtifactState::Modified, difference),
-    })
+    copy_verdict(artifact, recorded)
 }
 
 /// Compares the managed keys of one co-owned config file against what is in it.
@@ -502,6 +561,11 @@ fn planned_keys<'a>(artifacts: &[&'a PlannedHarnessConfig]) -> IndexSet<&'a str>
 /// drift; both mean the comparison could not be made.
 fn compare_artifacts(plan: &[PlannedArtifact], prior: &State) -> Result<Vec<StatusArtifact>> {
     let owned = owned_paths(prior);
+    let digests: IndexMap<&str, &str> = prior
+        .artifacts
+        .iter()
+        .filter_map(|artifact| Some((artifact.path.as_str(), artifact.digest.as_deref()?)))
+        .collect();
     let groups = planned_by_path(plan);
     let mut rows = Vec::new();
 
@@ -515,7 +579,9 @@ fn compare_artifacts(plan: &[PlannedArtifact], prior: &State) -> Result<Vec<Stat
 
         match first {
             PlannedArtifact::SkillDir(dir) | PlannedArtifact::HookDir(dir) => {
-                rows.push(catalog_dir_verdict(dir, &owned)?.at(file, first.kind()));
+                let recorded = digests.get(file).copied();
+
+                rows.push(catalog_dir_verdict(dir, &owned, recorded)?.at(file, first.kind()));
             }
             PlannedArtifact::SkillsLink(link) => {
                 rows.push(skills_link_verdict(link, &owned)?.at(file, first.kind()));

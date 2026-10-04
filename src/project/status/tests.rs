@@ -709,3 +709,66 @@ fn goes_quiet_again_once_the_install_that_prunes_them_has_run() {
     assert_eq!(status_drift(&status), []);
     assert_eq!(fixture.cli(&["status", "--check"]).code, ExitCode::Success);
 }
+
+// Copies with symlinks in them, compared by the digest state recorded at install.
+
+/// The status row for one path.
+fn row_at(fixture: &Fixture, path: &str) -> StatusArtifact {
+    fixture
+        .status()
+        .artifacts
+        .into_iter()
+        .find(|artifact| artifact.path == path)
+        .unwrap_or_else(|| panic!("no row for {path}"))
+}
+
+#[cfg(unix)]
+#[test]
+fn reads_a_fresh_copy_holding_links_inside_and_outside_its_tree_as_ok() {
+    use crate::util::fs::symlink_file;
+
+    let fixture = Fixture::new();
+    let skill = fixture.catalog_dir.join("skills").join(ENGINEERING_SKILL);
+
+    symlink_file(Path::new("SKILL.md"), &skill.join("alias.md")).unwrap();
+    symlink_file(
+        Path::new("../../packs/core.yml"),
+        &skill.join("outside.yml"),
+    )
+    .unwrap();
+
+    let install = fixture.cli(&["install", "--copy"]);
+
+    assert_eq!(install.code, ExitCode::Success, "{}", install.stderr);
+    assert_eq!(
+        row_at(&fixture, &engineering_target()).state,
+        ArtifactState::Ok
+    );
+    assert_eq!(fixture.cli(&["status", "--check"]).code, ExitCode::Success);
+}
+
+#[cfg(unix)]
+#[test]
+fn reports_a_copy_edited_in_a_way_no_file_comparison_shows() {
+    use crate::util::fs::symlink_file;
+
+    let fixture = Fixture::new();
+    let skill = fixture.catalog_dir.join("skills").join(ENGINEERING_SKILL);
+
+    symlink_file(Path::new("SKILL.md"), &skill.join("alias.md")).unwrap();
+    assert_eq!(fixture.cli(&["install", "--copy"]).code, ExitCode::Success);
+
+    // Same bytes through the link, different link: only the digest can tell.
+    let alias = fixture
+        .project_dir
+        .join(engineering_target())
+        .join("alias.md");
+
+    fs::remove_file(&alias).unwrap();
+    symlink_file(Path::new("./SKILL.md"), &alias).unwrap();
+
+    let row = row_at(&fixture, &engineering_target());
+
+    assert_eq!(row.state, ArtifactState::Modified);
+    assert_eq!(row.detail, "its contents changed since ambit installed it");
+}

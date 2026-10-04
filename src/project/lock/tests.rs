@@ -15,6 +15,7 @@ use super::*;
 use crate::errors::ExitCode;
 use crate::model::catalog::{CatalogParseOptions, merge_catalogs, parse_catalog_directory};
 use crate::model::config::load_project_config;
+use crate::model::lock_file::LockedItem;
 use crate::model::yaml::parse_yaml_mapping;
 use crate::project::install::fixture::*;
 use crate::resolution::resolve::resolve_bundle;
@@ -292,9 +293,17 @@ fn pins_where_a_hooks_bytes_came_from_only_when_it_ships_a_script() {
     // Through `build_lock` rather than the CLI, so the commit is a value rather than something a
     // git source has to supply.
     let catalog = catalog_at(&project, "abc1234");
+    let digests = ItemDigests {
+        hooks: IndexMap::from([
+            ("block-rm".to_owned(), "sha256-blockrm".to_owned()),
+            ("announce".to_owned(), "sha256-ignored".to_owned()),
+        ]),
+        ..ItemDigests::default()
+    };
     let lock = build_lock(
         std::slice::from_ref(&catalog),
         &bundle_from(&project, std::slice::from_ref(&catalog)),
+        &digests,
     )
     .expect("a lock");
     let hooks = parse_yaml_mapping(&serialize_lock(&lock), LOCK_FILENAME)
@@ -307,17 +316,21 @@ fn pins_where_a_hooks_bytes_came_from_only_when_it_ships_a_script() {
     // a skill's is.
     let shipping = hooks.require_mapping("block-rm").unwrap();
 
-    assert_eq!(shipping.keys(), ["catalog", "commit", "path", "reason"]);
+    assert_eq!(
+        shipping.keys(),
+        ["catalog", "commit", "digest", "path", "reason"]
+    );
     assert_eq!(shipping.require_string("catalog").unwrap(), CATALOG_NAME);
     assert_eq!(shipping.require_string("path").unwrap(), "hooks/block-rm");
     assert_eq!(shipping.require_string("commit").unwrap(), "abc1234");
+    assert_eq!(shipping.require_string("digest").unwrap(), "sha256-blockrm");
     assert_eq!(
         shipping.require_string("reason").unwrap(),
         format!("hook:{CATALOG_NAME}/block-rm")
     );
 
     // `npx --yes say done` is a command line, so the same catalog entry ships nothing and pins
-    // nothing.
+    // nothing, whatever digest it is handed.
     let inert = hooks.require_mapping("announce").unwrap();
 
     assert_eq!(inert.keys(), ["catalog", "reason"]);
@@ -337,6 +350,7 @@ fn quotes_a_commit_and_a_ref_a_yaml_parser_would_otherwise_read_as_numbers() {
         &build_lock(
             std::slice::from_ref(&catalog),
             &bundle_from(&project, std::slice::from_ref(&catalog)),
+            &ItemDigests::default(),
         )
         .expect("a lock"),
     );
@@ -392,6 +406,7 @@ fn emits_every_section_and_quotes_what_would_read_as_a_number() {
             catalog: CATALOG_NAME.to_owned(),
             path: None,
             commit: None,
+            digest: None,
             reason: format!("hook:{CATALOG_NAME}/notify"),
         },
     );
@@ -502,4 +517,96 @@ fn refuses_a_missing_lock_naming_the_project() {
         ]
         .join("\n")
     );
+}
+
+// verify_digests, and the earlier lock it reads
+
+/// A lock holding one skill pinned at `commit` with `digest`.
+fn pinned_lock(commit: &str, digest: &str) -> Lock {
+    let mut lock = Lock {
+        version: LOCK_VERSION,
+        catalogs: IndexMap::new(),
+        packs: IndexMap::new(),
+        skills: IndexMap::new(),
+        mcps: IndexMap::new(),
+        hooks: IndexMap::new(),
+    };
+
+    lock.skills.insert(
+        CORE_SKILL.to_owned(),
+        LockSkill {
+            catalog: CATALOG_NAME.to_owned(),
+            path: format!("skills/{CORE_SKILL}"),
+            commit: Some(commit.to_owned()),
+            digest: Some(digest.to_owned()),
+            reason: format!("skill:{CATALOG_NAME}/{CORE_SKILL}"),
+        },
+    );
+    lock
+}
+
+/// What a project holding `lock` reads back as its earlier lock.
+fn read_back(lock: &Lock) -> LockedItems {
+    let project = Project::new();
+
+    write_lock_text(&project.dir, &serialize_lock(lock)).unwrap();
+    read_locked_items(&project.dir)
+        .unwrap()
+        .expect("a lock to read")
+}
+
+#[test]
+fn reads_back_every_item_field_and_tolerates_a_missing_digest() {
+    let mut lock = pinned_lock("abc1234", "sha256-one");
+    let earlier = read_back(&lock);
+
+    assert_eq!(
+        earlier.skills[CORE_SKILL],
+        LockedItem {
+            catalog: Some(CATALOG_NAME.to_owned()),
+            path: Some(format!("skills/{CORE_SKILL}")),
+            commit: Some("abc1234".to_owned()),
+            digest: Some("sha256-one".to_owned()),
+        }
+    );
+
+    lock.skills[CORE_SKILL].digest = None;
+
+    assert_eq!(read_back(&lock).skills[CORE_SKILL].digest, None);
+    assert_eq!(read_locked_items(&Project::new().dir).unwrap(), None);
+}
+
+#[test]
+fn refuses_a_tree_whose_digest_moved_under_the_same_commit() {
+    let earlier = read_back(&pinned_lock("abc1234", "sha256-one"));
+    let error = verify_digests(&earlier, &pinned_lock("abc1234", "sha256-two")).unwrap_err();
+
+    assert_eq!(error.code, ExitCode::Drift);
+    assert_eq!(
+        error.message,
+        format!("skill \"{CORE_SKILL}\" does not match the digest {LOCK_FILENAME} records")
+    );
+    assert_eq!(
+        error.detail[..2],
+        [
+            format!("{LOCK_FILENAME} records sha256-one for skills/{CORE_SKILL} at commit abc1234"),
+            "the catalog checkout holds sha256-two".to_owned(),
+        ]
+    );
+}
+
+#[test]
+fn accepts_a_new_commit_a_matching_digest_and_an_entry_with_none_recorded() {
+    let earlier = read_back(&pinned_lock("abc1234", "sha256-one"));
+
+    verify_digests(&earlier, &pinned_lock("def5678", "sha256-two")).unwrap();
+    verify_digests(&earlier, &pinned_lock("abc1234", "sha256-one")).unwrap();
+
+    let mut undigested = pinned_lock("abc1234", "sha256-one");
+
+    undigested.skills[CORE_SKILL].digest = None;
+
+    let earlier = read_back(&undigested);
+
+    verify_digests(&earlier, &pinned_lock("abc1234", "sha256-two")).unwrap();
 }

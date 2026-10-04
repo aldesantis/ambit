@@ -14,7 +14,7 @@ use super::*;
 use crate::errors::{AmbitError, ExitCode};
 use crate::model::catalog::{CatalogLoadOptions, load_catalogs, merge_catalogs};
 use crate::model::config::load_project_config;
-use crate::project::lock::{build_lock, serialize_lock};
+use crate::project::lock::{build_lock, item_digests, serialize_lock};
 use crate::resolution::resolve::resolve_bundle;
 use crate::test_support::{run_cli, tempdir, test_env};
 use crate::util::env::Env;
@@ -550,7 +550,8 @@ fn uses_locked_git_revisions_reproducibly_including_metadata_when_offline() {
     let catalogs = load_catalogs(&config, &remote, &mut CatalogLoadOptions::default())
         .expect("load the catalogs");
     let bundle = resolve_bundle(&config, &merge_catalogs(&catalogs)).expect("resolve");
-    let lock = serialize_lock(&build_lock(&catalogs, &bundle).expect("build the lock"));
+    let digests = item_digests(&bundle).expect("hash the bundle");
+    let lock = serialize_lock(&build_lock(&catalogs, &bundle, &digests).expect("build the lock"));
 
     std::fs::write(project.join("ambit.lock"), &lock).expect("write the lock");
     assert_eq!(catalogs[0].commit.as_deref(), Some(commit.as_str()));

@@ -29,6 +29,7 @@ use crate::model::hook_entity::{HookEvent, HookType};
 use crate::model::state::{ArtifactKind, ArtifactMode, OwnedArtifact, State, owned_paths};
 use crate::resolution::resolve::Bundle;
 use crate::util::fs;
+use crate::util::hash::tree_digest;
 use crate::util::json::JsonValue;
 use crate::util::path::{join, relative};
 
@@ -432,6 +433,14 @@ fn apply_catalog_dir(
         fs::copy_tree(&artifact.source, &artifact.target)?;
     }
 
+    // Hashed from the copy just written rather than from its source, so `status` compares like
+    // with like. The two agree unless the tree holds a link out of itself, which `copy_tree`
+    // rewrites.
+    let digest = match artifact.mode {
+        ArtifactMode::Copy => Some(tree_digest(&artifact.target)?),
+        ArtifactMode::Link => None,
+    };
+
     Ok(OwnedArtifact {
         path: artifact.path.clone(),
         kind,
@@ -439,6 +448,7 @@ fn apply_catalog_dir(
         managed_keys: None,
         format: None,
         shape: None,
+        digest,
     })
 }
 
@@ -476,6 +486,7 @@ fn apply_skills_link(
         managed_keys: None,
         format: None,
         shape: None,
+        digest: None,
     })
 }
 
@@ -511,6 +522,7 @@ fn apply_harness_config(artifact: &PlannedHarnessConfig) -> Result<AppliedArtifa
         managed_keys: Some(artifact.managed_keys.clone()),
         format: Some(artifact.format),
         shape: artifact.shape,
+        digest: None,
     })
 }
 

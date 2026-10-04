@@ -202,6 +202,8 @@ surfaces! {
     validate_json: ["validate", "--json"] in Project;
     doctor: ["doctor"] in Project;
     doctor_json: ["doctor", "--json"] in Project;
+    audit: ["audit"] in Project;
+    audit_json: ["audit", "--json"] in Project;
     install_dry_run: ["install", "--dry-run"] in Project;
     install_dry_run_json: ["install", "--dry-run", "--json"] in Project;
     prune_dry_run: ["prune", "--dry-run"] in Project;

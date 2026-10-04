@@ -58,6 +58,10 @@
     "doctor",
     "--help"
   ],
+  "help-audit": [
+    "audit",
+    "--help"
+  ],
   "help-self-update": [
     "self-update",
     "--help"

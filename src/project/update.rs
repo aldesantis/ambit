@@ -107,6 +107,7 @@ pub struct UpdateOptions {
 pub struct UpdateInstallOptions {
     pub adopt: bool,
     pub mode: Option<ArtifactMode>,
+    pub no_audit: bool,
 }
 
 /// Whether any pin has somewhere to move: over a bare list of pins, since [`UpdatePlan`] and
@@ -443,7 +444,7 @@ pub fn preview_update(
 /// run just advanced, so the install writes the commits that were reported without touching the
 /// network.
 ///
-/// `install` is `--adopt` and `--copy`/`--link`, passed through. Not `--frozen`: an update exists
+/// `install` is `--adopt`, `--copy`/`--link` and `--no-audit`, passed through. Not `--frozen`: an update exists
 /// to change the lock, so a flag that fails when the lock would change is a contradiction rather
 /// than a combination, and it is not offered.
 ///
@@ -464,6 +465,7 @@ pub fn update_project(
         InstallOptions {
             adopt: install.adopt,
             mode: install.mode,
+            no_audit: install.no_audit,
             ..InstallOptions::default()
         },
         &released,

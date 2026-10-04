@@ -176,6 +176,11 @@ impl Project {
         write_file(&self.path(relative), contents);
     }
 
+    /// Reads a file from this test's copy of the catalog.
+    pub fn read_catalog(&self, relative: &str) -> String {
+        read_file(&join(&self.catalog, relative))
+    }
+
     /// Writes a file into this test's copy of the catalog.
     pub fn write_catalog(&self, relative: &str, contents: &str) {
         write_file(&join(&self.catalog, relative), contents);
@@ -365,6 +370,7 @@ pub fn owned(path: &str, kind: crate::model::state::ArtifactKind, mode: &str) ->
         managed_keys: None,
         format: None,
         shape: None,
+        digest: None,
     }
 }
 
@@ -382,5 +388,6 @@ pub fn config(
         managed_keys: Some(keys),
         format: Some(format),
         shape,
+        digest: None,
     }
 }
