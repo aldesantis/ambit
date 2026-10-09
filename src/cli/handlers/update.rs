@@ -1,15 +1,3 @@
-//! `ambit update [<catalog>...]`: move the pins, write the lock, materialize, prune.
-//!
-//! The report is `outdated`'s, with the install's own two sections appended in that order: what
-//! changed about the bundle is the answer someone ran the command for, what changed about the
-//! project is how it landed.
-//!
-//! `--dry-run` prints exactly `outdated` restricted to the named catalogs, nothing about artifacts.
-//! The run has deliberately not moved the pins, so an install plan drawn here would be a plan
-//! against the resolution the update is trying to leave behind (see `project/update.rs`).
-//!
-//! `--offline` is refused, same as `outdated`: the cache cannot know where a branch points now.
-
 use crate::cli::commands::{CommandContext, dry_run_requested, json_requested, project_dir_of};
 use crate::cli::handlers::artifacts::{artifact_json, artifact_rows};
 use crate::cli::handlers::install::{audit_warnings, endpoint_warnings, skip_json, skip_warnings};
@@ -25,11 +13,6 @@ use crate::project::update::{
 };
 use crate::util::json::{JsonObject, JsonValue, stringify_pretty};
 
-/// `--copy` / `--link`, as the materialization mode they force. Same flags as `install`, same
-/// meaning.
-///
-/// The two together never reach here: the parser refuses the invocation with exit 2 before any
-/// handler runs (`cli/commands.rs`).
 fn mode_override(ctx: &CommandContext<'_>) -> Option<ArtifactMode> {
     if ctx.options.flag("copy") {
         return Some(ArtifactMode::Copy);
@@ -120,12 +103,8 @@ fn to_text(result: &UpdateResult) -> Vec<String> {
     lines
 }
 
-/// # Errors
-///
-/// Whatever the update returns, already in the standard message shape.
 pub fn update_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
     let project_dir = project_dir_of(ctx);
-    // Variadic positional: every argument is a catalog name, none means every catalog.
     let options = UpdateOptions {
         catalogs: ctx.args.clone(),
     };

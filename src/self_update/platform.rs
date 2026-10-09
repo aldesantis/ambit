@@ -1,17 +1,8 @@
-//! Which released asset would replace the running ambit.
-//!
-//! Decided from the current process alone, with no network call, so every refusal self-update can
-//! make (this machine has no binary, the directory is read-only) happens before anything is
-//! downloaded.
-//!
-//! The asset names here are the third copy of one list: cargo-dist's `targets` produce them,
-//! `install.sh` spells them from `uname`, and [`asset_name`] maps `std::env::consts::{OS, ARCH}`
-//! onto them. All three have to agree, and a platform added to one is a 404 until it is added to
-//! the other two.
+//! Asset names must match cargo-dist's `targets` and `install.sh`; a platform added to one
+//! 404s until it is added to the others.
 
 use std::path::{Path, PathBuf};
 
-/// The five archives a release publishes, keyed by `(OS, ARCH)`.
 const ASSETS: &[((&str, &str), &str)] = &[
     (("macos", "aarch64"), "ambit-aarch64-apple-darwin.tar.xz"),
     (("macos", "x86_64"), "ambit-x86_64-apple-darwin.tar.xz"),
@@ -23,10 +14,6 @@ const ASSETS: &[((&str, &str), &str)] = &[
     (("windows", "x86_64"), "ambit-x86_64-pc-windows-msvc.zip"),
 ];
 
-/// The release archive for this machine, or `None` where no release ships one.
-///
-/// `os` and `arch` are `std::env::consts::{OS, ARCH}`. The names are cargo-dist's:
-/// `ambit-<target triple>.tar.xz`, or `.zip` on Windows.
 pub fn asset_name(os: &str, arch: &str) -> Option<&'static str> {
     ASSETS
         .iter()
@@ -34,26 +21,13 @@ pub fn asset_name(os: &str, arch: &str) -> Option<&'static str> {
         .map(|(_, asset)| *asset)
 }
 
-/// The file a self-update replaces: the executable this process is running, with every symlink
-/// resolved.
-///
-/// Resolved because `ambit` on the `PATH` is often a link into wherever it was really installed.
-/// Writing over the link would leave the real binary at the old version and break any other link
-/// pointing at it.
-///
-/// Falls back to the unresolved path when the link cannot be read, so the caller reports a
-/// permission problem about a path the user recognizes rather than failing here.
+/// Symlinks are resolved: writing over a link would leave the real binary at the old version.
 pub fn running_binary(exec_path: &Path) -> PathBuf {
     crate::util::fs::canonicalize(exec_path).unwrap_or_else(|_| exec_path.to_path_buf())
 }
 
-/// Whether the binary can be replaced in place.
-///
-/// The directory is what is tested, not the file: the swap is a rename into the directory, so a
-/// writable file in a read-only directory still cannot be updated.
-///
-/// Tested by creating a file there, since the permission bits alone answer wrongly under ACLs, for
-/// root, and on Windows.
+/// Tests the directory (the swap is a rename into it) by creating a file, since permission
+/// bits answer wrongly under ACLs, for root, and on Windows.
 pub fn can_replace(binary: &Path) -> bool {
     let Some(directory) = binary.parent() else {
         return false;

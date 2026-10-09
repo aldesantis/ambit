@@ -1,8 +1,3 @@
-//! Hook entity parsing, on top of the shared loader.
-//!
-//! The malformed cases assert the [`AmbitError`](crate::errors::AmbitError) code the CLI turns into
-//! an exit status: exit 2 for every config problem.
-
 use super::*;
 use crate::errors::{AmbitError, ExitCode};
 use crate::model::expectation::ExpectationKind;
@@ -19,7 +14,6 @@ fn parse(text: &str) -> HookEntity {
     try_parse(text).unwrap()
 }
 
-/// Parses `text`, asserting it was rejected as a config error (exit 2).
 fn rejection(text: &str) -> AmbitError {
     let error = try_parse(text).expect_err("expected the hook to be rejected");
 
@@ -106,8 +100,6 @@ fn accepts_a_matcher_on_every_matchable_event() {
 
 #[test]
 fn takes_a_command_types_command_as_an_opaque_string() {
-    // `type` already said what it is, so nothing is read off the string, and a `${VAR}` reference
-    // is the shell's to expand rather than ambit's to rewrite.
     assert_eq!(
         parse("name: h\nevent: Stop\ntype: command\ncommand: ${AMBIT_BIN} --write\n").command,
         "${AMBIT_BIN} --write"
@@ -116,8 +108,6 @@ fn takes_a_command_types_command_as_an_opaque_string() {
 
 #[test]
 fn accepts_a_script_whose_name_reads_like_a_bare_program() {
-    // The declaration is the whole answer: `guard` ships as `guard`, with no extension to read and
-    // no list of script extensions for ambit to keep current.
     assert_eq!(
         parse("name: h\nevent: Stop\ntype: script\ncommand: guard\n").command,
         "guard"
@@ -168,7 +158,6 @@ fn requires_a_name_an_event_a_command_and_a_type() {
         ("event: Stop\ntype: command\ncommand: run\n", "name"),
         ("name: h\ntype: command\ncommand: run\n", "event"),
         ("name: h\nevent: Stop\ntype: command\n", "command"),
-        // Nothing else says how to read `command`.
         ("name: h\nevent: Stop\ncommand: guard.sh\n", "type"),
     ] {
         assert!(
@@ -213,9 +202,6 @@ fn rejects_an_unknown_key() {
     ));
 }
 
-/// Shape alone: whether the file is there is the catalog's question. What these have in common is
-/// that no directory contents could make them legal, which is why the parser can refuse them
-/// without looking.
 mod a_script_whose_command_cannot_be_a_path_inside_the_hook {
     use super::*;
 

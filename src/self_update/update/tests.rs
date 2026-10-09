@@ -1,14 +1,3 @@
-//! Replacing the binary: what stops the update before it starts, and what the swap leaves behind.
-//!
-//! Two properties are asserted in every failure case, because they are the ones that decide whether
-//! a failed update is survivable: the old binary still has its old bytes, and nothing (no
-//! `.incoming`, no `.download`) is left beside it. A self-update that half-works turns a working
-//! install into no install at all.
-//!
-//! The Windows swap is exercised on whatever the suite runs on, by passing the flag rather than
-//! reading the platform. That branch cannot be reached on a POSIX machine otherwise, and it is the
-//! more delicate of the two: it moves the running binary aside before anything takes its place.
-
 use std::path::Path;
 
 use super::*;
@@ -23,10 +12,7 @@ const NEW_BYTES: &str = "the ambit that was released\n";
 const LINUX_ASSET: &str = "ambit-x86_64-unknown-linux-gnu.tar.xz";
 const WINDOWS_ASSET: &str = "ambit-x86_64-pc-windows-msvc.zip";
 
-/// A workspace holding the installed binary.
-///
-/// Resolved, because the plan reports the binary with its symlinks resolved and macOS makes `/var`
-/// one. Comparing against an unresolved path would fail there and pass on Linux.
+/// Resolved, because macOS's `/var` is a symlink and the plan reports resolved paths.
 struct Workspace {
     _dir: tempfile::TempDir,
     root: PathBuf,
@@ -59,7 +45,6 @@ impl Workspace {
     }
 }
 
-/// The archive cargo-dist publishes for the Linux target, holding `bytes` as the binary.
 fn linux_archive(bytes: &str) -> Vec<u8> {
     tar_xz(&[
         ("ambit-x86_64-unknown-linux-gnu/README.md", b"readme\n"),
@@ -67,8 +52,6 @@ fn linux_archive(bytes: &str) -> Vec<u8> {
     ])
 }
 
-/// A GitHub that serves one release: the redirect naming [`LATEST`], a `.sha256` for `archive`
-/// (or for `checksum`, when given), and the archive itself.
 fn release_server(asset: &'static str, archive: Vec<u8>, checksum: Option<String>) -> FakeHttp {
     let checksum = checksum.unwrap_or_else(|| sha256_hex(&archive));
 
@@ -227,7 +210,6 @@ fn installs_the_verified_binary_over_the_running_one() {
 #[test]
 fn installs_from_a_windows_zip_moving_the_old_binary_aside() {
     let w = workspace();
-    // A leftover from an earlier Windows update that could not delete its displaced binary.
     std::fs::write(w.root.join("ambit.old"), OLD_BYTES).expect("write a leftover");
 
     let archive = zip(&[

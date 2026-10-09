@@ -1,14 +1,7 @@
-//! JavaScript string measurements.
-
-/// The length JavaScript reports for a string: UTF-16 code units.
-///
-/// Used wherever output is padded or measured, so column widths stay what they have always been
-/// for non-ASCII text.
 pub fn js_len(s: &str) -> usize {
     s.encode_utf16().count()
 }
 
-/// `s.padEnd(width)`: right-pads with spaces to `width` UTF-16 code units.
 pub fn pad_end(s: &str, width: usize) -> String {
     let len = js_len(s);
     let mut padded = String::with_capacity(s.len() + width.saturating_sub(len));
@@ -18,9 +11,7 @@ pub fn pad_end(s: &str, width: usize) -> String {
     padded
 }
 
-/// Whether JavaScript's `trim()` strips `c`.
-///
-/// Not `char::is_whitespace`: JavaScript also strips U+FEFF and does not strip U+0085.
+// Not `char::is_whitespace`: JavaScript also strips U+FEFF and does not strip U+0085.
 pub fn is_js_whitespace(c: char) -> bool {
     const SINGLES: &[char] = &[
         '\t', '\n', '\u{000B}', '\u{000C}', '\r', ' ', '\u{00A0}', '\u{1680}', '\u{2028}',
@@ -30,17 +21,14 @@ pub fn is_js_whitespace(c: char) -> bool {
     ('\u{2000}'..='\u{200A}').contains(&c) || SINGLES.contains(&c)
 }
 
-/// `s.trim()`.
 pub fn js_trim(s: &str) -> &str {
     s.trim_matches(is_js_whitespace)
 }
 
-/// `s.trimEnd()`.
 pub fn js_trim_end(s: &str) -> &str {
     s.trim_end_matches(is_js_whitespace)
 }
 
-/// `s.trimStart()`.
 pub fn js_trim_start(s: &str) -> &str {
     s.trim_start_matches(is_js_whitespace)
 }

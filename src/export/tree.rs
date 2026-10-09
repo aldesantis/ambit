@@ -1,5 +1,3 @@
-//! The exported layout on disk, as a comparable tree.
-
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
@@ -14,45 +12,34 @@ use crate::util::path::{join, relative};
 use crate::util::string_enum;
 
 string_enum! {
-    /// What a symlink in the export points at.
     pub enum LinkType {
         Dir => "dir",
         File => "file",
     }
 }
 
-/// The mode [`read_tree`] gives an entry that is neither a file, a directory, nor a link, so it
-/// never compares equal to anything an export would write.
+// Never equal to any mode an export writes.
 pub const UNSUPPORTED_MODE: u32 = u32::MAX;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExportEntry {
-    /// `None` denotes a directory or a link.
     pub data: Option<Vec<u8>>,
     pub mode: u32,
     pub link: Option<String>,
     pub link_type: Option<LinkType>,
 }
 
-/// Export entries keyed by output-relative path.
 pub type ExportTree = IndexMap<String, ExportEntry>;
 
-/// One package as [`package_tree`] lays it out.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TreePackage {
     pub directory: String,
     pub files: PackageFiles,
 }
 
-/// A skill's own directory within a package, which `--link` links as a whole.
 static SKILL_DIRECTORY: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^skills/[^/]+$").expect("a valid pattern"));
 
-/// Resolves existing ancestors without creating a missing output directory.
-///
-/// # Errors
-///
-/// Exit 2 when an existing ancestor cannot be resolved.
 pub fn canonical_path(target: &Path) -> Result<PathBuf> {
     match canonicalize(target) {
         Ok(resolved) => Ok(resolved),
@@ -74,7 +61,6 @@ pub fn canonical_path(target: &Path) -> Result<PathBuf> {
     }
 }
 
-/// `path.posix.dirname`.
 fn posix_dirname(name: &str) -> &str {
     match name.trim_end_matches('/').rfind('/') {
         Some(0) => "/",
@@ -83,7 +69,6 @@ fn posix_dirname(name: &str) -> &str {
     }
 }
 
-/// Builds the exported layout, including relative links calculated for its final location.
 pub fn package_tree(packages: &[TreePackage], output: &Path, link: bool) -> ExportTree {
     fn add(tree: &mut ExportTree, name: &str, entry: ExportEntry) {
         let parent = posix_dirname(name);
@@ -162,11 +147,6 @@ pub fn package_tree(packages: &[TreePackage], output: &Path, link: bool) -> Expo
     tree
 }
 
-/// Reads file contents and link targets without following symlinks in an existing export.
-///
-/// # Errors
-///
-/// Exit 2 when the export cannot be read.
 pub fn read_tree(root: &Path) -> Result<ExportTree> {
     fn visit(root: &Path, relative: &str, tree: &mut ExportTree) -> Result<()> {
         let target = if relative.is_empty() {
@@ -247,7 +227,6 @@ pub fn read_tree(root: &Path) -> Result<ExportTree> {
     Ok(tree)
 }
 
-/// Compares JSON values, other file bytes, executable bits, and exact link targets.
 pub fn same_entry(name: &str, expected: &ExportEntry, actual: &ExportEntry) -> bool {
     if expected.link != actual.link {
         return false;
@@ -265,7 +244,6 @@ pub fn same_entry(name: &str, expected: &ExportEntry, actual: &ExportEntry) -> b
         return false;
     }
 
-    // An exact suffix: `.JSON` is compared as bytes.
     #[allow(clippy::case_sensitive_file_extension_comparisons)]
     let is_json = name.ends_with(".json");
 

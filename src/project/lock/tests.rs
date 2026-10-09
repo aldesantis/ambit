@@ -1,14 +1,3 @@
-//! `ambit.lock`, and `install --frozen`.
-//!
-//! The lock's whole value is that identical inputs produce identical bytes, so the assertions here
-//! are on the exact file rather than on a parsed view of it: a reordered key, a stray timestamp, or
-//! an anchor would all survive a structural comparison and all break the diff the lock exists to
-//! give.
-//!
-//! The commit fields need a source that has a revision, so they are covered end to end in the git
-//! source tests, and here through [`build_lock`], which takes the commit as a value and therefore
-//! needs no git to pin the numeric-SHA case.
-
 use pretty_assertions::assert_eq;
 
 use super::*;
@@ -22,7 +11,6 @@ use crate::resolution::resolve::resolve_bundle;
 
 const CATALOG_SOURCE: &str = "path:../catalog";
 
-/// A project with the default three-pack profile written.
 fn project() -> Project {
     let project = Project::new();
 
@@ -40,9 +28,6 @@ fn lock_exists(project: &Project) -> bool {
         .contains(&LOCK_FILENAME.to_owned())
 }
 
-/// Adds a hook to the fixture catalog. `body` is further `hook.yml` lines; `script`, when given, is
-/// written beside `hook.yml` as `(filename, contents)`, which makes `command: <filename>` a shipped
-/// script rather than a command line.
 fn write_catalog_hook(project: &Project, name: &str, body: &[&str], script: Option<(&str, &str)>) {
     let mut lines = vec![format!("name: {name}")];
 
@@ -55,7 +40,6 @@ fn write_catalog_hook(project: &Project, name: &str, body: &[&str], script: Opti
     }
 }
 
-/// The fixture catalog parsed with a commit, so the lock has one to record.
 fn catalog_at(project: &Project, commit: &str) -> Catalog {
     parse_catalog_directory(
         CATALOG_NAME,
@@ -67,14 +51,11 @@ fn catalog_at(project: &Project, commit: &str) -> Catalog {
     .expect("a parsable catalog")
 }
 
-/// What the project's current profile resolves to against `catalogs`.
 fn bundle_from(project: &Project, catalogs: &[Catalog]) -> Bundle {
     let config = load_project_config(&project.dir).expect("a valid config");
 
     resolve_bundle(&config, &merge_catalogs(catalogs)).expect("a resolvable profile")
 }
-
-// ambit.lock
 
 #[test]
 fn records_every_configured_catalog_and_every_selected_item_keys_sorted_throughout() {
@@ -88,11 +69,7 @@ fn records_every_configured_catalog_and_every_selected_item_keys_sorted_througho
             "catalogs:",
             &format!("  {CATALOG_NAME}:"),
             &format!("    source: {CATALOG_SOURCE}"),
-            // `path` on the hook that ships a script and not on the one whose `command` is a
-            // command line: a lock pins bytes, and a command line is config values.
             "hooks:",
-            // `exec` on every hook and server, a `path:` catalog's included. These values also
-            // pin the recipe: a change to `hook_exec` or `mcp_exec` shows up here.
             "  guard-secrets:",
             &format!("    catalog: {CATALOG_NAME}"),
             "    exec: sha256-4490456a18e1ceffc2803db69ac395625d5fdcdef0d8d651a981ecfceecd39ec",
@@ -107,8 +84,6 @@ fn records_every_configured_catalog_and_every_selected_item_keys_sorted_througho
             &format!("    catalog: {CATALOG_NAME}"),
             "    exec: sha256-7ed71c619f682cbad2712535a3a86dd71f00b953c1d918cee3d86b8c5e6752c7",
             "    reason: required-by:pack:function.engineering",
-            // The packs the project named, which nothing materializes and every reason above
-            // points at.
             "packs:",
             "  core:",
             &format!("    catalog: {CATALOG_NAME}"),
@@ -167,9 +142,6 @@ fn keeps_every_section_even_when_a_project_selects_nothing() {
     project.write_profile(&[], None, &[]);
     project.cli(&["install"]);
 
-    // An emptied section reads as `{}` rather than vanishing: losing the last MCP server should
-    // show up in the diff as a change to `mcps`, not as a key a reader has to notice the absence
-    // of.
     assert_eq!(
         read_lock(&project),
         [
@@ -256,8 +228,6 @@ fn records_a_command_line_hook_as_config_values_with_no_bytes_to_pin() {
         .require_mapping("notify")
         .unwrap();
 
-    // A hook whose `command` is a command line ships no bytes, so there is nothing to pin: it
-    // takes `LockMcp`'s shape, and `catalog` is all a reader needs to find the document.
     assert_eq!(entry.keys(), ["catalog", "exec", "reason"]);
     assert_eq!(entry.require_string("catalog").unwrap(), CATALOG_NAME);
     assert_eq!(
@@ -295,8 +265,6 @@ fn pins_where_a_hooks_bytes_came_from_only_when_it_ships_a_script() {
         ],
     );
 
-    // Through `build_lock` rather than the CLI, so the commit is a value rather than something a
-    // git source has to supply.
     let catalog = catalog_at(&project, "abc1234");
     let digests = ItemDigests {
         hooks: IndexMap::from([
@@ -316,9 +284,6 @@ fn pins_where_a_hooks_bytes_came_from_only_when_it_ships_a_script() {
         .require_mapping("hooks")
         .unwrap();
 
-    // `command: hook.sh` names a file the hook's directory holds, so an install materializes
-    // those bytes and the lock says which they were. `path` is the catalog-relative directory, as
-    // a skill's is.
     let shipping = hooks.require_mapping("block-rm").unwrap();
 
     assert_eq!(
@@ -334,8 +299,6 @@ fn pins_where_a_hooks_bytes_came_from_only_when_it_ships_a_script() {
         format!("hook:{CATALOG_NAME}/block-rm")
     );
 
-    // `npx --yes say done` is a command line, so the same catalog entry ships nothing and pins
-    // nothing, whatever digest it is handed.
     let inert = hooks.require_mapping("announce").unwrap();
 
     assert_eq!(inert.keys(), ["catalog", "exec", "reason"]);
@@ -344,8 +307,6 @@ fn pins_where_a_hooks_bytes_came_from_only_when_it_ships_a_script() {
 
 #[test]
 fn quotes_a_commit_and_a_ref_a_yaml_parser_would_otherwise_read_as_numbers() {
-    // `1234567` unquoted parses as an integer and `1e5` as a float, so an unquoted lock would pin
-    // a different commit than the one installed.
     let project = project();
     let catalog = Catalog {
         r#ref: Some("1e5".to_owned()),
@@ -372,7 +333,6 @@ fn quotes_a_commit_and_a_ref_a_yaml_parser_would_otherwise_read_as_numbers() {
 
     assert_eq!(entry.require_string("commit").unwrap(), "1234567");
     assert_eq!(entry.require_string("ref").unwrap(), "1e5");
-    // Every catalog skill inherits it, so the same quoting has to hold there too.
     assert_eq!(
         lock.require_mapping("skills")
             .unwrap()
@@ -383,8 +343,6 @@ fn quotes_a_commit_and_a_ref_a_yaml_parser_would_otherwise_read_as_numbers() {
         "1234567"
     );
 }
-
-// serialize_lock, without resolving anything
 
 #[test]
 fn emits_every_section_and_quotes_what_would_read_as_a_number() {
@@ -439,8 +397,6 @@ fn emits_every_section_and_quotes_what_would_read_as_a_number() {
         .join("\n")
     );
 }
-
-// ambit install --frozen
 
 #[test]
 fn succeeds_when_the_lock_on_disk_is_what_resolution_produces() {
@@ -497,14 +453,10 @@ fn exits_5_for_a_lock_that_says_the_same_thing_in_different_bytes() {
     let project = project();
 
     project.cli(&["install"]);
-    // Reformatting is drift too: `--frozen` is asked whether install would rewrite the file, and
-    // a lock ambit did not emit is one ambit would rewrite.
     project.write(LOCK_FILENAME, &read_lock(&project).replace('\n', "\n\n"));
 
     assert_eq!(project.cli(&["install", "--frozen"]).code, ExitCode::Drift);
 }
-
-// assert_lock_current, against a lock on disk
 
 #[test]
 fn refuses_a_missing_lock_naming_the_project() {
@@ -526,9 +478,6 @@ fn refuses_a_missing_lock_naming_the_project() {
     );
 }
 
-// verify_digests, and the earlier lock it reads
-
-/// A lock holding one skill pinned at `commit` with `digest`.
 fn pinned_lock(commit: &str, digest: &str) -> Lock {
     let mut lock = Lock {
         version: LOCK_VERSION,
@@ -552,7 +501,6 @@ fn pinned_lock(commit: &str, digest: &str) -> Lock {
     lock
 }
 
-/// What a project holding `lock` reads back as its earlier lock.
 fn read_back(lock: &Lock) -> LockedItems {
     let project = Project::new();
 

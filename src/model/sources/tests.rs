@@ -1,10 +1,3 @@
-//! The `source` grammar and the cache layout.
-//!
-//! These are the two pure halves of fetching, and both are worth pinning on their own: the grammar
-//! because a format that stops being recognized turns a working config into an error message, and
-//! the cache key because it decides when two projects share a clone. A silent change there costs a
-//! refetch, or worse, hands one repository's contents back for another's URL.
-
 use std::path::{Path, PathBuf};
 
 use super::*;
@@ -29,7 +22,6 @@ fn parse(source: &str, r#ref: Option<&str>) -> Source {
     parse_source(&request(source, r#ref)).expect("the source parses")
 }
 
-/// Parses a source, asserting it was rejected as a config error (exit 2).
 fn rejection(source: &str, r#ref: Option<&str>) -> AmbitError {
     let error = parse_source(&request(source, r#ref))
         .expect_err(&format!("expected `{source}` to be rejected"));
@@ -118,7 +110,6 @@ fn reads_path_as_a_directory_prefix_stripped() {
 
 #[test]
 fn refuses_a_source_in_no_recognized_format() {
-    // A bare relative path is the mistake worth catching: `path:` is what expresses it.
     let error = rejection("../catalog", None);
 
     assert_eq!(

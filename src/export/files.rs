@@ -1,5 +1,3 @@
-//! The in-memory file set one exported package is built as.
-
 use std::path::{Path, PathBuf};
 
 use indexmap::IndexMap;
@@ -11,18 +9,13 @@ use crate::util::path::relative;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PackageFile {
-    /// `None` denotes a directory, including an empty asset directory.
     pub data: Option<Vec<u8>>,
     pub mode: u32,
-    /// The file it was copied from, when it came from the catalog.
     pub source: Option<PathBuf>,
 }
 
-/// Package files keyed by package-relative path, in insertion order.
 pub type PackageFiles = IndexMap<String, PackageFile>;
 
-/// The error for a filesystem call that failed while exporting, worded as every unanticipated
-/// export failure is: exit 2, the message from [`io_message`], and where to look.
 pub(crate) fn io_failed(error: &std::io::Error, path: &Path) -> AmbitError {
     config_error(
         "cannot export Claude plugins",
@@ -33,7 +26,6 @@ pub(crate) fn io_failed(error: &std::io::Error, path: &Path) -> AmbitError {
     )
 }
 
-/// Whether `target` is `root` or inside it.
 pub(crate) fn is_within(root: &Path, target: &Path) -> bool {
     let relative = relative(root, target);
     let parent = format!("..{}", std::path::MAIN_SEPARATOR);
@@ -44,7 +36,6 @@ pub(crate) fn is_within(root: &Path, target: &Path) -> bool {
             && !Path::new(&relative).is_absolute())
 }
 
-/// The permission bits of a file, as Node's `stat().mode & 0o777` reports them.
 pub(crate) fn mode_of(metadata: &std::fs::Metadata) -> u32 {
     #[cfg(unix)]
     {
@@ -65,11 +56,6 @@ pub(crate) fn mode_of(metadata: &std::fs::Metadata) -> u32 {
     }
 }
 
-/// Adds one package file, refusing collisions instead of overwriting another component.
-///
-/// # Errors
-///
-/// Exit 2 when `target` is already in the package.
 pub fn add_file(files: &mut PackageFiles, target: &str, data: Vec<u8>, mode: u32) -> Result<()> {
     let nested = format!("{target}/");
 
@@ -92,13 +78,6 @@ pub fn add_file(files: &mut PackageFiles, target: &str, data: Vec<u8>, mode: u32
     Ok(())
 }
 
-/// Dereferences assets inside the catalog, rejecting cycles and external symlink targets.
-///
-/// `exclude` names entries of `source` itself (not of its subdirectories) to leave out.
-///
-/// # Errors
-///
-/// Exit 2 for a symlink cycle, a symlink leaving the catalog, or a collision.
 pub fn collect_files(
     files: &mut PackageFiles,
     source: &Path,

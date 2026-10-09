@@ -1,5 +1,3 @@
-//! Claude plugin metadata a pack can carry for `ambit export`.
-
 use std::sync::LazyLock;
 
 use indexmap::IndexMap;
@@ -19,22 +17,14 @@ pub struct PluginMetadata {
     pub repository: Option<String>,
     pub license: Option<String>,
     pub keywords: Option<Vec<String>>,
-    /// External plugin names; local dependencies come from pack requirements.
     pub dependencies: Option<Vec<String>>,
-    /// Output directory basename. Defaults to the plugin name.
     pub directory: Option<String>,
-    /// Catalog-relative directory copied into the plugin commands directory.
     pub commands: Option<String>,
 }
 
 static NAME: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[a-z0-9]+(?:-[a-z0-9]+)*$").expect("valid regex"));
 
-/// Parses export metadata without changing a pack's installation requirements.
-///
-/// # Errors
-///
-/// Exit 2 for a malformed `plugin` block.
 pub fn parse_plugin_metadata(mapping: &YamlMapping) -> Result<PluginMetadata> {
     mapping.reject_unknown_keys(&[
         "name",
@@ -139,7 +129,6 @@ pub fn parse_plugin_metadata(mapping: &YamlMapping) -> Result<PluginMetadata> {
     Ok(result)
 }
 
-/// Whether `text` parses as an absolute URL under the WHATWG URL standard, any scheme allowed.
 fn can_parse_url(text: &str) -> bool {
     Url::parse(text).is_ok()
 }

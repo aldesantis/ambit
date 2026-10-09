@@ -1,13 +1,3 @@
-//! `ambit doctor`: env vars, drift, ownership.
-//!
-//! Three sections, answering two questions. The `checks` table says what was examined and how each
-//! one came out, so a healthy project says so explicitly rather than printing an empty list.
-//! Failures and warnings are separated because the split is the exit code: everything under
-//! `failures` is why this run returned 6, everything under `warnings` is why it did not.
-//!
-//! Findings print the way `validate` prints a problem: summary indented like a row, detail lines
-//! indented under it as an error's own `format()` does.
-
 use serde_json::json;
 
 use crate::cli::commands::{CommandContext, json_requested, offline_requested, project_dir_of};
@@ -56,7 +46,6 @@ fn to_json(report: &DoctorReport) -> JsonValue {
     JsonValue::Object(record)
 }
 
-/// Column padding is deliberately absent from the body: these are sentences, not a table.
 fn finding_lines(title: &str, findings: &[DoctorFinding]) -> Vec<String> {
     let mut lines = vec![format!("{title} ({})", findings.len())];
 
@@ -91,10 +80,6 @@ fn to_text(report: &DoctorReport) -> Vec<String> {
     lines
 }
 
-/// # Errors
-///
-/// Whatever [`diagnose_project`] returns. A finding is never an error: failures exit 6 through
-/// the returned code.
 pub fn doctor_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
     let report = diagnose_project(
         &project_dir_of(ctx),

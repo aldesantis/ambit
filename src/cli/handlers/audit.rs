@@ -1,9 +1,3 @@
-//! `ambit audit`: hidden text and risky command lines in every catalog the project lists.
-//!
-//! One section per kind that has findings, then a summary line. A failure is marked `!` and a
-//! warning `~`, so the line that decided the exit code stands out without a second list. A clean
-//! audit prints the summary alone, saying how much it read.
-
 use indexmap::{IndexMap, IndexSet};
 
 use crate::cli::commands::{CommandContext, json_requested, source_context_of};
@@ -50,7 +44,6 @@ fn to_json(report: &AuditReport) -> JsonValue {
     JsonValue::Object(record)
 }
 
-/// The section a kind's findings are listed under.
 fn section_title(kind: ItemKind) -> &'static str {
     match kind {
         ItemKind::Pack => "packs",
@@ -71,7 +64,6 @@ fn to_text(report: &AuditReport) -> Vec<String> {
         ];
     }
 
-    // A name two catalogs both ship is qualified with its catalog, so the row says which copy.
     let mut catalogs_of: IndexMap<(ItemKind, &str), IndexSet<&str>> = IndexMap::new();
 
     for finding in &report.findings {
@@ -132,10 +124,6 @@ fn to_text(report: &AuditReport) -> Vec<String> {
     lines
 }
 
-/// # Errors
-///
-/// Whatever [`audit_project`] returns. A finding is never an error: failures exit 6 through the
-/// returned code.
 pub fn audit_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
     let report = audit_project(&source_context_of(ctx))?;
 

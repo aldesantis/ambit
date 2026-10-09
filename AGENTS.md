@@ -44,50 +44,17 @@ Everything in the file has to serve one of those three. If a paragraph serves no
 - Behavior a user can observe, in the words they would use for it.
 - Update the readme in the same change that alters the behavior it documents.
 
-### Everything else
-
-Comments in the source are where internals belong. A comment explaining why the code is shaped a
-certain way is good and should stay in the code, not migrate to the readme.
-
 ## Code comments
 
-Ambit is a commented codebase, but comments must earn their place. A comment exists to tell the
-reader something the code cannot: keep the reasoning, cut the rhetoric.
+Ambit is an uncommented codebase. Names, types and tests carry the meaning; comments do not.
 
-### What to write
+Write a comment only for behavior that would be extremely hard for a human or an agent to infer
+from the code: an ordering requirement whose violation causes a subtle bug, a workaround for an
+external tool or OS quirk, the hidden meaning of a sentinel value, or a warning against an obvious
+change that would break something. Keep it to one or two plain lines stating the fact.
 
-- **Doc comments on public items.** Rustdoc (`///`), one-sentence summary first. Describe the
-  contract from the caller's side: constraints, return semantics, side effects, and an `# Errors`
-  section naming the exit code of each error the function returns. Skip the doc comment entirely
-  when the name already says everything.
-- **Why, not what.** Rationale for a non-obvious decision, ordering requirements, invariants,
-  units, what a sentinel value means, why the obvious alternative was rejected.
-- **Negative information.** What is deliberately absent ("no lock here: callers already hold it"),
-  so a future "fix" doesn't reintroduce a bug.
-- **Module headers only for real design.** A short `//!` block stating the module's design
-  decisions and invariants, once. Most files need no header. Never repeat in the header what per-symbol docs
-  already say.
-
-### What not to write
-
-- **Editorializing.** State the fact; don't argue for it or perform it. No flourishes, metaphors,
-  or persuasion ("that is the point", "a standing bet that...", "the kind of waste a cache exists
-  to avoid"). If a comment reads like an essay, cut it to the fact it contains.
-- **Restating the code.** No doc comment that rephrases the symbol name
-  (`/// Where skills live.` on `SKILLS_DIRNAME: &str = "skills"`). Delete, don't decorate.
-- **Play-by-play.** Never narrate what the next line does.
-- **Reviewer-directed commentary.** No comments explaining why a change is correct or what the code
-  did before. That belongs in the PR description.
-- **Commented-out code, change journals, section banners.**
-
-### Style
-
-- Short, plain, factual sentences. Capitalized and punctuated.
-- Prefer separate sentences over clauses chained with em dashes.
-- One canonical explanation per decision; elsewhere, point to it with an intra-doc link
-  (``[`resolve`]``) instead of retelling it.
-- Reference constants by name (``[`STALE_THRESHOLD`]``), never restate their value in prose.
-- When changing code, update or delete every adjacent comment your change touches.
+Do not write doc comments, module headers, section banners, test descriptions, rationale for
+ordinary design choices, or comments that restate the code.
 
 ## Rust conventions
 
@@ -99,7 +66,7 @@ reader something the code cannot: keep the reasoning, cut the rhetoric.
   as their own `if` blocks rather than folding them into long expression chains.
 - **Lints.** Clippy runs with `pedantic` on. The few allowed pedantic lints are listed, with their
   reason, under `[lints.clippy]` in `Cargo.toml`. Add to that list only for a lint that fires on
-  most of the codebase; otherwise fix the code, or put a local `#[allow]` with a comment on the item.
+  most of the codebase; otherwise fix the code, or put a local `#[allow]` on the item.
 - **Process state stays at the edge.** `clippy.toml` disallows reading or mutating environment
   variables, changing the working directory, `std::process::exit`, `std::fs::read_dir` and
   `std::fs::read_to_string`. `main.rs` reads the environment and cwd once and passes them down as

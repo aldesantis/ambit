@@ -1,13 +1,3 @@
-//! The managed `.gitignore` block, as a text transformation.
-//!
-//! The whole claim is about lines ambit does not own: they must come back byte for byte, wherever
-//! they sit relative to the block. So every case here pins the *surrounding* file as well as the
-//! block, and the two ambiguous shapes (a second block, a block whose end marker is gone) are
-//! asserted to stop rather than to pick a span of lines.
-//!
-//! The install-time behaviour is in `project/install/tests.rs`; this is the part that needs no
-//! filesystem.
-
 use pretty_assertions::assert_eq;
 
 use super::*;
@@ -35,8 +25,6 @@ fn remove(existing: Option<&str>) -> Option<String> {
     remove_gitignore_text(existing, GITIGNORE_FILENAME).expect("an unambiguous file")
 }
 
-/// The file as lines, which is how every assertion here reads. The begin marker is replaced by
-/// [`BLOCK_BEGIN`] after checking it starts with it, standing in for `expect.stringContaining`.
 fn lines(text: Option<String>) -> Vec<String> {
     let text = text.expect("a rewritten file");
 
@@ -51,7 +39,6 @@ fn lines(text: Option<String>) -> Vec<String> {
         .collect()
 }
 
-/// Asserts the result rejected the file as a config error (exit 2).
 fn rejection<T: std::fmt::Debug>(result: Result<T>) -> AmbitError {
     let error = result.expect_err("expected a rejection");
 
@@ -82,8 +69,6 @@ fn block(file: &str, entries: &[&str]) -> IgnoreBlock {
         entries: strings(entries),
     }
 }
-
-// the managed blocks' contents
 
 #[test]
 fn lists_every_installed_skill_directory_in_the_shared_directorys_own_file() {
@@ -194,8 +179,6 @@ fn gives_a_skill_directory_no_trailing_slash_so_the_pattern_also_covers_a_symlin
     );
 }
 
-// an empty block
-
 #[test]
 fn renders_no_block_at_all_rather_than_a_pair_of_markers_with_nothing_between_them() {
     assert_eq!(
@@ -223,8 +206,6 @@ fn leaves_lines_it_does_not_own_behind_when_it_removes_the_block() {
         Some("# theirs\n".to_owned())
     );
 }
-
-// writing the block into a file that has none
 
 #[test]
 fn creates_the_whole_file_when_the_project_has_no_gitignore() {
@@ -314,8 +295,6 @@ fn escapes_the_glob_characters_that_would_make_a_path_match_something_else() {
     );
 }
 
-// rewriting a block that is already there
-
 fn installed() -> String {
     update(Some("node_modules/\n"), &entries()).unwrap_or_default()
 }
@@ -394,12 +373,6 @@ fn keeps_a_crlf_files_line_endings_on_the_lines_it_does_not_own() {
     );
 }
 
-// removing the block
-//
-// The claim is the inverse of writing it: install then clean must give a file back exactly as it
-// was, so every case here compares against the *input* to `update_gitignore_text` rather than
-// against a hand-written expectation of what removal should leave.
-
 #[test]
 fn gives_a_file_that_had_lines_of_its_own_back_byte_for_byte() {
     let before = "node_modules/\ndist/\n";
@@ -447,8 +420,6 @@ fn exits_2_rather_than_guessing_at_an_unterminated_block() {
             .contains("unterminated ambit block")
     );
 }
-
-// a .gitignore whose markers cannot be read
 
 #[test]
 fn exits_2_rather_than_choosing_between_two_blocks() {

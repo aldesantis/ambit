@@ -1,16 +1,5 @@
 #!/bin/sh
-# Installs ambit by running the shell installer that dist attaches to every GitHub Release
-# (`ambit-installer.sh`). This file exists so the long-standing
-# `curl -fsSL https://raw.githubusercontent.com/aldesantis/ambit/main/install.sh | sh` keeps working
-# and so a version can be picked by tag; the installer itself does the platform detection, the
-# download and the checksum check.
-#
-# Environment:
-#   AMBIT_VERSION          a tag like `v0.5.0`; default is the latest release
-#   AMBIT_INSTALL_DIR      where to put the binary; default is `$HOME/.local/bin`
-#   AMBIT_NO_MODIFY_PATH   set to 1 to leave shell profiles alone
-#
-# The last two are read by the dist installer directly.
+# AMBIT_INSTALL_DIR and AMBIT_NO_MODIFY_PATH are read by the dist installer itself.
 set -eu
 
 REPO="aldesantis/ambit"

@@ -1,12 +1,3 @@
-//! Loading a document with saphyr's loader, and the rules the loader does not enforce.
-//!
-//! saphyr's loader builds the positioned tree and types plain scalars by the YAML 1.2 core schema.
-//! It tolerates things ambit must not: a duplicate key (the loader keeps the last value), a custom
-//! tag, a non-string key. A [`Checker`] stands between the parser and the loader and sees every
-//! event first, so those are caught with their lines before the loader merges anything away.
-//!
-//! Nothing outside `yaml/` depends on these shapes.
-
 use std::borrow::Cow;
 use std::collections::HashSet;
 
@@ -18,12 +9,8 @@ use crate::util::text::js_trim;
 
 pub(super) type Node = MarkedYamlOwned;
 
-/// The prefix the `!!` handle expands to.
 const CORE_PREFIX: &str = "tag:yaml.org,2002:";
 
-/// The tags the YAML 1.2 core schema resolves. A node carrying anything else is using a custom
-/// tag, and the document is rejected: arbitrary type resolution is how `!!python/object`
-/// constructs get in.
 const CORE_TAGS: &[&str] = &[
     "tag:yaml.org,2002:bool",
     "tag:yaml.org,2002:float",
@@ -34,21 +21,12 @@ const CORE_TAGS: &[&str] = &[
     "tag:yaml.org,2002:str",
 ];
 
-/// One parsed document: its tree, and everything needed to position an error in it.
 #[derive(Debug)]
 pub(super) struct Document {
-    /// How the document is named in error messages.
     pub file: String,
     text: String,
-    /// Lines of the containing file above the parsed text: a frontmatter block's opening delimiter
-    /// and any blank lines under it. Needed so a reported line number matches the whole file, not
-    /// just the parsed slice.
     line_offset: usize,
-    /// Character offsets of every alias. The loader replaces an alias with a copy of the node it
-    /// names, but an alias is no supported value, so an accessor that meets one reports it rather
-    /// than reading the copy.
     aliases: HashSet<usize>,
-    /// Absent for a document holding nothing but whitespace and comments.
     pub root: Option<Node>,
 }
 
@@ -64,7 +42,6 @@ impl Document {
         }
     }
 
-    /// The string value of a string scalar.
     pub fn string<'n>(&self, node: &'n Node) -> Option<&'n str> {
         match self.scalar(node) {
             Some(ScalarOwned::String(value)) => Some(value),
@@ -87,7 +64,6 @@ impl Document {
         }
     }
 
-    /// The pairs of a mapping, in document order.
     pub fn pairs<'n>(&self, node: &'n Node) -> Vec<(&'n Node, &'n Node)> {
         match &node.data {
             YamlDataOwned::Mapping(pairs) if !self.is_alias(node) => pairs.iter().collect(),
@@ -95,13 +71,10 @@ impl Document {
         }
     }
 
-    /// The 1-based line `node` starts on, counted in the containing file.
     pub fn line_of(&self, node: &Node) -> usize {
         node.span.start.line() + self.line_offset
     }
 
-    /// The source text `node` was parsed from. Messages quote this rather than the parsed value,
-    /// so the fix for `ref: 1e5` reads `ref: "1e5"` and not `ref: "100000"`.
     pub fn text_of(&self, node: &Node) -> Option<&str> {
         let start = self.byte_offset(node.span.start.index());
         let end = self.byte_offset(node.span.end.index());
@@ -110,7 +83,7 @@ impl Document {
         (!slice.is_empty()).then_some(slice)
     }
 
-    /// saphyr's markers count characters, not bytes.
+    // saphyr's markers count characters, not bytes.
     fn byte_offset(&self, chars: usize) -> usize {
         self.text
             .char_indices()
@@ -118,7 +91,6 @@ impl Document {
             .map_or(self.text.len(), |(byte, _)| byte)
     }
 
-    /// How a value is described in a type-mismatch message.
     pub fn describe(&self, node: &Node) -> &'static str {
         if self.is_alias(node) {
             return UNSUPPORTED;
@@ -146,13 +118,10 @@ fn describe_scalar(scalar: &ScalarOwned) -> &'static str {
     }
 }
 
-/// `Number.isInteger`.
 pub(super) fn is_integer(n: f64) -> bool {
     n.is_finite() && n.fract() == 0.0
 }
 
-/// How the loader types a scalar. An empty plain scalar (`name:` with nothing after it) is null,
-/// as the core schema has it; saphyr's typing alone would read it as an empty string.
 fn resolve(
     value: Cow<'_, str>,
     style: ScalarStyle,
@@ -165,25 +134,20 @@ fn resolve(
     ScalarOwned::parse_from_cow_and_metadata(value, style, tag)
 }
 
-/// What a collection being loaded still expects.
 enum Frame {
     Seq,
-    /// The keys seen so far with their lines, and whether the next node is a value rather than a
-    /// key.
     Map {
         keys: Vec<(String, usize)>,
         awaiting_value: bool,
     },
 }
 
-/// Inspects each event for the rules the loader does not enforce, then hands it on.
 struct Checker<'input> {
     loader: YamlLoader<'input, Node>,
     file: String,
     line_offset: usize,
     stack: Vec<Frame>,
     aliases: HashSet<usize>,
-    /// The first violation, in document order.
     problem: Option<AmbitError>,
 }
 
@@ -223,11 +187,6 @@ impl Checker<'_> {
         ));
     }
 
-    /// Records a node starting. When it is a mapping key, checks it is a string and not a
-    /// duplicate.
-    ///
-    /// `key` is the node's string value when it is a string scalar, otherwise how it is
-    /// described.
     fn node(&mut self, key: std::result::Result<String, &'static str>, span: Span) {
         let line = self.line(span);
         let Some(Frame::Map {
@@ -293,7 +252,7 @@ impl<'input> SpannedEventReceiver<'input> for Checker<'input> {
 
                 self.node(key, span);
 
-                // The loader would type an empty plain scalar as an empty string.
+                // saphyr's loader types an empty plain scalar as an empty string, not null.
                 if value.is_empty() && style == ScalarStyle::Plain && tag.is_none() {
                     Event::Scalar("~".into(), style, anchor, tag)
                 } else {
@@ -335,16 +294,6 @@ impl<'input> SpannedEventReceiver<'input> for Checker<'input> {
     }
 }
 
-/// Parses `text` into a positioned tree, rejecting a syntax error, a second document, or a node
-/// the loader would accept and ambit does not.
-///
-/// `line_offset` is the number of lines of the containing file above `text`, for a frontmatter
-/// block.
-///
-/// # Errors
-///
-/// Exit 2 for a syntax error, a tab used as indentation, more than one document, a custom tag, a
-/// non-string key, or a duplicate key.
 pub(super) fn parse(text: &str, file: &str, line_offset: usize) -> Result<Document> {
     let mut parser = Parser::new_from_str(text);
     let mut checker = Checker {
@@ -359,8 +308,6 @@ pub(super) fn parse(text: &str, file: &str, line_offset: usize) -> Result<Docume
 
     parser.load(&mut checker, false).map_err(|e| syntax(&e))?;
 
-    // Only the first document was loaded. Anything after it but the end of the stream is either a
-    // second document or a syntax error.
     match parser.next() {
         Some(Err(error)) => return Err(syntax(&error)),
         Some(Ok((Event::DocumentStart(_), span))) => {
@@ -395,7 +342,6 @@ pub(super) fn parse(text: &str, file: &str, line_offset: usize) -> Result<Docume
     })
 }
 
-/// Rewrites a parser error into ambit's message shape, keeping the position.
 fn syntax_error(text: &str, file: &str, line_offset: usize, error: &ScanError) -> AmbitError {
     let line = error_line(text, error);
     let where_ = at(file, Some(line + line_offset));
@@ -416,15 +362,8 @@ fn syntax_error(text: &str, file: &str, line_offset: usize, error: &ScanError) -
     )
 }
 
-/// The line an error is reported on, moved to where the problem is in the cases where saphyr
-/// notices it later.
-///
-/// - A source that ends mid-construct (an unterminated quote, an unclosed flow collection) is
-///   reported on its last line, not past it: saphyr's marker can sit one line beyond a source with
-///   no final newline, and points at the opening quote of an unterminated scalar.
-/// - A plain line that is not a `key: value` pair (`tampered` appended to a file) is reported on
-///   that line. saphyr only notices when it reaches the next token, which is on a later line or
-///   past the end, so the line is the last non-blank one before its marker.
+// saphyr reports some errors past the offending line (end of stream, or a plain line that is
+// not `key: value`), so the line is moved back.
 fn error_line(text: &str, error: &ScanError) -> usize {
     let last = text.matches('\n').count() + 1;
     let info = error.info();
@@ -450,8 +389,6 @@ fn error_line(text: &str, error: &ScanError) -> usize {
     line.min(last)
 }
 
-/// Whether a scan error is a tab used as indentation: saphyr says so in its message, and
-/// otherwise a tab in the error line's indentation gives it away.
 fn is_tab_as_indent(text: &str, error: &ScanError) -> bool {
     if error.info().starts_with("tabs disallowed") {
         return true;
@@ -481,7 +418,6 @@ mod tests {
 
     #[test]
     fn positions_nodes_by_character_and_one_based_line() {
-        // saphyr's marker index counts characters, not bytes; the slice must still land on "ab".
         let (document, root) = root("é: ab\nx: 'q'\n");
         let pairs = document.pairs(&root);
 

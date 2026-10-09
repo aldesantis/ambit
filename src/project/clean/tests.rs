@@ -1,15 +1,3 @@
-//! `ambit prune` and `ambit clean`: the two commands that only remove.
-//!
-//! Every case asserts both directions, because half of each claim is about restraint. A prune that
-//! removed everything and a prune that removed nothing would each satisfy "the withdrawn skill is
-//! gone" or "the selected ones are still there" on its own, so both are pinned every time, and the
-//! same goes for what neither command owns: a hand-written skill, a hand-added server, and the
-//! files ambit writes but does not own.
-//!
-//! The install-time prune is pinned in the install tests; what these add is the part only a
-//! standalone command has: that it reaches the same set without materializing anything, that it
-//! rewrites the records afterwards, and that a run with nothing to do writes nothing at all.
-
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -37,31 +25,19 @@ const CORE_SKILL: &str = "company-context";
 const ENGINEERING_SKILL: &str = "code-review";
 const FRONTEND_SKILL: &str = "design-tokens";
 
-/// The fixture's tag-matched http server.
 const PACKED_MCP: &str = "linter";
 
-/// The fixture's two tag-matched hooks share this file.
-///
-/// `core` selects an inline-command hook and `function.engineering` a script-shipping one, so the
-/// bundle these cases install carries a config file and a materialized directory neither skills nor
-/// servers account for.
 const CLAUDE_SETTINGS: &str = ".claude/settings.json";
 const SCRIPT_HOOK_DIR: &str = ".agents/hooks/guard-secrets";
 
 const HANDMADE_SKILL: &str = "hand-written";
 
-/// The default profile: three skills (`function.engineering` also selects its nested frontend
-/// child) plus the tagged http server, which declares that same tag.
 const DEFAULT_PACKS: &[&str] = &["core", "function.engineering", "function.engineering.*"];
 
 fn state_file() -> String {
     format!("{STATE_DIRNAME}/{STATE_FILENAME}")
 }
 
-/// The managed keys of the fixture's two hooks.
-///
-/// Built from the rendered entry rather than written out, because a digest is not a literal anyone
-/// can check by eye; the hooks tests are where the rendering itself is pinned.
 fn core_hook_key() -> String {
     managed_key(
         "hooks",
@@ -91,7 +67,6 @@ fn engineering_hook_key() -> String {
     )
 }
 
-/// One `requires` entry, taking a whole pack from the fixture catalog.
 fn requires_entry(pack: &str) -> String {
     format!("  - {{ pack: \"{CATALOG_NAME}/{pack}\" }}")
 }
@@ -136,13 +111,10 @@ fn fixture() -> Fixture {
         catalog_dir,
         project_dir,
     };
-    // The tagged server interpolates `LINTER_API_KEY` into a header; `test_env` never sets it, so
-    // what is on disk does not depend on the machine.
     f.write_profile(DEFAULT_PACKS);
     f
 }
 
-/// `ambit clean`'s cases all start from an installed default profile.
 fn installed() -> Fixture {
     let f = fixture();
     let result = f.cli(&["install"]);
@@ -151,7 +123,6 @@ fn installed() -> Fixture {
 }
 
 impl Fixture {
-    /// Points the project at the fixture catalog and gives it a `requires` list.
     fn write_profile(&self, packs: &[&str]) {
         fs::write(self.project_dir.join("ambit.yml"), profile_text(packs)).unwrap();
     }
@@ -160,7 +131,6 @@ impl Fixture {
         test_env(&self.root)
     }
 
-    /// Runs the CLI against the project, collecting stdout and stderr.
     fn cli(&self, argv: &[&str]) -> CliResult {
         let project = self.project_dir.to_string_lossy().into_owned();
         let mut args = argv.to_vec();
@@ -173,10 +143,6 @@ impl Fixture {
         read_text(&self.project_dir.join(file)).unwrap()
     }
 
-    /// Every file in the project, keyed by relative path and carrying its contents.
-    ///
-    /// Symlinks are followed, because the default install of a `path:` catalog is a link and what
-    /// these tests compare is the files a harness would read.
     fn snapshot(&self) -> BTreeMap<String, String> {
         fn walk(current: &Path, relative: &str, found: &mut BTreeMap<String, String>) {
             for entry in read_dir_names(current).unwrap() {
@@ -200,7 +166,6 @@ impl Fixture {
         found
     }
 
-    /// The installed skill directory names, sorted.
     fn installed_skills(&self) -> Vec<String> {
         let mut names = read_dir_names(&self.project_dir.join(SKILLS_DIR)).unwrap_or_default();
         names.sort();
@@ -224,7 +189,6 @@ impl Fixture {
             .collect()
     }
 
-    /// The lines between one file's markers, or `None` when it holds no block.
     fn managed_block(&self, file: &str) -> Option<Vec<String>> {
         let text = read_text(&self.project_dir.join(file)).ok()?;
         let lines: Vec<&str> = text.split('\n').collect();
@@ -245,12 +209,6 @@ impl Fixture {
         )
     }
 
-    /// The lock a clean install of `packs` writes, produced in a throwaway sibling project.
-    ///
-    /// Comparing against this rather than a hand-written expectation makes the claim the fix is
-    /// about: what a prune leaves behind is what install would have written for the surviving set,
-    /// not a document prune assembled by subtracting from the old one. The sibling sits beside the
-    /// project so its `path:../catalog` names the same fixture.
     fn lock_of_fresh_install(&self, name: &str, packs: &[&str]) -> String {
         let reference = self.root.join(name);
         fs::create_dir_all(&reference).unwrap();
@@ -266,7 +224,6 @@ impl Fixture {
         read_text(&reference.join(LOCK_FILENAME)).unwrap()
     }
 
-    /// A skill directory beside ambit's that no state claims.
     fn write_foreign_skill_dir(&self) {
         let target = self.project_dir.join(SKILLS_DIR).join(HANDMADE_SKILL);
         fs::create_dir_all(&target).unwrap();
@@ -319,8 +276,6 @@ mod ambit_prune {
 
         f.cli(&["prune"]);
 
-        // The settings file stays owned: the narrowed profile still holds `core`, whose hook it
-        // carries.
         assert_eq!(
             f.owned_paths_now(),
             [
@@ -347,8 +302,6 @@ mod ambit_prune {
 
         f.cli(&["prune"]);
 
-        // ambit owns keys in this file and not the document, so the section empties and the file
-        // stays, and state stops claiming it at all.
         assert_eq!(f.read_mcp_config(), json!({ "mcpServers": {} }));
         assert!(!f.owned_paths_now().contains(&MCP_FILE.to_owned()));
     }
@@ -389,15 +342,10 @@ mod ambit_prune {
 
         f.cli(&["prune"]);
 
-        // The reference is a fresh install of the narrowed profile into a second project: the lock
-        // a prune leaves must be the one install writes for the surviving set, not a subtraction of
-        // its own.
         let pruned = f.read(LOCK_FILENAME);
 
         assert_eq!(pruned, f.lock_of_fresh_install("reference-a", &["core"]));
 
-        // And it really did change; otherwise the assertion above would pass on a prune that wrote
-        // nothing.
         assert_ne!(
             pruned,
             f.lock_of_fresh_install("reference-b", DEFAULT_PACKS)
@@ -439,9 +387,6 @@ mod ambit_prune {
 
         assert_eq!(f.cli(&["prune"]).code, ExitCode::Success);
 
-        // The whole point of rewriting the lock: the project a prune leaves is one `doctor` calls
-        // healthy, where it used to report `ambit.lock is out of date` for the change the prune had
-        // just made.
         let report = diagnose_project(&f.project_dir, &f.env(), DoctorOptions::default()).unwrap();
         let findings: Vec<String> = report
             .findings
@@ -476,9 +421,6 @@ mod ambit_prune {
 
         assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
 
-        // Not even the state file or a `.gitignore` block: a prune with nothing to remove has
-        // nothing to record either, and creating them here would be claiming an install that never
-        // happened.
         assert_eq!(f.snapshot().into_keys().collect::<Vec<_>>(), ["ambit.yml"]);
     }
 
@@ -561,9 +503,6 @@ mod ambit_prune {
                         "path": MCP_FILE,
                     },
                 ],
-                // Neither the link nor the settings file is pruned: a narrowed profile still holds
-                // skills, so it still points at them, and still holds the hook the file's remaining
-                // entry is.
                 "remaining": [
                     { "kind": "skill-dir", "mode": "link", "path": format!("{SKILLS_DIR}/{CORE_SKILL}") },
                     { "kind": "harness-config", "managedKeys": [core_hook_key()], "path": CLAUDE_SETTINGS },
@@ -639,7 +578,6 @@ mod ambit_clean {
 
         assert!(!f.path_exists(STATE_DIRNAME));
         assert_eq!(f.managed_block(GITIGNORE_FILENAME), None);
-        // Its block was the whole of the nested file, so the file goes with it.
         assert!(!f.path_exists(SHARED_GITIGNORE_FILE));
     }
 
@@ -648,9 +586,6 @@ mod ambit_clean {
         let f = installed();
         f.cli(&["clean"]);
 
-        // `ambit.lock` is a record of a resolution rather than an artifact, and `.mcp.json` is
-        // co-owned, so neither is ambit's to delete (see `project/clean.rs`). The `.gitignore`
-        // ambit created goes, because ambit's block was the whole of it.
         assert_eq!(
             f.snapshot().into_keys().collect::<Vec<_>>(),
             sorted(&["ambit.yml", "ambit.lock", MCP_FILE, CLAUDE_SETTINGS])
@@ -668,7 +603,6 @@ mod ambit_clean {
 
         f.cli(&["clean"]);
 
-        // The blank line above the block was ambit's separator, so it goes with the block.
         assert_eq!(f.read(GITIGNORE_FILENAME), handwritten);
     }
 
@@ -686,8 +620,6 @@ mod ambit_clean {
             })),
         )
         .unwrap();
-        // The tagged key is ambit's, so re-installing over the hand-edited file keeps ownership of
-        // it.
         f.cli(&["install", "--adopt"]);
 
         let result = f.cli(&["clean"]);
@@ -702,8 +634,6 @@ mod ambit_clean {
 
     #[test]
     fn works_on_a_project_whose_catalog_can_no_longer_be_resolved() {
-        // The whole point of answering from state alone: this is the state a project is usually in
-        // when someone reaches for `clean`.
         let f = installed();
         fs::remove_file(f.project_dir.join("ambit.yml")).unwrap();
 
@@ -843,7 +773,6 @@ mod ambit_clean {
 
     #[test]
     fn keeps_the_state_directory_when_it_holds_more_than_the_state_file() {
-        // At the home directory, `.ambit/` is also the user-level project.
         let f = installed();
         let state_dir = f.project_dir.join(STATE_DIRNAME);
         write_text(&state_dir.join("ambit.yml"), "version: 1\n").unwrap();

@@ -1,16 +1,3 @@
-//! The list-section driver: one flat array of entries, each naming its own event.
-//!
-//! Some harnesses keep hooks as `"hooks": [{"trigger": "PreToolUse", ...}, ...]` rather than one
-//! array per event. Identity works as it does for the array-section driver (`json_array.rs`): a
-//! managed key is `<Event>@<digest>`, the digest taken over the entry ambit writes, so entries
-//! added outside ambit have digests ambit never plans and survive every merge and prune.
-//!
-//! The event half of the key is read from the entry's [`LIST_EVENT_FIELD`]. The field is part of the
-//! shape rather than a profile parameter: state records only a file's format and shape, and
-//! `status` and `prune` build their driver from state, so the key must be derivable from the file
-//! with nothing else to go on. The digest already covers the event, which makes that half
-//! redundant for identity; it is kept so a key reads the same in every hooks file.
-
 use indexmap::IndexSet;
 
 use crate::errors::{AmbitError, ExitCode, Result, config_error};
@@ -21,19 +8,14 @@ use crate::model::documents::json_array::{
 };
 use crate::util::json::{JsonObject, JsonValue};
 
-/// The field in each entry that names its event.
 pub const LIST_EVENT_FIELD: &str = "trigger";
 
-/// The key one entry reads back as, or `None` for an entry with no string event.
-///
-/// An entry without one cannot be one ambit wrote, so it is no key ambit would compare against.
 fn key_of(entry: &JsonValue) -> Option<String> {
     let event = entry.get(LIST_EVENT_FIELD)?.as_str()?;
 
     Some(array_entry_key(event, entry))
 }
 
-/// The section as an array; anything unusable reads as absent.
 fn list_of<'a>(document: &'a JsonObject, section: &str) -> Option<&'a Vec<JsonValue>> {
     document.get(section).and_then(JsonValue::as_array)
 }
@@ -48,15 +30,11 @@ fn keys_of(text: Option<&str>, section: &str, file: &str) -> Result<IndexSet<Str
         .collect())
 }
 
-/// The list-section driver, with the root keys it seeds on a merge.
 #[derive(Clone, Debug, Default)]
 pub struct ListSectionDriver {
-    /// Root keys to seed, e.g. a `version` the harness requires beside the list. Written only
-    /// where the document does not already have the key; a removal applies none of them.
     pub root_defaults: JsonObject,
 }
 
-/// Builds the driver. `None` seeds nothing.
 pub fn list_section_driver(root_defaults: Option<&JsonObject>) -> ListSectionDriver {
     ListSectionDriver {
         root_defaults: root_defaults.cloned().unwrap_or_default(),
@@ -99,8 +77,8 @@ impl DocumentDriver for ListSectionDriver {
         for entry in entries {
             let (event, digest) = split_entry_key(&entry.key, file)?;
 
-            // An entry whose own event disagrees with its key would never be found again by
-            // `section_keys`, so every install would append it once more.
+            // An entry whose event disagrees with its key is never found by `section_keys`, so every install
+            // would append it again.
             if entry
                 .value
                 .get(LIST_EVENT_FIELD)
@@ -120,7 +98,6 @@ impl DocumentDriver for ListSectionDriver {
                 ));
             }
 
-            // Already there, by digest: skip it, so a second install is a no-op.
             if merged.iter().any(|item| entry_digest(item) == digest) {
                 continue;
             }
@@ -136,7 +113,6 @@ impl DocumentDriver for ListSectionDriver {
         )))
     }
 
-    /// The digest is the value, so presence of the key is the whole question.
     fn entry_matches(
         &self,
         text: Option<&str>,
@@ -147,8 +123,6 @@ impl DocumentDriver for ListSectionDriver {
         Ok(keys_of(text, section, file)?.contains(&entry.key))
     }
 
-    /// The list survives emptying out, for the reason the array-section driver keeps an emptied
-    /// event array: ambit owns entries in this file, not its containers.
     fn remove_keys(
         &self,
         text: Option<&str>,
@@ -173,7 +147,6 @@ impl DocumentDriver for ListSectionDriver {
             .cloned()
             .collect();
 
-        // Nothing matched: no write to make, so a prune with nothing stale is byte-identical.
         if remaining.len() == current.len() {
             return Ok(None);
         }

@@ -1,23 +1,3 @@
-//! `ambit outdated` and `ambit update`, against a bare repository on the local filesystem.
-//! `file://` is a git URL like any other, so nothing here needs a network.
-//!
-//! Three claims, and the first is the one the rest lean on.
-//!
-//! **`outdated` changes nothing about what a later command does.** It reaches the remote, which
-//! every other read-only command is forbidden to do, so the whole design rests on the answer landing
-//! somewhere ref resolution never looks (`PROBE_NAMESPACE`). The way to believe that is to run
-//! `outdated`, then run `resolve` and `install` and watch them still produce the old bundle, which
-//! is exactly what the first group does. Get this wrong and a read-only command silently moves a
-//! pin.
-//!
-//! **The report is about capabilities, not commits.** A branch that advanced over a change this
-//! project does not select produces a moved commit and an empty diff, and a `SKILL.md` whose
-//! description changed reports the field rather than the file. Both are asserted directly, because
-//! a report that merely restated two SHAs would pass every other test here.
-//!
-//! **`update` moves the pin and installs it.** The lock's commit, the skill's bytes on disk, and a
-//! second `outdated` all have to agree afterwards.
-
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -40,22 +20,17 @@ use crate::util::json::{JsonValue, parse};
 const CATALOG_NAME: &str = "company";
 const SKILLS_DIR: &str = ".agents/skills";
 
-/// The tags the project selects on: two skills, the `tagged` server and both tagged hooks, so every
-/// namespace has something in it that a second revision can move.
 const PACKS: &[&str] = &["core", "function.engineering"];
 
-/// The fixture's two credentials, set so no run depends on the developer's environment.
 const ENV_STUBS: &[(&str, &str)] = &[
     ("LINTER_API_KEY", "update-tagged-key"),
     ("FIXTURE_API_KEY", "update-fixture-key"),
 ];
 
-/// One `requires` entry, taking a whole pack from `catalog`.
 fn requires_entry(pack: &str, catalog: &str) -> String {
     format!("  - {{ pack: \"{catalog}/{pack}\" }}")
 }
 
-/// The `requires:` list every project here writes.
 fn requires() -> String {
     PACKS
         .iter()
@@ -71,11 +46,6 @@ const DEFAULT_MEMBERS: &[&str] = &[
     "hook: guard-secrets",
 ];
 
-/// The engineering pack, rewritten to gather `extra` on top of its own `members`.
-///
-/// A second revision that adds an item the project should see has to add it to a pack as well as
-/// to the catalog: nothing labels itself any more, so arriving in `skills/` reaches nobody on its
-/// own. That is the mechanism these cases are exercising as much as the diff is.
 fn engineering_pack_with(extra: &[&str], members: &[&str]) -> (&'static str, String) {
     let mut lines = vec![
         "name: function.engineering".to_owned(),
@@ -97,7 +67,6 @@ fn engineering_pack(extra: &[&str]) -> (&'static str, String) {
     engineering_pack_with(extra, DEFAULT_MEMBERS)
 }
 
-/// A skill the first revision does not have, which the engineering pack then names.
 const NEW_SKILL: &str = "---
 name: deploy-runbook
 description: How Acme deploys.
@@ -106,7 +75,6 @@ description: How Acme deploys.
 # Deploy runbook
 ";
 
-/// A skill no pack the project takes names, so committing it moves a commit and no capability.
 const UNSELECTED_SKILL: &str = "---
 name: brand-voice
 description: How Acme writes.
@@ -115,10 +83,6 @@ description: How Acme writes.
 # Brand voice
 ";
 
-/// A `requires` entry naming a hook the catalog does not ship: the shape a catalog takes when a
-/// commit is read by a build that has moved on past it. The one this was written for was a manifest
-/// filename that changed: the skill's `requires` was right and the hook was there, and the older
-/// commit spelled its manifest the way only the older build looked for it.
 const UNRESOLVABLE_SKILL: &str = "---
 name: deploy-runbook
 description: How Acme deploys.
@@ -142,8 +106,6 @@ impl Setup {
     fn new() -> Self {
         let dir = tempdir();
         let root = dir.path().to_path_buf();
-        // The cache is machine-wide, so every test points it somewhere disposable (`test_env` puts
-        // `XDG_CACHE_HOME` under the tempdir).
         let mut env = test_env(&root);
 
         for (name, value) in ENV_STUBS {
@@ -169,10 +131,6 @@ impl Setup {
         built
     }
 
-    /// Drops the project's `trust: full`, leaving its git catalog at the default, `review`.
-    ///
-    /// Every other test here is about pins, not the execution gate (`project/exec.rs`), so the
-    /// project they share trusts its catalog fully.
     fn reviewing(self) -> Self {
         let config = self.project.join("ambit.yml");
         let text = read_text(&config).unwrap();
@@ -181,7 +139,6 @@ impl Setup {
         self
     }
 
-    /// Writes a project pointing its one catalog at `source`, optionally at a `ref`.
     fn write_project(dir: &Path, source: &str, r#ref: Option<&str>) {
         let ref_line = r#ref.map_or_else(String::new, |r#ref| format!("    ref: \"{ref}\"\n"));
 
@@ -207,7 +164,6 @@ impl Setup {
         result
     }
 
-    /// `--json` output, parsed.
     fn json(&self, dir: &Path, args: &[&str]) -> JsonValue {
         let mut argv = args.to_vec();
         argv.push("--json");
@@ -222,7 +178,6 @@ impl Setup {
             .expect("commit a revision")
     }
 
-    /// Commits the new skill and the pack naming it: the revision most cases move to.
     fn commit_new_skill(&self) -> String {
         let (pack, text) = engineering_pack(&["skill: deploy-runbook"]);
 
@@ -238,7 +193,6 @@ impl Setup {
             .join(format!("{}.git", git_cache_key(&self.fixture.url)))
     }
 
-    /// What the cache's clone says the branch points at: the value a plain resolve would take.
     fn cached_branch(&self) -> String {
         let repo = self.repo();
         let packed = read_text(&repo.join("packed-refs")).unwrap_or_default();
@@ -257,7 +211,6 @@ impl Setup {
             .to_owned()
     }
 
-    /// Every ref the cached clone holds under the probe namespace.
     fn probed_refs(&self) -> Vec<String> {
         let mut namespace = self.repo();
 
@@ -268,7 +221,6 @@ impl Setup {
         read_dir_names(&namespace).unwrap_or_default()
     }
 
-    /// The skill names one bundle holds, from `resolve --json`.
     fn resolved_skills(&self, dir: &Path) -> Vec<String> {
         let bundle = self.json(dir, &["resolve"]);
 
@@ -293,7 +245,6 @@ fn trim_newline(mut text: String) -> String {
     text
 }
 
-/// The commit the lock pins `catalog` to.
 fn locked_commit_of(dir: &Path, catalog: &str) -> Option<String> {
     let text = read_text(&dir.join(LOCK_FILENAME)).unwrap();
 
@@ -314,8 +265,6 @@ fn locked_commit(dir: &Path) -> Option<String> {
 fn skill_dirs(dir: &Path) -> Vec<String> {
     read_dir_names(&dir.join(SKILLS_DIR)).unwrap_or_default()
 }
-
-// The pure parts: freshness, the refresh plan and its refusal, which need nothing fetched.
 
 fn config(catalogs: &[&str]) -> ProjectConfig {
     ProjectConfig {
@@ -499,8 +448,6 @@ fn refuses_any_catalog_name_in_a_project_that_configures_none() {
     );
 }
 
-// ambit outdated leaves the cache exactly where it found it
-
 #[test]
 fn does_not_move_the_clones_own_branch_so_a_later_install_pins_the_same_commit() {
     let t = Setup::new();
@@ -516,12 +463,9 @@ fn does_not_move_the_clones_own_branch_so_a_later_install_pins_the_same_commit()
     assert_eq!(outdated.code, ExitCode::Success, "{}", outdated.stderr);
     assert!(outdated.stdout.contains("outdated"));
 
-    // The probe found the new commit and put it somewhere resolution does not read.
     assert_ne!(t.probed_refs(), Vec::<String>::new());
     assert_eq!(t.cached_branch(), t.fixture.commit);
 
-    // Which is the claim that matters: an ordinary install after `outdated` installs what it would
-    // have installed before it.
     t.installs(&t.project);
     assert_eq!(locked_commit(&t.project), Some(t.fixture.commit.clone()));
     assert!(
@@ -542,8 +486,6 @@ fn writes_nothing_into_the_project() {
     assert_eq!(read_text(&t.project.join(LOCK_FILENAME)).unwrap(), before);
     assert!(!skill_dirs(&t.project).contains(&"deploy-runbook".to_owned()));
 }
-
-// what ambit outdated reports about a pin
 
 #[test]
 fn reports_a_branch_whose_commit_moved_naming_both_ends() {
@@ -609,8 +551,6 @@ fn reports_a_tag_as_a_moving_ref_since_a_tag_can_be_force_pushed() {
 
     let report = t.json(&t.project, &["outdated"]);
 
-    // Still current (nothing moved the tag) but classified as something that *could* move, which
-    // is the distinction `pinned` exists to draw.
     assert_eq!(
         report["catalogs"][CATALOG_NAME]["freshness"],
         json!("current")
@@ -633,9 +573,6 @@ fn reports_a_path_catalog_as_unversioned_rather_than_current() {
     assert_eq!(report["outdated"], json!(false));
 }
 
-// the bundle diff, which is what makes the report about capabilities
-
-/// Installs, commits `files` on the branch, and returns what `outdated --json` says.
 fn changes_after(t: &Setup, files: &[(&str, Option<&str>)]) -> JsonValue {
     t.installs(&t.project);
     t.commit(files);
@@ -654,10 +591,7 @@ fn reports_a_moved_commit_that_changes_nothing_this_project_selects_as_no_change
         &[("skills/brand-voice/SKILL.md", Some(UNSELECTED_SKILL))],
     );
 
-    // The pin moved…
     assert_eq!(report["outdated"], json!(true));
-    // …and the answer to "what would I get" is: nothing new. Which is the whole argument for
-    // diffing bundles rather than commits.
     assert_eq!(report["changed"], json!(false));
     assert_eq!(report["skills"]["changes"], json!([]));
 }
@@ -682,8 +616,6 @@ fn names_an_arriving_skill_and_why_it_would_be_selected() {
             "deploy-runbook"
         )])
     );
-    // The pack's own row says what moved about it, which is the cause the row above is the effect
-    // of.
     assert_eq!(
         report["packs"]["changes"],
         json!([change(
@@ -848,8 +780,6 @@ fn reports_a_changed_hook_script_as_a_script_change() {
     );
 }
 
-// The execution gate, on a git catalog, which is reviewed unless it says otherwise
-
 #[test]
 fn refuses_a_git_catalogs_first_install_until_its_execution_is_accepted() {
     let t = Setup::new().reviewing();
@@ -916,8 +846,6 @@ error: install would add execution that was not in the lock
     t.installs(&t.project);
 }
 
-/// Rewrites the project's lock as an ambit from before `exec` wrote it: same pins, no digests of
-/// what runs.
 fn strip_exec(dir: &Path) {
     let lock = dir.join(LOCK_FILENAME);
     let older: String = read_text(&lock)
@@ -947,7 +875,6 @@ fn accepts_a_lock_without_exec_digests_at_its_own_commits_and_no_further() {
             .contains("exec: sha256-")
     );
 
-    // The hooks' definitions are untouched, but the commit moves, so nothing vouches for them.
     strip_exec(&t.project);
     t.commit_new_skill();
 
@@ -961,8 +888,6 @@ fn accepts_a_lock_without_exec_digests_at_its_own_commits_and_no_further() {
     );
 }
 
-// ambit update
-
 #[test]
 fn moves_the_pin_rewrites_the_lock_and_materializes_what_arrived() {
     let t = Setup::new();
@@ -974,7 +899,6 @@ fn moves_the_pin_rewrites_the_lock_and_materializes_what_arrived() {
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
     assert_eq!(locked_commit(&t.project), Some(moved));
     assert!(skill_dirs(&t.project).contains(&"deploy-runbook".to_owned()));
-    // The report leads with the bundle change and ends with what was written.
     assert!(result.stdout.contains("+  deploy-runbook"));
     assert!(
         result
@@ -1035,8 +959,6 @@ fn refuses_a_catalog_name_the_project_does_not_configure_naming_the_ones_it_does
     );
 }
 
-// Two catalogs on two *different* sources, which is the case the plan can narrow. Two refs of one
-// repository share a clone and cannot be separated; `refresh_plan` says so at length.
 #[test]
 fn moves_only_the_catalog_it_was_told_to() {
     let t = Setup::new();
@@ -1058,15 +980,11 @@ fn moves_only_the_catalog_it_was_told_to() {
 
     assert_eq!(named.code, ExitCode::Success, "{}", named.stderr);
 
-    // `personal` is a directory with no revision, so updating it moves nothing, and naming it must
-    // not have moved the sibling that did have somewhere to go.
     assert_eq!(locked_commit(&t.project), Some(t.fixture.commit.clone()));
     let report = t.json(&t.project, &["outdated"]);
 
     assert_eq!(report["outdated"], json!(true));
 }
-
-// --offline
 
 fn refuses_offline(command: &[&str]) {
     let t = Setup::new();
@@ -1083,7 +1001,6 @@ fn refuses_offline(command: &[&str]) {
             .stderr
             .contains("`--offline` cannot answer where a ref points now")
     );
-    // The refusal is the point: reporting `current` here would be a confident wrong answer.
     assert!(!result.stdout.contains("current"));
 }
 
@@ -1102,15 +1019,6 @@ fn refuses_ambit_update_dry_run_rather_than_answering_from_the_cache() {
     refuses_offline(&["update", "--dry-run"]);
 }
 
-// A reinstall, which has a recorded commit to reproduce.
-//
-// The lock as an *input*, which is the only thing that makes committing one worth doing. Every case
-// here is the same experiment: put the project's recorded commit and the shared clone's idea of
-// `main` into disagreement, then check which one wins. It has to be the lock, and it has to be the
-// lock even when the clone is warm and wrong, even when the clone is missing entirely, and even
-// when another project on the machine moved it on purpose.
-
-/// Moves the shared clone's own `main` forward, the way another project running `update` does.
 fn another_project_updates(t: &Setup) -> String {
     let moved = t.commit_new_skill();
     let mover = t.root.join("mover");
@@ -1123,7 +1031,6 @@ fn another_project_updates(t: &Setup) -> String {
     moved
 }
 
-/// Rewrites every commit the lock records, standing in for a lock a teammate committed.
 fn rewrite_locked_commit(t: &Setup, commit: &str) {
     let file = t.project.join(LOCK_FILENAME);
     let text = read_text(&file).unwrap();
@@ -1139,8 +1046,6 @@ fn installs_the_commit_the_lock_names_not_the_one_the_shared_clone_was_moved_to(
 
     let moved = another_project_updates(&t);
 
-    // The clone's `refs/heads/main` now says `moved`, so this is the case that used to drift: the
-    // project's own `ref: main` would have resolved through the moved clone and installed it.
     let second = t.cli(&t.project, &["install"]);
 
     assert_eq!(second.code, ExitCode::Success, "{}", second.stderr);
@@ -1151,9 +1056,6 @@ fn installs_the_commit_the_lock_names_not_the_one_the_shared_clone_was_moved_to(
             .contains(&"deploy-runbook".to_owned())
     );
 
-    // Every read-only command resolves the same commit as the install, or it would report on a
-    // project nobody has: `resolve` above, and `status`, which plans through the adapters as
-    // install does.
     let status = t.cli(&t.project, &["status"]);
 
     assert_eq!(status.code, ExitCode::Success, "{}", status.stderr);
@@ -1167,9 +1069,6 @@ fn satisfies_frozen_on_a_cold_cache_whatever_the_branch_points_at_now() {
 
     t.commit_new_skill();
 
-    // A CI runner: the committed lock, and a machine that has never fetched this repository. The
-    // clone it makes has `main` at the new commit, which is precisely what `--frozen` used to fail
-    // on.
     crate::util::fs::rm_rf(&cache_root(&t.env)).unwrap();
 
     let frozen = t.cli(&t.project, &["install", "--frozen"]);
@@ -1194,8 +1093,6 @@ fn reports_the_recorded_commit_as_what_the_project_resolves_to_not_the_moved_clo
     let report = t.json(&t.project, &["outdated"]);
     let pin = &report["catalogs"][CATALOG_NAME];
 
-    // `commit` is the pin and `latest` is the remote, so a report whose `commit` column showed the
-    // clone's moved branch would be naming a commit this project would not install.
     assert_eq!(pin["commit"], json!(t.fixture.commit));
     assert_eq!(pin["latest"], json!(moved));
     assert_eq!(pin["freshness"], json!("outdated"));
@@ -1209,8 +1106,6 @@ fn moves_past_the_recorded_commit_for_ambit_update_which_is_the_command_that_exi
 
     let update = t.cli(&t.project, &["update"]);
 
-    // The install `update` ends with reads the same lock, which at that point still holds the
-    // commit being replaced. Honouring it there would make the update undo itself.
     assert_eq!(update.code, ExitCode::Success, "{}", update.stderr);
     assert_eq!(locked_commit(&t.project), Some(moved));
     assert!(
@@ -1226,8 +1121,6 @@ fn drops_the_pin_when_ref_is_edited_since_it_answers_a_question_that_changed() {
     assert_eq!(t.cli(&t.project, &["install"]).code, ExitCode::Success);
     assert_eq!(locked_commit(&t.project), Some(t.fixture.commit.clone()));
 
-    // The tag stays where it is and the branch moves, so the two refs now name different commits
-    // and the edit is the only thing that can explain the new one.
     let moved = t.commit_new_skill();
 
     Setup::write_project(&t.project, &t.fixture.url, Some(&t.fixture.branch));
@@ -1244,9 +1137,6 @@ fn resolves_a_catalog_the_lock_has_no_entry_for_against_its_remote() {
     assert_eq!(t.cli(&t.project, &["install"]).code, ExitCode::Success);
     let moved = t.commit_new_skill();
 
-    // Renaming the catalog is the smallest form of adding one: the lock pins `company`, the config
-    // now declares `acme`, and nothing recorded says what `acme` resolves to. Taking the warm
-    // clone's answer would be inheriting a commit this project never asked for.
     let entries: Vec<String> = PACKS
         .iter()
         .map(|pack| requires_entry(pack, "acme"))
@@ -1278,9 +1168,6 @@ fn exits_2_for_a_recorded_commit_the_repository_does_not_have_naming_the_way_out
 
     let second = t.cli(&t.project, &["install"]);
 
-    // Fatal rather than a quiet fallback to `main`: installing a different commit than the lock
-    // names is the one thing a lock exists to prevent, and a force-push is how this happens for
-    // real.
     assert_eq!(second.code, ExitCode::Config);
     assert!(second.stderr.contains(&format!(
         "cannot find the locked commit for catalog \"{CATALOG_NAME}\""
@@ -1297,8 +1184,6 @@ fn exits_4_under_offline_for_a_recorded_commit_the_cache_does_not_hold() {
 
     let second = t.cli(&t.project, &["install", "--offline"]);
 
-    // Exit 4 rather than 2: the commit may well exist, and `--offline` is what stopped ambit
-    // finding out.
     assert_eq!(second.code, ExitCode::Network);
     assert!(
         second
@@ -1333,7 +1218,6 @@ fn exits_2_for_a_lock_it_cannot_read_rather_than_resolving_as_though_there_were_
 
     let second = t.cli(&t.project, &["install"]);
 
-    // Ignoring it would resolve against the shared clone again, which is the drift the pins remove.
     assert_eq!(second.code, ExitCode::Config);
     assert!(second.stderr.contains(LOCK_FILENAME));
 }
@@ -1354,12 +1238,9 @@ fn exits_2_for_a_lock_version_it_does_not_know_since_it_cannot_find_the_pins_in_
     assert!(second.stderr.contains("upgrade ambit"));
 }
 
-// a first install, which has no earlier resolution to reproduce
-
 #[test]
 fn takes_the_commit_the_ref_names_now_not_the_one_the_shared_cache_happens_to_hold() {
     let t = Setup::new();
-    // Some other project on this machine warmed the clone, and the branch moved afterwards.
     let warmed = t.root.join("warmed");
 
     Setup::write_project(&warmed, &t.fixture.url, Some(&t.fixture.branch));
@@ -1410,9 +1291,6 @@ fn does_not_reach_the_remote_under_offline_which_outranks_it() {
     );
 }
 
-// ambit update, when the cached commit is one the project cannot resolve
-
-/// Leaves the clone's branch on a commit that does not resolve, and the remote on one that does.
 fn break_the_cache(t: &Setup) -> String {
     let (pack, text) = engineering_pack(&["skill: deploy-runbook"]);
 
@@ -1450,8 +1328,6 @@ fn reports_the_pin_as_outdated_with_no_commit_it_claims_to_resolve_to() {
     let report = t.json(&t.project, &["outdated"]);
 
     assert_eq!(report["outdated"], json!(true));
-    // No `commit`: a project that resolves to nothing has no commit it resolves to, and naming the
-    // one it failed at would read as a working pin.
     assert_eq!(
         report["catalogs"][CATALOG_NAME],
         json!({
@@ -1463,10 +1339,6 @@ fn reports_the_pin_as_outdated_with_no_commit_it_claims_to_resolve_to() {
     );
 }
 
-// Digests. Here rather than beside the lock tests because only a git source has a commit, and so
-// a digest, and this file already has a git remote to install from.
-
-/// The fixture's checkout of `commit` in the cache, which every install copies from.
 fn checkout(t: &Setup, commit: &str) -> PathBuf {
     cache_root(&t.env)
         .join(crate::model::git::SOURCES_DIRNAME)
@@ -1474,7 +1346,6 @@ fn checkout(t: &Setup, commit: &str) -> PathBuf {
         .join(commit)
 }
 
-/// One item's `digest` in the project's lock.
 fn locked_digest(t: &Setup, section: &str, name: &str) -> Option<String> {
     let text = read_text(&t.project.join(LOCK_FILENAME)).unwrap();
 

@@ -1,27 +1,9 @@
-//! The JSON driver: `.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json` and every other map-shaped
-//! JSON config.
-//!
-//! JSON has no comments, so a parse round-trip loses nothing a person wrote and the driver can work
-//! on parsed objects internally. Key order is preserved: every foreign key stays in place and the
-//! managed section stays where it already was, instead of moving to the end on the first install.
-
 use indexmap::IndexSet;
 
 use crate::errors::{Result, config_error};
 use crate::model::documents::format::{ConfigEntry, DocumentDriver};
 use crate::util::json::{self, JsonObject, JsonValue, structurally_equal};
 
-/// Parses a JSON document, treating an absent file as an empty one.
-///
-/// Shared with the array-section driver (`json_array.rs`), which reads the same files in the same
-/// syntax and differs only in what it does with one section of them, so the two share this and
-/// [`serialize_json_document`] instead of each having its own idea of what a JSON document is.
-/// That keeps their refusals worded identically.
-///
-/// # Errors
-///
-/// Exit 2 for malformed JSON or a non-object root, since overwriting either would destroy content
-/// ambit does not own.
 pub fn parse_json_document(text: Option<&str>, file: &str) -> Result<JsonObject> {
     let Some(text) = text else {
         return Ok(JsonObject::new());
@@ -50,12 +32,10 @@ pub fn parse_json_document(text: Option<&str>, file: &str) -> Result<JsonObject>
     }
 }
 
-/// The managed section as an object; anything unusable reads as absent.
 pub(super) fn section_of<'a>(document: &'a JsonObject, section: &str) -> Option<&'a JsonObject> {
     document.get(section).and_then(JsonValue::as_object)
 }
 
-/// Renders a document as the bytes written to disk: two-space indent, trailing newline.
 pub fn serialize_json_document(document: &JsonObject) -> String {
     format!(
         "{}\n",
@@ -63,7 +43,6 @@ pub fn serialize_json_document(document: &JsonObject) -> String {
     )
 }
 
-/// The map-shaped JSON driver.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct JsonDriver;
 
@@ -108,7 +87,6 @@ impl DocumentDriver for JsonDriver {
             merged.insert(entry.key.clone(), entry.value.clone());
         }
 
-        // An existing section keeps its position; a new one is appended.
         document.insert(section.to_owned(), JsonValue::Object(merged));
 
         Ok(serialize_json_document(&document))
@@ -128,9 +106,6 @@ impl DocumentDriver for JsonDriver {
             .is_some_and(|actual| structurally_equal(&entry.value, actual)))
     }
 
-    /// The section survives emptying out. ambit owns keys inside this file, not the file itself,
-    /// so removing the last managed server leaves `{}` behind instead of deleting a document a
-    /// person may also be writing into.
     fn remove_keys(
         &self,
         text: Option<&str>,

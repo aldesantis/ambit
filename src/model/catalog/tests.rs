@@ -1,11 +1,3 @@
-//! Catalog parsing from a `path:` source, and the `ambit search` view built on it.
-//!
-//! Every case runs against the fixture catalog, mutated in place for the malformed ones, so the
-//! subject is the same tree the rest of the suite resolves against.
-//!
-//! The CLI mechanism cases (the command surface, the nested-command seam, usage errors, the flag
-//! rules) live in `src/cli/tests.rs`.
-
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
@@ -24,14 +16,11 @@ use crate::util::fs::{copy_tree, mkdir_p, rm_rf, write_text};
 const CATALOG_NAME: &str = "company";
 const CODE_REVIEW: &str = "skills/code-review/SKILL.md";
 
-/// The fixture's core skill, and the pack a second catalog collides with.
 const CORE_SKILL: &str = "company-context";
 const CORE_TAG: &str = "core";
 
-/// A skill only the second catalog provides, so a merge has something to keep from both.
 const OWN_SKILL: &str = "jane-notes";
 
-/// A fixture catalog beside a project that lists it as `path:../catalog`.
 struct Fixture {
     _dir: tempfile::TempDir,
     root: PathBuf,
@@ -62,8 +51,6 @@ impl Fixture {
         fixture
     }
 
-    /// What source resolution reads from outside its arguments; every source here is a local
-    /// path.
     fn context(&self) -> SourceContext {
         SourceContext {
             project_dir: self.project_dir.clone(),
@@ -72,12 +59,10 @@ impl Fixture {
         }
     }
 
-    /// Rewrites `ambit.yml` for the project under test.
     fn write_config(&self, body: &str) {
         write_text(&self.project_dir.join("ambit.yml"), body).unwrap();
     }
 
-    /// Replaces one file inside the fixture catalog.
     fn write_catalog_file(&self, relative: &str, body: &str) {
         write_file(&self.catalog_dir.join(relative), body);
     }
@@ -92,7 +77,6 @@ impl Fixture {
         )
     }
 
-    /// Parses the fixture catalog, asserting it was rejected as a config error (exit 2).
     fn rejection(&self) -> AmbitError {
         let error = self
             .parse()
@@ -102,9 +86,6 @@ impl Fixture {
         error
     }
 
-    /// Builds a catalog beside the fixture that deliberately collides with it: the same core skill
-    /// and the same `linter` server, plus a skill of its own so the merge has something only one
-    /// catalog provides. `name` is the catalog's directory, which is also the name config gives it.
     fn write_colliding_catalog(&self, name: &str) {
         let files = [
             (
@@ -144,8 +125,6 @@ impl Fixture {
                 ]
                 .join("\n"),
             ),
-            // Every catalog offers the same two groupings by name, which is what makes a project
-            // selecting from both a collision rather than two different asks.
             (
                 format!("packs/{CORE_TAG}.yml"),
                 [
@@ -176,10 +155,6 @@ impl Fixture {
         }
     }
 
-    /// Points the project at the fixture catalog first and the extra catalogs after it.
-    ///
-    /// The order is only how the file reads: nothing resolves by it, since every catalog's copy of
-    /// a name survives the merge. Each `requires` line carries its own qualifier.
     fn write_catalog_order(&self, extra: &[&str], requires: &[String]) {
         let mut lines = vec![
             "version: 1".to_owned(),
@@ -204,7 +179,6 @@ impl Fixture {
         self.write_config(&lines.join("\n"));
     }
 
-    /// The merged view of whatever the project's config currently lists.
     fn merged(&self) -> MergedCatalog {
         let config = load_project_config(&self.project_dir).unwrap();
 
@@ -213,7 +187,6 @@ impl Fixture {
         )
     }
 
-    /// Runs the CLI against the project under test, from the fixture root.
     fn cli(&self, args: &[&str]) -> CliResult {
         let project = self.project_dir.to_string_lossy().into_owned();
         let mut argv: Vec<&str> = args.to_vec();
@@ -228,7 +201,6 @@ fn write_file(target: &Path, body: &str) {
     write_text(target, body).unwrap();
 }
 
-/// One `requires` entry, taking a whole pack from `catalog`.
 fn requires_entry(pack: &str, catalog: &str) -> String {
     format!("  - {{ pack: \"{catalog}/{pack}\" }}")
 }
@@ -317,8 +289,6 @@ mod catalog_parsing {
             catalog: None,
         };
 
-        // In the order the fixture wrote them: a `requires` list is the author's, not a sorted
-        // one. No `catalog` on any entry: a catalog author cannot write a consumer's alias.
         assert_eq!(
             catalog
                 .skills
@@ -367,7 +337,6 @@ mod catalog_parsing {
 
     #[test]
     fn keeps_top_level_frontmatter_keys_it_does_not_know() {
-        // The top level is the harness's; ambit adds exactly one key to it.
         let fixture = Fixture::new();
 
         fixture.write_catalog_file(
@@ -457,8 +426,6 @@ mod catalog_parsing_failures {
                 .message
                 .contains("skill name \"wrong-name\" does not match its path")
         );
-        // The line is the one the reader will find `name` on in the whole document, not in the
-        // block.
         assert!(error.message.contains(&format!("{CODE_REVIEW} line 2")));
         assert!(
             error
@@ -488,8 +455,6 @@ mod catalog_parsing_failures {
 
         assert!(names(&catalog.skills, |skill| &skill.name).contains(&"code-review".to_owned()));
         assert_eq!(collected.len(), 1);
-        // Named by catalog, not by root: a collected problem is printed in a report compared byte
-        // for byte across machines.
         assert_eq!(
             collected[0].detail[0],
             format!("in catalog \"{CATALOG_NAME}\"")
@@ -614,7 +579,6 @@ mod catalog_parsing_failures {
         );
     }
 
-    /// The transport rules, read through the file that is the only place a server can be written.
     #[test]
     fn rejects_an_mcp_entity_whose_transport_is_malformed() {
         let cases = [
@@ -715,8 +679,6 @@ mod catalog_parsing_failures {
 
     #[test]
     fn refuses_a_catalog_that_still_holds_a_scopes_yml_naming_the_rewrite() {
-        // The registry is the one thing at a catalog root ambit still has an opinion about, and
-        // the opinion is that it must not be there.
         let fixture = Fixture::new();
 
         fixture.write_catalog_file("scopes.yml", "scopes:\n  core:\n    description: A\n");
@@ -782,7 +744,6 @@ mod catalog_sources {
                 .collect::<Vec<_>>(),
             std::slice::from_ref(&fixture.catalog_dir)
         );
-        // A directory has no revision, so nothing pretends to pin one.
         assert_eq!(catalogs[0].commit, None);
     }
 
@@ -892,8 +853,6 @@ mod ambit_search {
             json_of(&result.stdout),
             json!({
                 "catalogs": [CATALOG_NAME],
-                // The fixture's three: one the `core` pack names, one shipping a script, and one
-                // in no pack.
                 "hooks": {
                     "company/acme-standup": {
                         "catalog": CATALOG_NAME,
@@ -959,7 +918,6 @@ mod ambit_search {
                         ],
                     },
                 },
-                // What a pack is for, and what it gathers.
                 "packs": {
                     "company/core": {
                         "catalog": CATALOG_NAME,
@@ -1054,7 +1012,6 @@ mod ambit_search {
                 .stdout
                 .contains(&format!("{CATALOG_NAME}  path:../catalog"))
         );
-        // The packs lead, and each carries what it is for.
         assert!(result.stdout.contains(&format!(
             "core                           {CATALOG_NAME}  What every Acme session needs"
         )));
@@ -1106,16 +1063,9 @@ mod ambit_search {
     }
 }
 
-/// The three filters `ambit search` narrows with, and how they combine.
-///
-/// Repeating one flag widens and different flags narrow: a result has to satisfy every flag that
-/// was given, not merely one of them. The pattern is the same glob a `requires` entry is written
-/// with, so a person can paste what they typed into `requires:` and reach the same items. Matching
-/// nothing is exit 0 and a report, where the same pattern in a `requires` entry is exit 3.
 mod ambit_search_narrowed {
     use super::*;
 
-    /// The section body `ambit search` prints under `title`, without its heading or its indent.
     fn rows_under(stdout: &str, title: &str) -> Vec<String> {
         let lines: Vec<&str> = stdout.split('\n').collect();
         let Some(start) = lines
@@ -1132,14 +1082,12 @@ mod ambit_search_narrowed {
             .collect()
     }
 
-    /// The first column of each row.
     fn first_column(rows: &[String]) -> Vec<String> {
         rows.iter()
             .map(|row| row.split("  ").next().unwrap().to_owned())
             .collect()
     }
 
-    /// Whether a section was printed at all, which is what `--capability` decides.
     fn has_section(stdout: &str, title: &str) -> bool {
         stdout
             .split('\n')
@@ -1187,8 +1135,6 @@ mod ambit_search_narrowed {
 
         assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
         assert!(has_section(&result.stdout, "skills"));
-        // Omitted rather than printed empty: a section shown as `(none)` reads as *this catalog
-        // has no packs*, which is a different answer from *you did not ask about packs*.
         for title in ["packs", "mcps", "hooks"] {
             assert!(!has_section(&result.stdout, title), "{title}");
         }
@@ -1237,8 +1183,6 @@ mod ambit_search_narrowed {
         fixture.write_colliding_catalog(second);
         fixture.write_catalog_order(&[second], &[]);
 
-        // `company-context` is the name both catalogs provide, so it is the one that can tell a
-        // filter that narrowed from a filter that did nothing.
         let one = fixture.cli(&[
             "search",
             CORE_SKILL,
@@ -1252,7 +1196,6 @@ mod ambit_search_narrowed {
             rows_under(&one.stdout, "skills"),
             [format!("{CORE_SKILL}  {second}")]
         );
-        // The header answers *where did I just look*, so it narrows with the filter.
         assert!(
             !one.stdout
                 .contains(&format!("{CATALOG_NAME}  path:../catalog"))
@@ -1286,8 +1229,6 @@ mod ambit_search_narrowed {
         fixture.write_colliding_catalog(second);
         fixture.write_catalog_order(&[second], &[]);
 
-        // `jane-notes` exists only in the second catalog, so restricting to the first is a filter
-        // the pattern alone would not have applied.
         let result = fixture.cli(&[
             "search",
             OWN_SKILL,
@@ -1303,8 +1244,6 @@ mod ambit_search_narrowed {
 
     #[test]
     fn succeeds_with_an_empty_report_when_the_pattern_matches_nothing() {
-        // A requirement reaching nothing is a config that will not do what it says, while a search
-        // finding nothing is the answer to the search.
         let fixture = Fixture::new();
         let result = fixture.cli(&["search", "no-such-*"]);
 
@@ -1353,16 +1292,6 @@ mod ambit_search_narrowed {
     }
 }
 
-/// `hooks/<name>/hook.yml`: the third namespace a catalog distributes, and the one whose
-/// declaration is not the whole truth about it.
-///
-/// A hook is a directory for the same reason a skill is (it may ship bytes), so it is found and
-/// named exactly as a skill is. The half worth the module is what happens once a document says
-/// `type: script`: the catalog is asked whether the file is really there, so a misspelled script
-/// name is a refusal naming what the directory actually holds.
-///
-/// Every case writes the hook it is about into the fixture, beside the three the fixture ships, and
-/// reads back only what it wrote.
 mod catalog_hooks {
     use super::*;
     use crate::model::hook_entity::HookEvent;
@@ -1371,14 +1300,10 @@ mod catalog_hooks {
     const HOOK_DIR: &str = "hooks/block-rm";
     const HOOK_FILE: &str = "hooks/block-rm/hook.yml";
 
-    /// The second catalog, for the one case about two of them providing one hook.
     const SECOND_CATALOG: &str = "personal";
 
-    /// The hooks the fixture itself ships, which every case here writes beside.
     const FIXTURE_HOOKS: [&str; 3] = ["acme-standup", "guard-secrets", "session-notes"];
 
-    /// A hook document, its `name` given separately so a caller writes only what the case is
-    /// about.
     fn document(name: &str, lines: &[&str]) -> String {
         let mut all = vec![format!("name: {name}")];
 
@@ -1387,7 +1312,6 @@ mod catalog_hooks {
         all.join("\n")
     }
 
-    /// Writes a hook into a catalog beside the fixture, so two catalogs can provide one name.
     fn write_hook_in(fixture: &Fixture, catalog: &str, name: &str, lines: &[&str]) {
         write_file(
             &fixture
@@ -1400,7 +1324,6 @@ mod catalog_hooks {
         );
     }
 
-    /// The hooks a case wrote, parsed: the fixture's own filtered out.
     fn hooks(fixture: &Fixture) -> Vec<CatalogHook> {
         fixture
             .parse()
@@ -1503,8 +1426,6 @@ mod catalog_hooks {
         );
         fixture.write_catalog_file(&format!("{HOOK_DIR}/bin/hook"), "#!/bin/sh\nexit 0\n");
 
-        // The program is the only token that can name a shipped file; its arguments are the
-        // harness's.
         let found = hooks(&fixture);
 
         assert_eq!(
@@ -1545,8 +1466,6 @@ mod catalog_hooks {
 
     #[test]
     fn leaves_a_command_line_alone_even_when_the_directory_happens_to_hold_that_name() {
-        // `type` is the whole answer, so a file sitting there is a coincidence rather than a
-        // signal: this hook runs `hook.sh` off the PATH, and nothing is materialized for it.
         let fixture = Fixture::new();
 
         fixture.write_catalog_file(
@@ -1714,7 +1633,6 @@ mod catalog_hooks {
             })
         );
 
-        // Each record is keyed by its address, since a name is not unique across catalogs.
         let mut expected: Vec<&str> = FIXTURE_HOOKS.to_vec();
 
         expected.push(HOOK_NAME);
@@ -1727,8 +1645,6 @@ mod catalog_hooks {
                 .collect::<Vec<_>>()
         );
 
-        // The row's fields rather than its padding, which widens with whatever else the catalog
-        // holds.
         let stdout = fixture.cli(&["search", "*"]).stdout;
         let row = stdout
             .split('\n')
@@ -1766,7 +1682,6 @@ mod catalog_hooks {
 
         let view = fixture.merged();
 
-        // Two entries for the contested name, in catalog order, each carrying its own `command`.
         assert_eq!(
             view.hooks
                 .iter()
@@ -1781,8 +1696,6 @@ mod catalog_hooks {
     }
 }
 
-/// The two `search '*'` dumps from the command-surface suite; the rest of it is in
-/// `src/cli/tests.rs`.
 mod the_command_surface {
     use super::*;
 
@@ -1808,7 +1721,6 @@ mod the_command_surface {
 mod merging {
     use super::*;
 
-    /// One catalog parsed straight from a directory, without resolving a source.
     fn catalog(name: &str, root: &Path) -> Catalog {
         parse_catalog_directory(
             name,
@@ -1869,7 +1781,6 @@ mod merging {
         ]);
 
         assert_eq!(merged.catalogs, [CATALOG_NAME, "personal"]);
-        // Two identical catalogs, so every name is provided twice and nothing is dropped.
         assert_eq!(merged.skills.len(), 8);
         assert_eq!(
             merged
@@ -1923,14 +1834,6 @@ mod merging {
     }
 }
 
-/// Several catalogs merge into one namespace per kind, and **every** copy of a name survives:
-/// `catalogs:` order settles nothing, because there is no precedence left to establish.
-///
-/// A name two catalogs provide becomes a refusal only where a project selects both copies, and then
-/// at resolve rather than at the merge: harness layout is flat, so the two would be installed at
-/// one path.
-///
-/// The second catalog is written per test rather than added to the shared fixture.
 mod multi_catalog_merge {
     use super::*;
 
@@ -1986,8 +1889,6 @@ mod multi_catalog_merge {
 
     #[test]
     fn keeps_each_copys_own_definition_not_one_body_under_two_catalog_names() {
-        // The transports differ, so this is the assertion that both bodies are in the merged view
-        // rather than one of them twice.
         let fixture = Fixture::new();
 
         fixture.write_colliding_catalog(SECOND);
@@ -2023,8 +1924,6 @@ mod multi_catalog_merge {
         fixture.write_colliding_catalog(THIRD);
         fixture.write_catalog_order(&[SECOND, THIRD], &[]);
 
-        // In catalog-name order rather than config order: the merged view is sorted by name and
-        // then catalog.
         assert_eq!(
             fixture
                 .merged()
@@ -2138,8 +2037,6 @@ mod multi_catalog_merge {
         let explained = json_of(&fixture.cli(&["resolve", "--explain", "--json"]).stdout);
         let skills = explained["skills"].as_object().unwrap();
 
-        // Keyed by name, because a bundle holds one item per name, and carrying only what the
-        // bundle knows: where it came from, and why.
         assert_eq!(skills.keys().collect::<Vec<_>>(), [OWN_SKILL]);
         assert_eq!(
             skills[OWN_SKILL],

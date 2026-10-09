@@ -1,7 +1,3 @@
-//! The shared YAML loader. Every rule here exists because the alternative is silent corruption,
-//! so each one is asserted to fail loudly: with the exit code, the offending identifier, and the
-//! line.
-
 use serde_json::json;
 
 use super::*;
@@ -9,7 +5,6 @@ use crate::errors::ExitCode;
 use crate::util::json::JsonValue;
 use saphyr::ScalarOwned;
 
-/// Asserts `result` rejected the document as a config error (exit 2), and returns the error.
 #[track_caller]
 fn rejection<T: std::fmt::Debug>(result: Result<T>) -> AmbitError {
     match result {
@@ -89,8 +84,6 @@ mod loader {
 
     #[test]
     fn pairs_each_sequence_item_with_its_own_line_block_style_and_flow_style_alike() {
-        // A rule enforced after parsing has no node left to point at, so the position has to come
-        // out of the document with the value.
         assert_eq!(
             load("tags:\n  - core\n  - function.engineering\n")
                 .optional_positioned_string_list("tags")
@@ -201,7 +194,6 @@ mod loader {
         assert!(pattern.is_match(&error.format()), "{}", error.format());
     }
 
-    /// Where saphyr notices a problem after the line that holds it, the line is moved back to it.
     #[test]
     fn reports_a_syntax_error_on_the_line_that_holds_it() {
         for (text, line) in [
@@ -266,7 +258,6 @@ mod string_values {
 
     #[test]
     fn suggests_the_fix_in_the_form_it_was_written_not_the_parsed_value() {
-        // `1e5` parses to 100000; suggesting `ref: "100000"` would point at a different commit.
         assert_contains(
             &rejection(load("ref: 1e5\n").require_string("ref")).format(),
             "quote it: `ref: \"1e5\"`",
@@ -537,7 +528,6 @@ mod frontmatter {
 
     #[test]
     fn reports_lines_of_the_document_not_of_the_block() {
-        // The reader is told a line number to go to, so it has to be the document's own.
         let text = "---\nname: alpha\nref: 1e5\n---\nbody\n";
 
         assert_contains(
@@ -647,9 +637,6 @@ mod read_yaml_mapping {
     }
 }
 
-/// The emit half of the rules. They are about *bytes*, not about meaning, because the two
-/// artifacts that use them (`ambit.lock` and the `init` scaffold) are diffed and compared as text.
-/// So each test asserts the exact output rather than that it re-parses.
 mod emitter {
     use super::*;
 
@@ -666,9 +653,6 @@ mod emitter {
 
     #[test]
     fn quotes_a_string_a_core_schema_parser_would_otherwise_read_as_a_number() {
-        // The trap the rules name: an all-digit commit SHA, and a ref like `1e5`. Both must come
-        // back as the strings they went in as, or the lock pins a different commit than the one
-        // installed.
         let text = emit_yaml(&json!({ "commit": "1234567", "ref": "1e5", "count": 12 }));
 
         assert_eq!(text, "commit: \"1234567\"\ncount: 12\nref: \"1e5\"\n");
@@ -720,7 +704,6 @@ mod emitter {
         assert_eq!(emit_yaml(&document), emit_yaml(&document));
     }
 
-    /// Converts a parsed node back to the JSON value it holds.
     fn to_json(document: &load::Document, node: &load::Node) -> JsonValue {
         if document.is_map(node) {
             return JsonValue::Object(
@@ -749,9 +732,6 @@ mod emitter {
         }
     }
 
-    /// Every value in the corpus must read back as itself, and emit as the recorded bytes so a
-    /// change in layout shows up as a diff of the corpus. `UPDATE_GOLDEN=1 cargo test` rewrites
-    /// the recorded bytes.
     #[test]
     fn round_trips_and_matches_the_recorded_corpus() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/yaml_emit.json");

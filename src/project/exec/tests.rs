@@ -1,11 +1,3 @@
-//! The `exec` digest recipe, and the gate an install runs on it.
-//!
-//! The digests are checked field by field on hand-built items. The gate is checked twice over:
-//! purely, through [`review_exec`] on locks [`build_lock`] makes (which is how a commit and a
-//! script's tree digest reach it without git), and end to end through `ambit install` on the
-//! fixture catalog, which is a `path:` source and so has to opt in with `trust: review`. The git
-//! side, where `review` is the default, is covered in `project/update/tests.rs`.
-
 use std::path::PathBuf;
 
 use pretty_assertions::assert_eq;
@@ -24,8 +16,6 @@ use crate::project::lock::{
     ItemDigests, LOCK_FILENAME, build_lock, serialize_lock, write_lock_text,
 };
 use crate::resolution::resolve::resolve_bundle;
-
-// The recipe
 
 fn hook(r#type: HookType, command: &str) -> MergedHook {
     MergedHook {
@@ -100,7 +90,6 @@ fn a_hook_digest_is_stable_and_moves_with_every_field_that_decides_what_runs() {
 
     assert_ne!(hook_exec(&matcher, None), hook_exec(&empty_matcher, None));
 
-    // Nothing else changes what runs.
     let mut cosmetic = base.clone();
     cosmetic.timeout = Some(30);
     cosmetic.description = Some("says hi".to_owned());
@@ -147,7 +136,6 @@ fn a_stdio_digest_moves_with_the_command_each_argument_and_the_environment() {
         assert_ne!(mcp_exec(&changed), digest, "{field}");
     }
 
-    // An argument cannot pass for an env entry, nor two arguments for one.
     assert_ne!(
         mcp_exec(&stdio("npx", &["A", "1"], &[])),
         mcp_exec(&stdio("npx", &[], &[("A", "1")]))
@@ -157,7 +145,6 @@ fn a_stdio_digest_moves_with_the_command_each_argument_and_the_environment() {
         mcp_exec(&stdio("npx", &["a", "b"], &[]))
     );
 
-    // The order a catalog wrote its variables in runs the same process.
     assert_eq!(
         mcp_exec(&stdio("npx", &[], &[("A", "1"), ("B", "2")])),
         mcp_exec(&stdio("npx", &[], &[("B", "2"), ("A", "1")]))
@@ -196,9 +183,6 @@ fn an_http_digest_moves_with_the_url_the_token_variable_and_each_header() {
     );
 }
 
-// The gate, through `review_exec`
-
-/// The fixture catalog parsed at `commit`.
 fn catalog_at(project: &Project, commit: &str) -> Catalog {
     parse_catalog_directory(
         CATALOG_NAME,
@@ -210,8 +194,6 @@ fn catalog_at(project: &Project, commit: &str) -> Catalog {
     .expect("a parsable catalog")
 }
 
-/// The lock the default profile resolves to with the catalog at `commit` and the script hook's
-/// tree hashing to `tree`, and the bundle it was built from.
 fn locked(project: &Project, commit: &str, tree: &str) -> (Lock, Bundle) {
     let catalogs = [catalog_at(project, commit)];
     let config = load_project_config(&project.dir).expect("a valid config");
@@ -225,7 +207,6 @@ fn locked(project: &Project, commit: &str, tree: &str) -> (Lock, Bundle) {
     (lock, bundle)
 }
 
-/// What a project holding `text` as its lock reads back.
 fn read_back(text: &str) -> LockedItems {
     let project = Project::new();
 
@@ -237,7 +218,6 @@ fn reviewed() -> IndexMap<String, Trust> {
     IndexMap::from([(CATALOG_NAME.to_owned(), Trust::Review)])
 }
 
-/// Each change as `(name, status)`, for a compact comparison.
 fn summary(changes: &[ExecChange]) -> Vec<(&str, ExecStatus)> {
     changes
         .iter()
@@ -315,7 +295,6 @@ fn reviews_nothing_from_a_catalog_of_full_trust() {
     );
 }
 
-/// `text` with every `exec` line removed: a lock as an ambit from before `exec` wrote it.
 fn without_exec(text: &str) -> String {
     text.lines()
         .filter(|line| !line.trim_start().starts_with("exec:"))
@@ -335,7 +314,6 @@ fn accepts_an_entry_without_a_digest_only_at_the_commit_it_was_recorded_at() {
         ExecReview::default()
     );
 
-    // Same definitions, moved commit: nothing proves the entry is what ran before.
     let (moved, bundle) = locked(&project, "def5678", "sha256-one");
     let review = review_exec(Some(&previous), &moved, &bundle, &reviewed());
 
@@ -415,10 +393,6 @@ fn shows_a_script_hook_by_its_path_in_the_catalog_with_its_arguments() {
     assert_eq!(hook_runs(&hook(HookType::Command, " echo hi ")), "echo hi");
 }
 
-// The gate, through `ambit install`
-
-/// The default profile plus the skill that pulls in the fixture's stdio server and its third hook,
-/// from a catalog written with `trust`, or none when `None`.
 fn configured(trust: Option<&str>) -> Project {
     let project = Project::new();
     let trust_line = trust.map_or_else(String::new, |trust| format!("    trust: {trust}\n"));
@@ -573,7 +547,6 @@ fn leaves_a_frozen_install_to_the_frozen_check() {
     let project = configured(Some("review"));
     let refused = project.cli(&["install", "--frozen"]);
 
-    // No lock: `--frozen` answers first, and the gate never runs.
     assert_eq!(refused.code, ExitCode::Drift);
     assert!(
         refused

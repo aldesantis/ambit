@@ -1,23 +1,13 @@
-//! The glob matcher and the `requires` entry grammar.
-//!
-//! Resolution and validation both go through this module, but this is the only place its refusals
-//! are pinned directly rather than through a command. Each malformed case asserts the
-//! [`AmbitError`] code the CLI turns into an exit status (exit 2 for every grammar problem) and that
-//! the message names the key and the line, which is the whole contract every refusal above it
-//! inherits.
-
 use super::*;
 use crate::errors::ExitCode;
 use crate::model::yaml::parse_yaml_mapping;
 
 const FILE: &str = "ambit.yml";
 
-/// Parses a `requires:` block under `addressing`, from the document root.
 fn parse(text: &str, addressing: Addressing) -> Vec<PatternEntry> {
     parse_entries(&parse_yaml_mapping(text, FILE).unwrap(), addressing).unwrap()
 }
 
-/// Parses `text`, asserting it was rejected as a config error (exit 2).
 fn rejection(text: &str, addressing: Addressing) -> AmbitError {
     let error = parse_entries(&parse_yaml_mapping(text, FILE).unwrap(), addressing)
         .expect_err("expected the entry to be rejected");
@@ -66,7 +56,6 @@ mod the_glob_matcher {
         assert!(matches_pattern("core.*", "core.a"));
         assert!(matches_pattern("core.*", "core.a.b"));
         assert!(!matches_pattern("core.*", "core"));
-        // The two-entry remedy the asymmetry costs.
         assert!(
             ["core.*", "core"]
                 .iter()
@@ -96,7 +85,6 @@ mod the_glob_matcher {
         assert!(matches_pattern("*style", "core.house-style"));
         assert!(matches_pattern("*core*", "acme.core.a"));
         assert!(matches_pattern("*.*.*", "a.b.c"));
-        // The two dots in `*.*.*` are literal, so the name has to hold two of them.
         assert!(!matches_pattern("*.*.*", "a.b"));
         assert!(matches_pattern("*.*", "a.b"));
         assert!(matches_pattern("**", "anything"));
@@ -112,7 +100,6 @@ mod the_glob_matcher {
 
     #[test]
     fn matches_every_other_metacharacter_literally() {
-        // The bug a naive `replace("*", ".*")` has: the dot would match any character.
         assert!(!matches_pattern("core.a", "coreXa"));
         assert!(!matches_pattern("core.*", "coreXa"));
         assert!(matches_pattern("a+b", "a+b"));
@@ -127,9 +114,8 @@ mod the_glob_matcher {
         assert!(!matches_pattern("^a", "a"));
         assert!(matches_pattern("a\\b", "a\\b"));
         assert!(matches_pattern("a?", "a?"));
-        assert!(!matches_pattern("a?", "a")); // `?` is not a metacharacter of this grammar
+        assert!(!matches_pattern("a?", "a"));
         assert!(matches_pattern("a{2}", "a{2}"));
-        // Metacharacters survive around a wildcard too, not only on their own.
         assert!(matches_pattern("a.*+b", "a.x+b"));
         assert!(!matches_pattern("a.*+b", "aXx+b"));
     }
@@ -189,8 +175,6 @@ mod matching_one_item {
             item(ItemKind::Skill, "personal", "core.a")
         ));
 
-        // An unqualified entry carries no catalog to compare, so restricting it to one is the
-        // caller's job: it matches whatever it is offered.
         let unqualified = skill("*");
 
         assert!(matches(&unqualified, skill_item()));
@@ -238,7 +222,6 @@ mod writing_an_entry_back_out {
 
         assert_eq!(yaml, "- skill: \"company/core.*\"");
         assert!(!yaml.contains('\n'));
-        // The advice has to round-trip: what a refusal tells a reader to write must parse.
         assert_eq!(
             parse(&format!("requires:\n  {yaml}\n"), Addressing::Qualified),
             vec![entry(ItemKind::Skill, "core.*", Some("company"))]
@@ -284,7 +267,6 @@ mod literal_equality_and_deduplication {
             }
         ));
         assert!(same_entry(&base, &base.clone()));
-        // An unqualified entry is not the qualified one with the alias dropped: it says less.
         assert!(!same_entry(&base, &skill("x")));
     }
 
@@ -451,8 +433,6 @@ mod refusing_a_malformed_entry {
 
     #[test]
     fn refuses_the_two_key_spelling_this_grammar_replaced_as_the_unknown_keys_they_are() {
-        // `tag:` and `capabilities:` are gone with the labels they selected on: a grouping is a
-        // pack now, and the generic refusal names the four keys an entry may have.
         let tagged = rejection(
             "requires:\n  - tag: \"c/core\"\n    capabilities: [skills]\n",
             Addressing::Qualified,

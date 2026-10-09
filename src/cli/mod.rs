@@ -1,6 +1,3 @@
-//! The program: parsing argv against the declared surface, dispatching to a handler, and turning
-//! every outcome into an exit code.
-
 pub mod commands;
 pub mod handlers;
 pub mod output;
@@ -27,23 +24,18 @@ use crate::cli::handlers::{
 use crate::errors::{AmbitError, ExitCode};
 use crate::util::env::Env;
 
-/// The widest help wraps to, and its width when stdout is not a terminal: clap's own defaults,
-/// fixed here so clap never reads the terminal or `COLUMNS` itself.
+// Fixed so clap never reads the terminal or `COLUMNS` itself.
 pub const MAX_HELP_WIDTH: usize = 100;
 
-/// Where a command's output goes, one line at a time.
 pub trait Io {
     fn stdout(&mut self, line: &str);
     fn stderr(&mut self, line: &str);
 
-    /// The terminal's width when stdout is one. `None` means [`MAX_HELP_WIDTH`].
     fn help_width(&self) -> Option<usize> {
         None
     }
 }
 
-/// The real streams. Each line is written with a trailing newline; a closed pipe is ignored, so
-/// `ambit search '*' | head` ends quietly.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct StdIo;
 
@@ -67,7 +59,6 @@ impl Io for StdIo {
     }
 }
 
-/// Output captured line by line, for tests.
 #[cfg(test)]
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CaptureIo {
@@ -86,8 +77,6 @@ impl Io for CaptureIo {
     }
 }
 
-/// Handlers, keyed by command name. Every command the surface declares has one here; a command
-/// added without an entry reports itself unimplemented (exit 1) rather than silently succeeding.
 pub fn handlers() -> CommandHandlers {
     CommandHandlers::from_iter([
         ("audit".to_owned(), handler(audit::audit_handler)),
@@ -111,16 +100,6 @@ pub fn handlers() -> CommandHandlers {
     ])
 }
 
-/// Flag rules, keyed by command name as [`handlers`] is: what each command refuses about the flags
-/// it was given, before dispatch.
-///
-/// Three commands need one, and all three refuse `--offline`. `outdated` and `update` share a rule,
-/// since both refuse for the same reason: only a remote knows where a ref points now. `self-update`
-/// refuses for a different reason (no cache holds a binary it has not downloaded), so it carries
-/// its own wording. Rules exist instead of a clap-level conflict because that produces a message
-/// that names no file and gives no next step. `install`'s `--copy`/`--link` still uses a declared
-/// conflict, since clap's wording for two flags that cannot appear together already says
-/// everything needed.
 pub fn rules() -> CommandRules {
     CommandRules::from_iter([
         ("outdated".to_owned(), rule(refuses_offline_rule)),
@@ -132,16 +111,10 @@ pub fn rules() -> CommandRules {
     ])
 }
 
-/// Runs the CLI with the shipped handlers and rules, and returns the process exit code.
 pub fn run(argv: &[String], cwd: &Path, env: &Env, io: &mut dyn Io) -> ExitCode {
     run_with(argv, cwd, env, io, &handlers(), &rules())
 }
 
-/// Runs the CLI and returns the process exit code. Never fails: every failure path is translated
-/// into an exit code, with the message already printed.
-///
-/// Usage errors print clap's message to stderr and exit 2. `--help`, `--version` and bare `ambit`
-/// print to stdout and exit 0. An [`AmbitError`] prints its `format()` and exits with its code.
 pub fn run_with(
     argv: &[String],
     cwd: &Path,
@@ -155,7 +128,6 @@ pub fn run_with(
         .map_or(MAX_HELP_WIDTH, |width| width.min(MAX_HELP_WIDTH));
     let mut program = Cli::command().term_width(width);
 
-    // Bare `ambit` is a request for usage, not a mistake.
     if argv.is_empty() {
         io.stdout(program.render_help().to_string().trim_end());
 
@@ -200,11 +172,6 @@ pub fn run_with(
     }
 }
 
-/// The name, flags and positionals of the command `matches` reached.
-///
-/// Read back by each argument's id and action, so a flag added to [`Cli`] reaches handlers with no
-/// change here. Positionals are flattened in declaration order. The surface is flat, so the
-/// command is one level down.
 fn invocation(
     program: &clap::Command,
     matches: &ArgMatches,
@@ -241,7 +208,6 @@ fn invocation(
             ArgAction::Append => matches
                 .get_many::<String>(id)
                 .map(|values| OptionValue::List(values.cloned().collect())),
-            // `--help` and `--version`, which end the parse before this.
             _ => None,
         };
 
@@ -253,7 +219,6 @@ fn invocation(
     (name.to_owned(), CommandOptions(options), args)
 }
 
-/// Runs the command's rule, then its handler.
 fn dispatch(
     key: &str,
     ctx: &mut CommandContext<'_>,

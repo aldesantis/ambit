@@ -1,5 +1,3 @@
-//! The audit's scanners, and `ambit audit` and `install` reading a catalog with hidden text in it.
-
 use pretty_assertions::assert_eq;
 
 use super::*;
@@ -11,8 +9,6 @@ fn messages(findings: &[ContentFinding]) -> Vec<&str> {
         .map(|finding| finding.message.as_str())
         .collect()
 }
-
-// scan_text
 
 #[test]
 fn counts_repeats_on_one_line_into_one_finding() {
@@ -86,11 +82,8 @@ fn ignores_plain_text_in_any_script() {
     assert_eq!(scan_text("café, Привет, 日本語, שלום\n", "f"), Vec::new());
 }
 
-// mixed_scripts
-
 #[test]
 fn spots_a_name_mixing_latin_with_cyrillic() {
-    // The second letter is U+0430, Cyrillic.
     assert_eq!(
         mixed_scripts("p\u{0430}ypal"),
         Some(vec!["Latin", "Cyrillic"])
@@ -99,8 +92,6 @@ fn spots_a_name_mixing_latin_with_cyrillic() {
     assert_eq!(mixed_scripts("привет-123"), None);
     assert_eq!(mixed_scripts("日本-skill"), None);
 }
-
-// command_concerns
 
 #[test]
 fn flags_downloads_piped_into_a_shell() {
@@ -143,8 +134,6 @@ fn passes_ordinary_command_lines() {
         assert_eq!(command_concerns(command), Vec::<String>::new(), "{command}");
     }
 }
-
-// ambit audit, and install
 
 fn project() -> Project {
     let project = Project::new();
@@ -254,7 +243,6 @@ fn install_refuses_hidden_text_in_the_bundle_unless_told_not_to_audit() {
 fn install_ignores_items_outside_the_bundle_and_warns_on_command_lines() {
     let project = project();
 
-    // In the catalog, not in the bundle: `audit` sees it, `install` does not.
     project.write_catalog(
         "mcps/unused.yml",
         "name: unused\ntransport:\n  stdio:\n    command: \"x\u{200B}\"\n",

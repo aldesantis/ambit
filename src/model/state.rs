@@ -1,12 +1,3 @@
-//! `.ambit/state.json`: the record of what ambit actually put on disk.
-//!
-//! Ambit deletes or overwrites only paths listed here, so a hand-written skill sitting at a target
-//! path can never be touched. It is JSON rather than YAML because nothing reads it by hand, and a
-//! crash-safety record wants one unambiguous serialization.
-//!
-//! Emission is sorted and byte-stable, same as the lock, so a state file does not reshuffle between
-//! identical runs and hide the one change that matters in diff noise.
-
 use std::path::{Path, PathBuf};
 
 use indexmap::IndexSet;
@@ -20,17 +11,13 @@ use crate::util::json::{JsonObject, JsonValue, format_f64, parse, stringify_pret
 use crate::util::path::join;
 use crate::util::string_enum;
 
-/// The machine-local directory ambit keeps its state in. Always gitignored.
 pub const STATE_DIRNAME: &str = ".ambit";
 
-/// The state file within it.
 pub const STATE_FILENAME: &str = "state.json";
 
-/// The only state version this build understands.
 pub const STATE_VERSION: i64 = 1;
 
 string_enum! {
-    /// What an owned artifact is. `HarnessConfig` carries `managed_keys` instead of a `mode`.
     pub enum ArtifactKind {
         HarnessConfig => "harness-config",
         HookDir => "hook-dir",
@@ -39,65 +26,36 @@ string_enum! {
     }
 }
 
-/// Every artifact kind, in declaration order.
 pub const ARTIFACT_KINDS: &[ArtifactKind] = ArtifactKind::ALL;
 
 string_enum! {
-    /// How a materialized directory's source reaches its target: copied for remote sources,
-    /// symlinked for local ones.
     pub enum ArtifactMode {
         Copy => "copy",
         Link => "link",
     }
 }
 
-/// Every artifact mode, in declaration order.
 pub const ARTIFACT_MODES: &[ArtifactMode] = ArtifactMode::ALL;
 
-/// One file or directory ambit created, addressed the only way that survives a move: relatively.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OwnedArtifact {
-    /// Project-relative, `/`-separated.
     pub path: String,
     pub kind: ArtifactKind,
-    /// Set for `skill-dir`, `hook-dir` and `skills-link`.
     pub mode: Option<ArtifactMode>,
-    /// Set for `harness-config`: the dotted keys within the file ambit owns.
     pub managed_keys: Option<Vec<String>>,
-    /// Set for `harness-config`: how the file is parsed and written.
-    ///
-    /// Recorded because `prune` and `clean` act from state alone: they must edit a
-    /// `.codex/config.toml` as TOML without re-resolving the project to find out which harness
-    /// wanted it. Absent reads as `json`, which is what every artifact written before this field
-    /// existed was.
     pub format: Option<DocumentFormat>,
-    /// Set for `harness-config`: how the managed section is laid out.
-    ///
-    /// Recorded for the same reason `format` is, and it is not derivable from `format`: `.mcp.json`
-    /// and `.claude/settings.json` are both JSON, and the second holds one array per event rather
-    /// than a table keyed by name. Absent reads as `map`, which is what every artifact written
-    /// before this field existed was.
     pub shape: Option<DocumentShape>,
-    /// Set for a copied `skill-dir` or `hook-dir`: the
-    /// [`tree_digest`](crate::util::hash::tree_digest) of the directory as install wrote it.
-    ///
-    /// Lets `status` tell a copy edited since install from one whose source moved on, by hashing
-    /// the copy alone. Absent for a link, which has no bytes of its own, and for anything written
-    /// before this field existed, which `status` compares file by file instead.
     pub digest: Option<String>,
 }
 
-/// The contents of `.ambit/state.json`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct State {
     pub version: i64,
-    /// The harnesses the artifacts were written for.
     pub harnesses: Vec<String>,
     pub artifacts: Vec<OwnedArtifact>,
 }
 
 impl State {
-    /// What a project with no state file is treated as: ambit owns nothing there yet.
     pub fn empty() -> Self {
         Self {
             version: STATE_VERSION,
@@ -107,12 +65,10 @@ impl State {
     }
 }
 
-/// Where the state file lives for a project.
 pub fn state_file_path(project_dir: &Path) -> PathBuf {
     join(project_dir, &format!("{STATE_DIRNAME}/{STATE_FILENAME}"))
 }
 
-/// The set of paths ambit may delete or overwrite.
 pub fn owned_paths(state: &State) -> IndexSet<String> {
     state
         .artifacts
@@ -154,11 +110,10 @@ fn artifact_json(artifact: &OwnedArtifact) -> JsonValue {
     JsonValue::Object(object)
 }
 
-/// Renders state as the bytes written to disk: keys sorted, artifacts by path, trailing newline.
 pub fn serialize_state(state: &State) -> String {
     let mut artifacts: Vec<&OwnedArtifact> = state.artifacts.iter().collect();
 
-    // Stable, as `Array.prototype.sort` is: two artifacts at one path keep their order.
+    // Must be a stable sort: two artifacts at one path keep their order.
     artifacts.sort_by(|a, b| js_cmp(&a.path, &b.path));
 
     let mut harnesses: Vec<String> = state
@@ -202,8 +157,6 @@ fn string_list(value: Option<&JsonValue>, file: &str, label: &str) -> Result<Vec
         .collect()
 }
 
-/// An optional enum-valued field: absent is `None`, anything but one of `values`' spellings is
-/// refused.
 fn optional_enum<T: Copy + std::fmt::Display>(
     record: &JsonObject,
     key: &str,
@@ -318,13 +271,6 @@ fn parse_artifact(value: &JsonValue, file: &str, index: usize) -> Result<OwnedAr
     })
 }
 
-/// Parses a state document. `file` is how it is named in error messages, conventionally
-/// project-relative.
-///
-/// # Errors
-///
-/// Exit 2 for malformed JSON, an unsupported version, or a bad artifact entry: an unreadable
-/// ownership record is exactly when ambit must stop rather than guess.
 pub fn parse_state(text: &str, file: &str) -> Result<State> {
     let document = parse(text).map_err(|error| state_error(file, &error.to_string()))?;
 
@@ -332,7 +278,6 @@ pub fn parse_state(text: &str, file: &str) -> Result<State> {
         return Err(state_error(file, "the document must be a JSON object"));
     };
 
-    // A JSON number is a double, so `1.0` is the integer 1, as `Number.isInteger` judges it.
     let version = match document.get("version").and_then(JsonValue::as_f64) {
         Some(version) if version.is_finite() && version.fract() == 0.0 => version,
         _ => return Err(state_error(file, "\"version\" must be an integer")),
@@ -370,11 +315,6 @@ pub fn parse_state(text: &str, file: &str) -> Result<State> {
     })
 }
 
-/// Reads a project's state, treating an absent file as "ambit owns nothing here".
-///
-/// # Errors
-///
-/// Exit 2 if the file exists but cannot be trusted.
 pub fn read_state(project_dir: &Path) -> Result<State> {
     let target = state_file_path(project_dir);
     let file = format!("{STATE_DIRNAME}/{STATE_FILENAME}");
@@ -399,14 +339,8 @@ pub fn read_state(project_dir: &Path) -> Result<State> {
     parse_state(&text, &file)
 }
 
-/// Writes a project's state.
-///
-/// Called only after the filesystem changes it describes have succeeded, so a crash leaves
-/// artifacts owned and recoverable rather than orphaned.
-///
-/// # Errors
-///
-/// Exit 1 when the directory or the file cannot be written: nothing anticipates that failure.
+/// Call only after the filesystem changes it describes have succeeded, so a crash leaves
+/// artifacts owned and recoverable.
 pub fn write_state(project_dir: &Path, state: &State) -> Result<()> {
     let target = state_file_path(project_dir);
     let directory = target.parent().expect("the state file has a directory");

@@ -1,12 +1,3 @@
-//! `ambit status`: does the project match what resolution now produces?
-//!
-//! The interesting assertions are the negative ones. A status command is only worth running if it
-//! is quiet about everything ambit does not own (a hand-added server in `.mcp.json`, a hand-written
-//! skill directory beside ambit's), so every drift case here also pins what is *not* reported.
-//!
-//! `--check` is asserted in both directions every time: exit 5 on drift and 0 when clean. A checker
-//! that always failed and a checker that never did would each satisfy half of it.
-
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -30,15 +21,9 @@ const CORE_SKILL: &str = "company-context";
 const ENGINEERING_SKILL: &str = "code-review";
 const FRONTEND_SKILL: &str = "design-tokens";
 
-/// The fixture's tag-matched http server, and the one only `requires` reaches.
 const PACKED_MCP: &str = "linter";
 const FIXTURE_MCP: &str = "fixture";
 
-/// The fixture's script-shipping hook and the file both its hooks' entries land in.
-///
-/// The default profile holds `core` and `function.engineering`, which select one inline-command
-/// hook and one shipping a script, so every row list here carries a `hook-dir` and a second config
-/// file besides the skills.
 const HOOK_TARGET: &str = ".agents/hooks/guard-secrets";
 const CLAUDE_SETTINGS: &str = ".claude/settings.json";
 
@@ -54,10 +39,6 @@ fn engineering_target() -> String {
     format!("{SKILLS_DIR}/{ENGINEERING_SKILL}")
 }
 
-/// A fixture catalog beside a project that points at it.
-///
-/// The environment leaves `LINTER_API_KEY` unset: the tagged server interpolates it into a header,
-/// so what is on disk depends on it.
 struct Fixture {
     _dir: tempfile::TempDir,
     root: PathBuf,
@@ -84,13 +65,10 @@ impl Fixture {
             project_dir,
         };
 
-        // Three skills (`function.engineering` also selects its nested frontend child) plus the
-        // `tagged` http server, which declares that same tag.
         fixture.write_profile(&["core", "function.engineering", "function.engineering.*"]);
         fixture
     }
 
-    /// Points the project at the fixture catalog and gives it a `requires` list.
     fn write_profile(&self, packs: &[&str]) {
         let list = if packs.is_empty() {
             "[]".to_owned()
@@ -111,8 +89,6 @@ impl Fixture {
         .unwrap();
     }
 
-    /// Runs the CLI against the project. Lines are joined with `\n` and the final newline
-    /// dropped.
     fn cli(&self, args: &[&str]) -> CliResult {
         let project = self.project_dir.to_string_lossy().into_owned();
         let mut argv: Vec<&str> = args.to_vec();
@@ -129,7 +105,6 @@ impl Fixture {
             .expect("status succeeds")
     }
 
-    /// Every artifact status reports, as `path=state` pairs, so a whole report fits one assertion.
     fn states(&self) -> Vec<String> {
         self.status()
             .artifacts
@@ -138,7 +113,6 @@ impl Fixture {
             .collect()
     }
 
-    /// The detail line status gives for one path.
     fn detail_of(&self, target: &str) -> Option<String> {
         self.status()
             .artifacts
@@ -159,10 +133,6 @@ impl Fixture {
         parse(&crate::util::fs::read_text(&self.project_dir.join(MCP_FILE)).unwrap()).unwrap()
     }
 
-    /// Every file in the project, keyed by relative path and carrying its contents.
-    ///
-    /// Symlinks are followed, because the default install of a `path:` catalog is a link and the
-    /// claim being made is about the files a harness would read.
     fn snapshot(&self) -> BTreeMap<String, String> {
         fn walk(current: &Path, relative: &str, found: &mut BTreeMap<String, String>) {
             for name in read_dir_names(current).unwrap() {
@@ -228,8 +198,6 @@ fn row(path: &str, state: ArtifactState) -> StatusArtifact {
     }
 }
 
-// The pure projections over a status, which need nothing resolved.
-
 #[test]
 fn drift_is_every_row_that_is_not_ok() {
     let status = ProjectStatus {
@@ -268,8 +236,6 @@ fn an_empty_plan_against_empty_state_reports_nothing() {
     assert_eq!(status, ProjectStatus::default());
 }
 
-// ambit status on an installed project
-
 #[test]
 fn reports_every_artifact_as_matching_and_says_so_rather_than_printing_nothing() {
     let fixture = installed(&["install"]);
@@ -277,8 +243,6 @@ fn reports_every_artifact_as_matching_and_says_so_rather_than_printing_nothing()
 
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
 
-    // The detail column is empty on every row here, so `columns` trims it away and the state ends
-    // each line, but the two columns before it are still padded out to their widest cell.
     let width = core_target().len();
     let kind = "harness-config".len();
 
@@ -356,12 +320,6 @@ fn emits_machine_readable_output_carrying_no_absolute_paths() {
     assert!(!result.stdout.contains(&*fixture.root.to_string_lossy()));
 }
 
-// ambit status after a manual edit.
-//
-// Content drift is a question about a *copy*: a symlinked skill has no bytes of its own, so these
-// cases install with `--copy`. Editing a linked skill edits the catalog, and the symlinked block
-// below pins that as the non-drift it is.
-
 #[test]
 fn reports_an_edited_skill_file_as_modified_naming_the_file() {
     let fixture = installed(&["install", "--copy"]);
@@ -397,7 +355,6 @@ fn exits_5_under_check_once_a_skill_has_been_edited() {
     let result = fixture.cli(&["status", "--check"]);
 
     assert_eq!(result.code, ExitCode::Drift);
-    // The report is still the report: `--check` adds an exit code, not an error.
     assert_eq!(result.stderr, "");
     assert!(result.stdout.contains("modified"));
 }
@@ -522,11 +479,6 @@ fn reports_a_change_in_the_catalog_not_only_one_in_the_project() {
     );
 }
 
-// ambit status on a symlinked install.
-//
-// The other half of the materialization modes: what is on disk decides how a skill is compared, so
-// a link is checked for pointing at its source and a copy for holding its bytes.
-
 const CORE_SOURCE: &str = "skills/company-context";
 
 #[test]
@@ -539,7 +491,6 @@ fn says_nothing_when_the_source_is_edited_through_the_link_which_is_what_linking
     )
     .unwrap();
 
-    // The edit landed in the catalog, so there is no second copy for the two to disagree about.
     assert!(
         crate::util::fs::read_text(&fixture.catalog_dir.join(CORE_SOURCE).join("SKILL.md"))
             .unwrap()
@@ -558,7 +509,6 @@ fn reports_a_link_pointing_elsewhere_as_modified_naming_where_it_points() {
     crate::util::fs::rm_rf(&target).unwrap();
     crate::util::fs::symlink_dir(Path::new("../../../elsewhere"), &target).unwrap();
 
-    // A link is not followed, so one pointing at nothing is drift rather than an absent artifact.
     assert_eq!(
         fixture.detail_of(&core_target()).as_deref(),
         Some("it points at ../../../elsewhere, not at its source")
@@ -589,16 +539,12 @@ fn reports_a_file_sitting_where_a_linked_skill_belongs_as_modified() {
 fn reads_an_intact_copy_as_clean_even_though_a_plain_install_would_relink_it() {
     let fixture = installed(&["install", "--copy"]);
 
-    // Mode is a per-run choice and both modes put the same bytes in front of the harness, so
-    // `--copy` must not leave `status --check` permanently red.
     assert_eq!(
         fixture.states(),
         all_with(["ok", "ok", "ok", "ok", "ok", "ok", "ok"])
     );
     assert_eq!(fixture.cli(&["status", "--check"]).code, ExitCode::Success);
 }
-
-// ambit status before an install
 
 #[test]
 fn reports_every_artifact_resolution_wants_as_missing() {
@@ -626,7 +572,6 @@ fn reports_a_target_install_would_refuse_as_unowned_rather_than_as_modified() {
         &json!({ "mcpServers": { PACKED_MCP: { "command": "not ambit's either" } } }),
     );
 
-    // Nothing is installed here, so the link is absent like the skills it would point at.
     assert_eq!(
         fixture.states(),
         all_with([
@@ -657,15 +602,11 @@ fn reports_nothing_at_all_for_a_project_that_resolves_to_nothing() {
     assert_eq!(fixture.cli(&["status", "--check"]).code, ExitCode::Success);
 }
 
-// ambit status after the profile narrows: what install would prune, before it prunes it.
-
 #[test]
 fn reports_what_ambit_owns_and_nothing_selects_as_stale() {
     let fixture = installed(&["install"]);
     fixture.write_profile(&["core"]);
 
-    // The settings file is stale for the same reason `.mcp.json` is: one key it holds is no longer
-    // selected, even though the entry the narrowed profile's own hook wrote still matches.
     assert_eq!(
         fixture.states(),
         all_with(["stale", "stale", "ok", "stale", "stale", "ok", "stale"])
@@ -680,7 +621,6 @@ fn reports_what_ambit_owns_and_nothing_selects_as_stale() {
 #[test]
 fn reports_a_single_stale_server_key_in_a_file_whose_other_keys_still_match() {
     let fixture = Fixture::new();
-    // Both servers: `tagged` by tag, `fixture` through the project skill's `requires`.
     fixture.write_profile(&[
         "function.engineering",
         "function.engineering.*",
@@ -710,9 +650,6 @@ fn goes_quiet_again_once_the_install_that_prunes_them_has_run() {
     assert_eq!(fixture.cli(&["status", "--check"]).code, ExitCode::Success);
 }
 
-// Copies with symlinks in them, compared by the digest state recorded at install.
-
-/// The status row for one path.
 fn row_at(fixture: &Fixture, path: &str) -> StatusArtifact {
     fixture
         .status()
@@ -758,7 +695,6 @@ fn reports_a_copy_edited_in_a_way_no_file_comparison_shows() {
     symlink_file(Path::new("SKILL.md"), &skill.join("alias.md")).unwrap();
     assert_eq!(fixture.cli(&["install", "--copy"]).code, ExitCode::Success);
 
-    // Same bytes through the link, different link: only the digest can tell.
     let alias = fixture
         .project_dir
         .join(engineering_target())

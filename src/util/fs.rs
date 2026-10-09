@@ -1,11 +1,3 @@
-//! Filesystem calls under the rules every module relies on.
-//!
-//! - Only `NotFound` means "absent". Any other failure (`ENOTDIR`, `EACCES`) is an error, because
-//!   "I could not look" is not the same answer as "nothing is there".
-//! - Text reads decode invalid UTF-8 lossily, replacing each bad sequence with U+FFFD.
-//! - [`read_dir_names`] is the only directory listing in ambit. Under `cfg(test)` it is permuted
-//!   by a per-thread hook, which is how the determinism suite proves no output depends on the
-//!   order the OS lists a directory in.
 #![allow(clippy::disallowed_methods)]
 
 use std::fs;
@@ -14,7 +6,6 @@ use std::path::{Path, PathBuf};
 
 use crate::util::path::normalize;
 
-/// What `lstat` found at a path.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EntryKind {
     Missing,
@@ -24,11 +15,6 @@ pub enum EntryKind {
     Other,
 }
 
-/// The whole file as text, invalid UTF-8 replaced, like `readFile(path, "utf8")`.
-///
-/// # Errors
-///
-/// Any I/O error, `NotFound` included.
 pub fn read_text(p: &Path) -> io::Result<String> {
     let bytes = fs::read(p)?;
 
@@ -38,11 +24,6 @@ pub fn read_text(p: &Path) -> io::Result<String> {
     })
 }
 
-/// [`read_text`], with an absent file as `None`.
-///
-/// # Errors
-///
-/// Any I/O error other than `NotFound`.
 pub fn read_text_opt(p: &Path) -> io::Result<Option<String>> {
     match read_text(p) {
         Ok(text) => Ok(Some(text)),
@@ -51,14 +32,6 @@ pub fn read_text_opt(p: &Path) -> io::Result<Option<String>> {
     }
 }
 
-/// The names in a directory, in the order the OS lists them.
-///
-/// Callers that need an order sort the result; the determinism suite permutes it under
-/// `cfg(test)` to prove they do.
-///
-/// # Errors
-///
-/// Any I/O error, `NotFound` included.
 pub fn read_dir_names(dir: &Path) -> io::Result<Vec<String>> {
     let mut names = Vec::new();
 
@@ -72,25 +45,12 @@ pub fn read_dir_names(dir: &Path) -> io::Result<Vec<String>> {
     Ok(names)
 }
 
-/// One file or symlink under a directory, as [`walk_tree`] lists it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TreeEntry {
-    /// Relative to the walked directory, `/`-separated.
     pub relative: String,
-    /// [`EntryKind::File`], [`EntryKind::Symlink`] or [`EntryKind::Other`]; never a directory.
     pub kind: EntryKind,
 }
 
-/// Every entry under `dir` that is not a directory, sorted by [`js_cmp`] on the relative path.
-///
-/// Directories are descended rather than listed, so an empty one leaves no trace. A symlink is
-/// listed as itself and never followed, whatever it points at.
-///
-/// # Errors
-///
-/// Any I/O error, `NotFound` included, from listing a directory or inspecting an entry.
-///
-/// [`js_cmp`]: crate::util::cmp::js_cmp
 pub fn walk_tree(dir: &Path) -> io::Result<Vec<TreeEntry>> {
     fn walk(current: &Path, relative: &str, found: &mut Vec<TreeEntry>) -> io::Result<()> {
         for name in read_dir_names(current)? {
@@ -122,21 +82,10 @@ pub fn walk_tree(dir: &Path) -> io::Result<Vec<TreeEntry>> {
     Ok(found)
 }
 
-/// What a symlink says, unresolved, with `/` separators.
-///
-/// # Errors
-///
-/// Any I/O error, including `p` not being a symlink.
 pub fn read_link_text(p: &Path) -> io::Result<String> {
     Ok(crate::util::path::to_slash(&fs::read_link(p)?))
 }
 
-/// `fs.rm(p, { recursive: true, force: true })`: removes a file, a symlink (never following it), or
-/// a directory tree. An absent path is not an error.
-///
-/// # Errors
-///
-/// Any I/O error other than `NotFound`.
 pub fn rm_rf(p: &Path) -> io::Result<()> {
     let metadata = match fs::symlink_metadata(p) {
         Ok(metadata) => metadata,
@@ -172,11 +121,6 @@ fn remove_link_or_file(p: &Path, _metadata: &fs::Metadata) -> io::Result<()> {
     fs::remove_file(p)
 }
 
-/// Removes a directory only if it is empty. An absent or non-empty directory is not an error.
-///
-/// # Errors
-///
-/// Any I/O error other than `NotFound` and `DirectoryNotEmpty`.
 pub fn rmdir_if_empty(p: &Path) -> io::Result<()> {
     match fs::remove_dir(p) {
         Err(error)
@@ -191,42 +135,19 @@ pub fn rmdir_if_empty(p: &Path) -> io::Result<()> {
     }
 }
 
-/// `fs.mkdir(p, { recursive: true })`.
-///
-/// # Errors
-///
-/// Any I/O error.
 pub fn mkdir_p(p: &Path) -> io::Result<()> {
     fs::create_dir_all(p)
 }
 
-/// `fs.writeFile(p, text)`.
-///
-/// # Errors
-///
-/// Any I/O error.
 pub fn write_text(p: &Path, text: &str) -> io::Result<()> {
     fs::write(p, text)
 }
 
-/// `fs.cp(src, dst, { recursive: true })`, keeping links inside the copied tree relative.
-///
-/// Files keep their permissions. A symlink is recreated rather than followed. A relative link that
-/// resolves inside `src` is recreated as written, since the same relative path names the same file
-/// in the copy. Any other relative link is resolved against the source link's own directory and
-/// recreated as that absolute path, so the copy still points at what the original pointed at.
-/// Keeping in-tree links verbatim is what lets a copied directory hash to the same
-/// [`tree_digest`](crate::util::hash::tree_digest) as its source. Existing files at the destination
-/// are overwritten.
-///
-/// # Errors
-///
-/// Any I/O error.
+// In-tree relative links are kept verbatim so the copy has the same `tree_digest` as its source.
 pub fn copy_tree(src: &Path, dst: &Path) -> io::Result<()> {
     copy_entry(&normalize(src), src, dst)
 }
 
-/// One entry of [`copy_tree`]. `root` is the normalized top of the tree being copied.
 fn copy_entry(root: &Path, src: &Path, dst: &Path) -> io::Result<()> {
     let metadata = fs::symlink_metadata(src)?;
     let file_type = metadata.file_type();
@@ -271,11 +192,6 @@ fn copy_entry(root: &Path, src: &Path, dst: &Path) -> io::Result<()> {
     Ok(())
 }
 
-/// A symlink at `link` pointing at the directory `target`, like `symlink(target, link, "dir")`.
-///
-/// # Errors
-///
-/// Any I/O error. On Windows that includes lacking the privilege to create a symlink.
 pub fn symlink_dir(target: &Path, link: &Path) -> io::Result<()> {
     #[cfg(unix)]
     return std::os::unix::fs::symlink(target, link);
@@ -284,11 +200,6 @@ pub fn symlink_dir(target: &Path, link: &Path) -> io::Result<()> {
     return std::os::windows::fs::symlink_dir(target, link);
 }
 
-/// A symlink at `link` pointing at the file `target`.
-///
-/// # Errors
-///
-/// Any I/O error.
 pub fn symlink_file(target: &Path, link: &Path) -> io::Result<()> {
     #[cfg(unix)]
     return std::os::unix::fs::symlink(target, link);
@@ -297,11 +208,6 @@ pub fn symlink_file(target: &Path, link: &Path) -> io::Result<()> {
     return std::os::windows::fs::symlink_file(target, link);
 }
 
-/// What `lstat` finds at `p`, with an absent path as [`EntryKind::Missing`].
-///
-/// # Errors
-///
-/// Any I/O error other than `NotFound`.
 pub fn lstat_kind(p: &Path) -> io::Result<EntryKind> {
     match fs::symlink_metadata(p) {
         Ok(metadata) => {
@@ -322,28 +228,17 @@ pub fn lstat_kind(p: &Path) -> io::Result<EntryKind> {
     }
 }
 
-/// An I/O error prefixed with the path it concerns: `<path>: <error>`.
-///
-/// The error text is Rust's, so it differs between platforms.
 pub fn io_message(err: &io::Error, path: &Path) -> String {
     format!("{}: {err}", path.display())
 }
 
-/// The canonical form of `p` when it exists, for comparing two paths that may differ only by a
-/// symlink (macOS's `/var` and `/private/var`).
-///
-/// On Windows the verbatim `\\?\` prefix is dropped from a drive path. The plain spelling names the
-/// same file, is the one a user recognizes in a message, and is one git can work under.
-///
-/// # Errors
-///
-/// Any I/O error.
 pub fn canonicalize(p: &Path) -> io::Result<PathBuf> {
     let resolved = fs::canonicalize(p)?;
 
     if cfg!(windows) {
         let text = resolved.to_string_lossy();
 
+        // Dropped because git cannot work under a verbatim `\\?\` path.
         if let Some(plain) = text.strip_prefix(r"\\?\")
             && !plain.starts_with(r"UNC\")
         {
@@ -354,13 +249,11 @@ pub fn canonicalize(p: &Path) -> io::Result<PathBuf> {
     Ok(resolved)
 }
 
-/// The determinism hook: a per-thread permutation of [`read_dir_names`]'s result.
 #[cfg(test)]
 pub mod read_order {
     use std::cell::{Cell, RefCell};
     use std::path::{Path, PathBuf};
 
-    /// How the current thread's directory listings are permuted.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum ReadOrder {
         Natural,
@@ -387,7 +280,6 @@ pub mod read_order {
         }
     }
 
-    /// Runs `f` with this thread's listings permuted by `order`, restoring the previous order after.
     pub fn with_read_order<R>(order: ReadOrder, f: impl FnOnce() -> R) -> R {
         struct Restore(ReadOrder);
 
@@ -401,7 +293,6 @@ pub mod read_order {
         f()
     }
 
-    /// Every directory this thread listed since the last call, in listing order.
     pub fn take_seen() -> Vec<PathBuf> {
         SEEN.with(|seen| std::mem::take(&mut *seen.borrow_mut()))
     }

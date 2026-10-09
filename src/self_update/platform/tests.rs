@@ -1,8 +1,3 @@
-//! Which asset would replace the running ambit, and whether it can.
-//!
-//! Every published asset is named here, so adding a target to cargo-dist's config and forgetting
-//! `src/self_update/platform.rs` fails the suite rather than 404ing on a user's machine.
-
 use super::*;
 use crate::test_support::tempdir;
 

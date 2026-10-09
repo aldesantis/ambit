@@ -1,5 +1,3 @@
-//! SHA-256, hex-encoded, over bytes or over a directory tree.
-
 use std::fmt::Write as _;
 use std::io;
 use std::path::Path;
@@ -8,17 +6,13 @@ use sha2::{Digest, Sha256};
 
 use crate::util::fs::{EntryKind, read_link_text, walk_tree};
 
-/// The prefix every [`tree_digest`] value carries, naming the hash it was made with.
 pub const TREE_DIGEST_PREFIX: &str = "sha256-";
 
-/// The lowercase hex SHA-256 of `data`.
 pub fn sha256_hex(data: &[u8]) -> String {
     hex(&Sha256::digest(data))
 }
 
-/// Lowercase hex of a finished digest, such as `Sha256::finalize`'s output.
-///
-/// Written by hand rather than through `LowerHex`, which sha2 0.11's output array does not promise.
+// By hand: sha2 0.11's output array does not promise `LowerHex`.
 pub fn hex(bytes: &[u8]) -> String {
     let mut text = String::with_capacity(bytes.len() * 2);
 
@@ -29,16 +23,11 @@ pub fn hex(bytes: &[u8]) -> String {
     text
 }
 
-/// Feeds one length-prefixed field: the length as a big-endian `u64`, then the bytes.
 fn field(hasher: &mut Sha256, bytes: &[u8]) {
     hasher.update((bytes.len() as u64).to_be_bytes());
     hasher.update(bytes);
 }
 
-/// The digest of a sequence of fields, as [`TREE_DIGEST_PREFIX`] followed by lowercase hex.
-///
-/// Each field is fed length-prefixed, the same way [`tree_digest`] feeds a path and its payload, so
-/// no two different sequences feed the same stream.
 pub fn fields_digest<'a>(fields: impl IntoIterator<Item = &'a [u8]>) -> String {
     let mut hasher = Sha256::new();
 
@@ -49,27 +38,6 @@ pub fn fields_digest<'a>(fields: impl IntoIterator<Item = &'a [u8]>) -> String {
     format!("{TREE_DIGEST_PREFIX}{}", hex(&hasher.finalize()))
 }
 
-/// The content digest of a directory tree, as [`TREE_DIGEST_PREFIX`] followed by lowercase hex.
-///
-/// This is the one definition of the digest `ambit.lock` records for a skill or a script hook and
-/// `.ambit/state.json` records for a copied directory. The recipe:
-///
-/// 1. List every entry under `dir` that is not a directory, by its `/`-separated path relative to
-///    `dir`, sorted by [`js_cmp`](crate::util::cmp::js_cmp). Directories contribute nothing of
-///    their own, so an empty one is invisible. Entries that are neither a regular file nor a
-///    symlink (a socket, a device) are skipped.
-/// 2. For each entry, in that order, feed SHA-256 a one-byte tag (`F` for a regular file, `L` for a
-///    symlink), then the relative path as a field, then the payload as a field. A file's payload
-///    is its bytes. A symlink's is its link text, `/`-separated, read and never followed.
-/// 3. A field is the byte length as a big-endian `u64` followed by the bytes, so no two different
-///    trees feed the same stream.
-///
-/// File modes, timestamps and ownership are not part of it: the same commit checks out with
-/// different modes under different umasks and on Windows, and the digest has to match everywhere.
-///
-/// # Errors
-///
-/// Any I/O error from listing the tree or reading an entry, `NotFound` included.
 pub fn tree_digest(dir: &Path) -> io::Result<String> {
     let mut hasher = Sha256::new();
 

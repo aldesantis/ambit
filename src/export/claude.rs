@@ -1,5 +1,3 @@
-//! Rendering one plugin bundle as a Claude plugin package.
-// Package paths are matched by exact suffix: `.md` is Markdown, `.MD` is just a file.
 #![allow(clippy::case_sensitive_file_extension_comparisons)]
 
 use std::path::Path;
@@ -21,10 +19,8 @@ use crate::util::json::{JsonObject, JsonValue, stringify_pretty};
 use crate::util::path::join;
 use crate::util::text::js_trim;
 
-/// The default mode of a file ambit writes into a package.
 const FILE_MODE: u32 = 0o644;
 
-/// The placeholder Claude expands to the installed plugin's root.
 const PLUGIN_ROOT: &str = "${CLAUDE_PLUGIN_ROOT}/";
 
 static CLAUDE_SKILL_NAME: LazyLock<Regex> =
@@ -46,7 +42,6 @@ static MARKDOWN_LINK: LazyLock<Regex> =
 static NON_RELATIVE_LINK: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)^(?:[a-z][a-z0-9+.-]*:|/|#|\$)").expect("a valid pattern"));
 
-/// An explicit skill invocation, `/<plugin>:<skill>`, after a backtick or whitespace.
 static SKILL_INVOCATION: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:`|\s)/([a-z0-9-]+):([a-z0-9-]+)(?-u:\b)").expect("a valid pattern")
 });
@@ -59,10 +54,6 @@ fn strings(values: &[String]) -> JsonValue {
     JsonValue::Array(values.iter().cloned().map(JsonValue::from).collect())
 }
 
-/// `plugin.json`: the metadata Claude reads, minus what only ambit uses (`directory`, `commands`,
-/// and `dependencies`, which are replaced by the resolved ones).
-///
-/// Keys follow the order the metadata was parsed in.
 fn plugin_manifest(metadata: &PluginMetadata, dependencies: &[String]) -> JsonValue {
     let mut manifest = JsonObject::new();
 
@@ -104,11 +95,6 @@ fn text(data: &[u8]) -> String {
     String::from_utf8_lossy(data).into_owned()
 }
 
-/// Renders a complete Claude package without reading credential values or executing assets.
-///
-/// # Errors
-///
-/// Exit 2 for an asset that cannot be packaged.
 pub fn render_claude_plugin(plugin: &PluginBundle, catalog_root: &Path) -> Result<PackageFiles> {
     let mut files = PackageFiles::new();
 
@@ -294,8 +280,6 @@ pub fn render_claude_plugin(plugin: &PluginBundle, catalog_root: &Path) -> Resul
     Ok(files)
 }
 
-/// The command a hook runs from inside the package, packaging a script hook's directory on the
-/// way.
 fn hook_command(files: &mut PackageFiles, hook: &MergedHook) -> Result<String> {
     let command = &hook.command;
 
@@ -325,7 +309,6 @@ fn hook_command(files: &mut PackageFiles, hook: &MergedHook) -> Result<String> {
     Ok(command.clone())
 }
 
-/// `path.posix.normalize`.
 fn posix_normalize(path: &str) -> String {
     if path.is_empty() {
         return ".".to_owned();
@@ -366,7 +349,6 @@ fn posix_normalize(path: &str) -> String {
     }
 }
 
-/// `path.posix.dirname`.
 fn posix_dirname(path: &str) -> &str {
     match path.trim_end_matches('/').rfind('/') {
         Some(0) => "/",
@@ -375,7 +357,6 @@ fn posix_dirname(path: &str) -> &str {
     }
 }
 
-/// `path.posix.join(a, b)`.
 fn posix_join(a: &str, b: &str) -> String {
     let joined: Vec<&str> = [a, b].into_iter().filter(|part| !part.is_empty()).collect();
 
@@ -386,7 +367,6 @@ fn posix_join(a: &str, b: &str) -> String {
     posix_normalize(&joined.join("/"))
 }
 
-/// Component configuration may reference packaged assets, but never a path above the root.
 fn validate_package_paths(files: &PackageFiles) -> Result<()> {
     for (file, entry) in files {
         let Some(data) = &entry.data else { continue };
@@ -446,11 +426,6 @@ fn validate_markdown_paths(files: &PackageFiles) -> Result<()> {
     Ok(())
 }
 
-/// Checks explicit Claude skill invocations against the plugin dependency graph.
-///
-/// # Errors
-///
-/// Exit 2 for a skill invocation no dependency provides.
 pub fn validate_skill_references(
     plugins: &[PluginBundle],
     rendered: &[PackageFiles],
