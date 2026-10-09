@@ -10,6 +10,7 @@ Options:
       --capability <kind>  limit to this namespace; repeatable [possible values: pack, skill, mcp,
                            hook]
       --project <dir>      project directory
+      --user               act on the user-level project in ~/.ambit
       --json               machine-readable output
       --offline            use only cached catalogs
   -h, --help               Print help

@@ -39,11 +39,12 @@ string_enum! {
 /// project alone.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProjectPaths {
-    /// The project root, absolute. Every artifact path is relative to it.
+    /// Where the artifacts land, absolute: the project root, or the home directory for the
+    /// user-level project. Every artifact path is relative to it.
     pub root: PathBuf,
     /// Which config the harnesses will read this install as. Absent reads as `Project`.
     ///
-    /// Decided from `root` alone, by `install_scope` (`project/install.rs`).
+    /// Decided from the project directory alone, by `project_paths` (`project/install.rs`).
     pub scope: Option<InstallScope>,
     /// `--copy` / `--link`: force every skill's materialization mode for this run.
     ///

@@ -80,7 +80,13 @@ fn to_text(result: &InitResult, dry_run: bool) -> Vec<String> {
 /// Whatever the init returns, already in the standard message shape.
 pub fn init_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
     let dry_run = dry_run_requested(ctx);
-    let result = init_project(&project_dir_of(ctx), InitOptions { dry_run })?;
+    let result = init_project(
+        &project_dir_of(ctx),
+        InitOptions {
+            dry_run,
+            create_root: ctx.options.flag("user"),
+        },
+    )?;
 
     if json_requested(ctx) {
         ctx.io.stdout(&stringify_pretty(&to_json(&result)));

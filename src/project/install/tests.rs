@@ -62,63 +62,73 @@ fn skill(name: &str) -> String {
     format!("{SKILLS_DIR}/{name}")
 }
 
-// install_scope
+// project_paths
 //
-// The rule that decides which config a harness will read an install as. The only input is the
-// root, and the only consequence is how a hook's shipped script is addressed (`hook_root`,
-// `harness/definitions.rs`).
+// The rule that decides where an install lands and which config a harness will read it as. The
+// only input is the project directory: the user-level project installs into the home directory,
+// every other project into itself.
 
 fn home_env(home: &str) -> Env {
     Env::from([("HOME".to_owned(), home.to_owned())])
 }
 
+fn scope_of(project_dir: &str, env: &Env) -> (PathBuf, InstallScope) {
+    let paths = project_paths(Path::new(project_dir), env, None);
+
+    (paths.root, paths.scope.unwrap())
+}
+
 #[test]
-fn reads_the_home_directory_as_the_users_own_config_and_anything_else_as_a_projects() {
-    let home = "/home/jane";
+fn installs_the_user_project_into_the_home_directory_and_anything_else_into_itself() {
+    let env = home_env("/home/jane");
 
     assert_eq!(
-        install_scope(Path::new(home), &home_env(home)),
-        InstallScope::User
+        scope_of("/home/jane/.ambit", &env),
+        (PathBuf::from("/home/jane"), InstallScope::User)
     );
     assert_eq!(
-        install_scope(Path::new("/home/jane/work/acme"), &home_env(home)),
-        InstallScope::Project
+        scope_of("/home/jane/work/acme", &env),
+        (PathBuf::from("/home/jane/work/acme"), InstallScope::Project)
     );
-    // Not a prefix test: a sibling whose name starts with the home directory's is a project.
+    // The home directory itself is an ordinary project.
     assert_eq!(
-        install_scope(Path::new("/home/jane-backup"), &home_env(home)),
+        scope_of("/home/jane", &env),
+        (PathBuf::from("/home/jane"), InstallScope::Project)
+    );
+    // Not a prefix test: a sibling whose name starts with the user project's is a project.
+    assert_eq!(
+        scope_of("/home/jane/.ambit-backup", &env).1,
         InstallScope::Project
     );
 }
 
 #[test]
 fn compares_resolved_paths_so_spelling_the_same_directory_differently_cannot_change_the_answer() {
-    let home = "/home/jane";
+    let env = home_env("/home/jane");
 
+    assert_eq!(scope_of("/home/jane/.ambit/", &env).1, InstallScope::User);
     assert_eq!(
-        install_scope(Path::new("/home/jane/"), &home_env(home)),
+        scope_of("/home/jane/work/../.ambit", &env).1,
         InstallScope::User
     );
     assert_eq!(
-        install_scope(Path::new("/home/jane/work/.."), &home_env(home)),
-        InstallScope::User
-    );
-    assert_eq!(
-        install_scope(Path::new(home), &home_env("/home/jane/")),
+        scope_of("/home/jane/.ambit", &home_env("/home/jane/")).1,
         InstallScope::User
     );
 }
 
 #[test]
 fn falls_back_to_the_platforms_own_home_directory_when_home_is_unset() {
-    let Some(home) = platform_home() else {
+    let Some(home) = home_dir(&Env::new()) else {
         return;
     };
+    let user = project_paths(&home.join(USER_PROJECT_DIRNAME), &Env::new(), None);
 
-    assert_eq!(install_scope(&home, &Env::new()), InstallScope::User);
+    assert_eq!(user.scope, Some(InstallScope::User));
+    assert_eq!(user.root, home);
     assert_eq!(
-        install_scope(&home.join("work"), &Env::new()),
-        InstallScope::Project
+        project_paths(&home.join("work"), &Env::new(), None).scope,
+        Some(InstallScope::Project)
     );
 }
 

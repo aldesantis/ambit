@@ -216,6 +216,9 @@ pub fn scaffold_project() -> Vec<ScaffoldedFile> {
 pub struct InitOptions {
     /// `--dry-run`: report the files that would be written and touch nothing.
     pub dry_run: bool,
+    /// Create the project directory when it is missing, rather than refusing it. Set for the
+    /// user-level project, whose directory is ambit's to name.
+    pub create_root: bool,
 }
 
 /// What an init produced.
@@ -243,8 +246,8 @@ fn is_directory(target: &Path) -> bool {
 /// Writes one scaffolded file, creating the directory that holds it.
 ///
 /// `mkdir_p` is what creates the item directories: a `.gitkeep` and the directory it keeps arrive
-/// together or not at all. It does not create the project root; [`init_project`] refuses a missing
-/// one before reaching here.
+/// together or not at all. It also creates a missing project root, which [`init_project`] lets
+/// through only under [`InitOptions::create_root`].
 ///
 /// # Errors
 ///
@@ -275,8 +278,8 @@ fn write(project_dir: &Path, scaffolded: &ScaffoldedFile) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Exit 2 if the directory already holds an ambit config, if it does not exist, or if a file cannot
-/// be written.
+/// Exit 2 if the directory already holds an ambit config, if it does not exist and `create_root` is
+/// not set, or if a file cannot be written.
 pub fn init_project(project_dir: &Path, options: InitOptions) -> Result<InitResult> {
     let present = existing_config_files(project_dir)?;
 
@@ -292,7 +295,7 @@ pub fn init_project(project_dir: &Path, options: InitOptions) -> Result<InitResu
 
     // A missing root is refused rather than created: `--project` naming the wrong path shouldn't
     // leave a project scaffolded in a directory nobody meant.
-    if !is_directory(project_dir) {
+    if !options.create_root && !is_directory(project_dir) {
         return Err(config_error(
             format!("cannot initialize {}", project_dir.display()),
             [

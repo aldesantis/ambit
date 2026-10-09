@@ -10,6 +10,7 @@ Options:
       --check            exit 5 when exported files or links differ
       --dry-run          print the plan without touching disk
       --project <dir>    project directory
+      --user             act on the user-level project in ~/.ambit
       --json             machine-readable output
       --offline          use only cached catalogs
   -h, --help             Print help

@@ -20,8 +20,8 @@
 //! `mcpServers`. Neither is ambit's (teams commit the lock; the config file is co-owned, with only
 //! its keys ambit's), and ambit deletes only what it owns. The empty `.claude/skills` directory a
 //! pruned skill leaves is the same: it belongs to the harness, and git does not track an empty
-//! directory anyway. What `clean` does remove beyond the owned artifacts is ambit's own `.ambit/`
-//! directory and its `.gitignore` blocks, since both are ambit's by definition.
+//! directory anyway. What `clean` does remove beyond the owned artifacts is ambit's state file, the
+//! `.ambit/` directory when that leaves it empty, and its `.gitignore` blocks.
 
 use std::path::Path;
 
@@ -33,11 +33,13 @@ use crate::project::gitignore::{
     GITIGNORE_FILENAME, SHARED_GITIGNORE_FILE, read_gitignore_text, remove_gitignore_blocks,
     remove_gitignore_text, write_gitignore_blocks,
 };
-use crate::project::install::{InstallOptions, PlanContext, plan_install};
+use crate::project::install::{
+    InstallOptions, PlanContext, ignored_artifacts, plan_install, project_paths,
+};
 use crate::project::lock::write_lock_text;
 use crate::project::prune::{PrunedArtifact, plan_prune, prune_artifacts, remaining_artifacts};
 use crate::util::env::Env;
-use crate::util::fs::{EntryKind, lstat_kind, rm_rf};
+use crate::util::fs::{EntryKind, lstat_kind, rm_rf, rmdir_if_empty};
 use crate::util::path::join;
 
 #[cfg(test)]
@@ -148,7 +150,7 @@ pub fn prune_project(project_dir: &Path, env: &Env, options: PruneOptions) -> Re
         });
     }
 
-    let pruned = prune_artifacts(project_dir, &planned.artifacts, &planned.prior)?;
+    let pruned = prune_artifacts(&planned.project.root, &planned.artifacts, &planned.prior)?;
 
     // The bundle install would resolve is, after this prune, also the bundle on disk, so the lock
     // is `planned.lock_text` verbatim, written the same way install writes it. This keeps
@@ -164,12 +166,15 @@ pub fn prune_project(project_dir: &Path, env: &Env, options: PruneOptions) -> Re
             artifacts: remaining.clone(),
         },
     )?;
-    write_gitignore_blocks(project_dir, &remaining)?;
+    write_gitignore_blocks(project_dir, ignored_artifacts(&planned.project, &remaining))?;
 
     Ok(PruneResult { pruned, remaining })
 }
 
 /// Removes everything ambit owns in a project.
+///
+/// `env` is read only for `HOME`, which says where a user-level install's artifacts are (see
+/// [`project_paths`]).
 ///
 /// Order: artifacts, then the `.gitignore` block, then `.ambit/`. State is removed last, one step
 /// later than install puts it, because the `.gitignore` block is not free to rewrite here: an
@@ -182,9 +187,10 @@ pub fn prune_project(project_dir: &Path, env: &Env, options: PruneOptions) -> Re
 /// Exit 2 for an unreadable state file, a co-owned config file that cannot be parsed, a managed key
 /// state records in a form this build cannot act on, or a `.gitignore` whose markers are ambiguous.
 /// No catalog is read and nothing is resolved, so there is no exit 3 or 4.
-pub fn clean_project(project_dir: &Path, options: CleanOptions) -> Result<CleanResult> {
+pub fn clean_project(project_dir: &Path, env: &Env, options: CleanOptions) -> Result<CleanResult> {
     let prior = read_state(project_dir)?;
     let state_dir = join(project_dir, STATE_DIRNAME);
+    let root = project_paths(project_dir, env, None).root;
 
     if options.dry_run {
         return Ok(CleanResult {
@@ -194,12 +200,15 @@ pub fn clean_project(project_dir: &Path, options: CleanOptions) -> Result<CleanR
         });
     }
 
-    let removed = prune_artifacts(project_dir, &[], &prior)?;
+    let removed = prune_artifacts(&root, &[], &prior)?;
     let gitignore_removed = remove_gitignore_blocks(project_dir)?;
 
     let state_removed = exists(&state_file_path(project_dir));
 
-    rm_rf(&state_dir)?;
+    // The state file, then the directory only if that emptied it: at the home directory, `.ambit/`
+    // is also the user-level project, which a clean of the home directory must not take with it.
+    rm_rf(&state_file_path(project_dir))?;
+    rmdir_if_empty(&state_dir)?;
 
     Ok(CleanResult {
         removed,

@@ -26,7 +26,7 @@
 //! project shipping its own hook actually writes. The last block is the one exception, and it has
 //! to be: it needs a hook whose script lives somewhere the project does not.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde_json::json;
 
@@ -136,6 +136,9 @@ struct Fixture {
     _tmp: tempfile::TempDir,
     root: PathBuf,
     project_dir: PathBuf,
+    /// Where the harness files land: the project directory, or the home directory for the
+    /// user-level project.
+    install_dir: PathBuf,
     env: Env,
 }
 
@@ -150,14 +153,22 @@ impl Fixture {
         Self {
             _tmp: tmp,
             root,
+            install_dir: project_dir.clone(),
             project_dir,
             env,
         }
     }
 
-    fn set_home(&mut self, home: &Path) {
-        self.env
+    /// The user-level project: `.ambit` under a home directory, installing into that directory.
+    fn user() -> Self {
+        let mut f = Self::new();
+        let home = f.root.join("home");
+        f.project_dir = home.join(".ambit");
+        mkdir_p(&f.project_dir).unwrap();
+        f.env
             .insert("HOME".to_owned(), home.to_string_lossy().into_owned());
+        f.install_dir = home;
+        f
     }
 
     /// Points a project at itself as its only catalog, and gives it `hooks` to ship.
@@ -226,9 +237,9 @@ impl Fixture {
         }
     }
 
-    /// One of the project's files as bytes.
+    /// One of the installed files as bytes.
     fn file_text(&self, relative: &str) -> String {
-        read_text(&join(&self.project_dir, relative)).unwrap()
+        read_text(&join(&self.install_dir, relative)).unwrap()
     }
 
     /// The settings file as bytes.
@@ -253,14 +264,14 @@ impl Fixture {
 
     fn path_exists(&self, relative: &str) -> bool {
         !matches!(
-            lstat_kind(&join(&self.project_dir, relative)),
+            lstat_kind(&join(&self.install_dir, relative)),
             Ok(EntryKind::Missing) | Err(_)
         )
     }
 
     /// Where a project path points, or `None` when it is not a symlink at all.
     fn link_target(&self, relative: &str) -> Option<String> {
-        std::fs::read_link(join(&self.project_dir, relative))
+        std::fs::read_link(join(&self.install_dir, relative))
             .ok()
             .map(|target| to_slash(&target))
     }
@@ -1586,7 +1597,8 @@ mod script_hook {
     /// the claim: a command-line hook in the same bundle has to plan a config entry and nothing
     /// else.
     fn write_catalog(f: &Fixture, harnesses: &[&str]) {
-        let catalog_dir = f.root.join("catalog");
+        // Beside the project directory, since the config names it as `../catalog`.
+        let catalog_dir = f.project_dir.parent().unwrap().join("catalog");
         let files: [(String, String); 4] = [
             (
                 "packs/core.yml".to_owned(),
@@ -2043,9 +2055,10 @@ mod script_hook {
         assert_eq!(f.state_artifacts(), []);
     }
 
-    mod home_as_project_root {
-        //! The same install with the home directory as its root: how a person gets one set of hooks
-        //! in every project at once.
+    mod user_project {
+        //! The same install from the user-level project, `~/.ambit`: how a person gets one set of
+        //! hooks in every project at once. The config and state stay in `~/.ambit`, and the
+        //! harness files land in the home directory.
         //!
         //! `~/.claude/settings.json` is not a project's settings file: Claude Code reads it as the
         //! user's own, and applies it to every project on the machine. Cursor and Codex read their
@@ -2055,17 +2068,14 @@ mod script_hook {
         //! finds nothing in most of them and finds *that project's* script in one that ships the
         //! same path.
         //!
-        //! Nothing declares the scope. `install_scope` (`project/install.rs`) reads it off the root,
-        //! so a home install cannot forget to ask for the safe spelling. `HOME` is set in the `Env`
-        //! each run is given, never in the process.
+        //! Nothing declares the scope. `project_paths` (`project/install.rs`) reads it off the
+        //! project directory, so a user-level install cannot forget to ask for the safe spelling.
+        //! `HOME` is set in the `Env` each run is given, never in the process.
 
         use super::*;
 
         fn home_fixture() -> Fixture {
-            let mut f = Fixture::new();
-            let home = f.project_dir.clone();
-            f.set_home(&home);
-            f
+            Fixture::user()
         }
 
         #[test]
@@ -2079,7 +2089,7 @@ mod script_hook {
 
             // The one path that reaches the script from every project, since it depends on none of
             // them.
-            let absolute = format!("{}/{HOOK_DIR}/{SCRIPT}", to_slash(&f.project_dir));
+            let absolute = format!("{}/{HOOK_DIR}/{SCRIPT}", to_slash(&f.install_dir));
 
             assert_eq!(
                 f.settings(),
@@ -2109,42 +2119,6 @@ mod script_hook {
         }
 
         #[test]
-        fn replaces_a_project_relative_entry_an_earlier_install_left_rather_than_leaving_both() {
-            let mut f = home_fixture();
-            write_catalog(&f, &["claude"]);
-            // The same root installed as a project, which is what a home install used to write:
-            // `root` is the parent here, so nothing about this run is user-level.
-            let root = f.root.clone();
-            f.set_home(&root);
-            assert_eq!(f.cli(&["install"]).code, ExitCode::Success);
-            assert!(f.settings_text().contains("CLAUDE_PROJECT_DIR"));
-
-            let home = f.project_dir.clone();
-            f.set_home(&home);
-            let result = f.cli(&["install"]);
-
-            assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
-
-            // One entry, not two. The old key is state's, so pruning takes it out: leaving it would
-            // keep a hook pointed into whatever project is open, which is the entry that had to go.
-            assert_eq!(
-                f.settings(),
-                json!({
-                    "hooks": {
-                        "PreToolUse": [{
-                            "matcher": "Bash",
-                            "hooks": [{
-                                "type": "command",
-                                "command": format!("{}/{HOOK_DIR}/{SCRIPT}", to_slash(&f.project_dir)),
-                            }],
-                        }],
-                        "Stop": [announce_entry()],
-                    },
-                })
-            );
-        }
-
-        #[test]
         fn agrees_with_status_which_reads_the_scope_off_the_same_root() {
             let f = home_fixture();
             write_catalog(&f, &["claude", "cursor"]);
@@ -2154,6 +2128,96 @@ mod script_hook {
             // every status report drift on a project nobody touched, and every install rewrite the
             // entry.
             assert_eq!(f.cli(&["status", "--check"]).code, ExitCode::Success);
+        }
+
+        #[test]
+        fn keeps_the_config_state_and_ignore_block_in_the_project_directory_and_none_in_home() {
+            let f = home_fixture();
+            write_catalog(&f, &["claude"]);
+
+            assert_eq!(f.cli(&["install"]).code, ExitCode::Success);
+
+            assert!(
+                f.project_dir
+                    .join(STATE_DIRNAME)
+                    .join(STATE_FILENAME)
+                    .is_file()
+            );
+            assert!(f.project_dir.join("ambit.lock").is_file());
+            assert!(!f.path_exists("ambit.lock"));
+            assert!(f.path_exists(&format!("{HOOK_DIR}/{SCRIPT}")));
+
+            // The installed files are outside the project directory, so its block lists only the
+            // state directory, and nothing ambit writes in the home directory is a `.gitignore`.
+            let ignore = read_text(&f.project_dir.join(".gitignore")).unwrap();
+            assert!(
+                ignore.contains(&format!("\n{STATE_DIRNAME}/\n")),
+                "{ignore}"
+            );
+            assert!(!ignore.contains(HOOK_DIR), "{ignore}");
+            assert!(!f.path_exists(".gitignore"));
+            assert!(!f.path_exists(".agents/.gitignore"));
+        }
+
+        #[test]
+        fn cleans_the_installed_files_out_of_the_home_directory() {
+            let f = home_fixture();
+            write_catalog(&f, &["claude"]);
+            assert_eq!(f.cli(&["install"]).code, ExitCode::Success);
+
+            assert_eq!(f.cli(&["clean"]).code, ExitCode::Success);
+
+            assert!(!f.path_exists(&format!("{HOOK_DIR}/{SCRIPT}")));
+            assert!(!f.settings_text().contains(SCRIPT));
+            assert!(!f.project_dir.join(STATE_DIRNAME).exists());
+            assert!(f.project_dir.join("ambit.yml").is_file());
+        }
+
+        #[test]
+        fn is_reached_from_any_directory_with_the_user_flag() {
+            let f = home_fixture();
+            write_catalog(&f, &["claude"]);
+
+            let installed = run_cli(&["install", "--user"], &f.root, &f.env);
+
+            assert_eq!(installed.code, ExitCode::Success, "{}", installed.stderr);
+            assert!(
+                f.project_dir
+                    .join(STATE_DIRNAME)
+                    .join(STATE_FILENAME)
+                    .is_file()
+            );
+            assert!(f.settings_text().contains(&to_slash(&f.install_dir)));
+            assert_eq!(
+                run_cli(&["status", "--check", "--user"], &f.root, &f.env).code,
+                ExitCode::Success
+            );
+        }
+
+        #[test]
+        fn refuses_the_user_flag_beside_a_project_directory() {
+            let f = home_fixture();
+            let project = f.project_dir.to_string_lossy().into_owned();
+
+            let result = run_cli(
+                &["status", "--user", "--project", &project],
+                &f.root,
+                &f.env,
+            );
+
+            assert_eq!(result.code, ExitCode::Config);
+        }
+
+        #[test]
+        fn initializes_the_user_project_creating_its_directory() {
+            let f = home_fixture();
+            rm_rf(&f.project_dir).unwrap();
+
+            let result = run_cli(&["init", "--user"], &f.root, &f.env);
+
+            assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
+            assert!(f.project_dir.join("ambit.yml").is_file());
+            assert!(f.project_dir.join("skills/.gitkeep").is_file());
         }
     }
 }

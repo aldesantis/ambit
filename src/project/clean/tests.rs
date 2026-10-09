@@ -25,7 +25,7 @@ use crate::project::gitignore::{BLOCK_BEGIN, BLOCK_END};
 use crate::project::lock::LOCK_FILENAME;
 use crate::test_support::fixture_catalog::build_fixture_catalog;
 use crate::test_support::{CliResult, run_cli, tempdir, test_env};
-use crate::util::fs::{read_dir_names, read_text};
+use crate::util::fs::{read_dir_names, read_text, write_text};
 use crate::util::text::pad_end;
 
 const CATALOG_NAME: &str = "company";
@@ -831,7 +831,7 @@ mod ambit_clean {
     #[test]
     fn unlinks_a_linked_skill_without_following_it_into_the_catalog() {
         let f = installed();
-        clean_project(&f.project_dir, CleanOptions::default()).unwrap();
+        clean_project(&f.project_dir, &Env::new(), CleanOptions::default()).unwrap();
 
         assert_eq!(f.installed_skills().len(), 0);
         assert!(
@@ -839,6 +839,20 @@ mod ambit_clean {
                 .unwrap()
                 .contains(CORE_SKILL)
         );
+    }
+
+    #[test]
+    fn keeps_the_state_directory_when_it_holds_more_than_the_state_file() {
+        // At the home directory, `.ambit/` is also the user-level project.
+        let f = installed();
+        let state_dir = f.project_dir.join(STATE_DIRNAME);
+        write_text(&state_dir.join("ambit.yml"), "version: 1\n").unwrap();
+
+        let result = clean_project(&f.project_dir, &Env::new(), CleanOptions::default()).unwrap();
+
+        assert!(result.state_removed);
+        assert!(!state_dir.join(STATE_FILENAME).exists());
+        assert!(state_dir.join("ambit.yml").is_file());
     }
 
     #[test]

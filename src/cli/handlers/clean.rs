@@ -81,6 +81,7 @@ fn to_text(result: &CleanResult) -> Vec<String> {
 pub fn clean_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
     let result = clean_project(
         &project_dir_of(ctx),
+        ctx.env,
         CleanOptions {
             dry_run: dry_run_requested(ctx),
         },

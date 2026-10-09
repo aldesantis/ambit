@@ -172,6 +172,25 @@ fn remove_link_or_file(p: &Path, _metadata: &fs::Metadata) -> io::Result<()> {
     fs::remove_file(p)
 }
 
+/// Removes a directory only if it is empty. An absent or non-empty directory is not an error.
+///
+/// # Errors
+///
+/// Any I/O error other than `NotFound` and `DirectoryNotEmpty`.
+pub fn rmdir_if_empty(p: &Path) -> io::Result<()> {
+    match fs::remove_dir(p) {
+        Err(error)
+            if matches!(
+                error.kind(),
+                io::ErrorKind::NotFound | io::ErrorKind::DirectoryNotEmpty
+            ) =>
+        {
+            Ok(())
+        }
+        other => other,
+    }
+}
+
 /// `fs.mkdir(p, { recursive: true })`.
 ///
 /// # Errors

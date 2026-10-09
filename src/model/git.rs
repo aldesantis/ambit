@@ -31,7 +31,7 @@ use std::sync::LazyLock;
 use regex::Regex;
 
 use crate::errors::{AmbitError, Result, config_error, network_error};
-use crate::util::env::Env;
+use crate::util::env::{Env, home_dir};
 use crate::util::fs::{EntryKind, mkdir_p, rm_rf, write_text};
 use crate::util::path::join;
 use crate::util::string_enum;
@@ -273,11 +273,7 @@ pub fn cache_root(env: &Env) -> PathBuf {
         return join(Path::new(xdg), CACHE_DIRNAME);
     }
 
-    let home = env
-        .get("HOME")
-        .map(PathBuf::from)
-        .or_else(std::env::home_dir)
-        .unwrap_or_default();
+    let home = home_dir(env).unwrap_or_default();
 
     join(&home, &format!(".cache/{CACHE_DIRNAME}"))
 }

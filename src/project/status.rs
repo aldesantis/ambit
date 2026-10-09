@@ -27,7 +27,7 @@ use indexmap::{IndexMap, IndexSet};
 
 use crate::errors::{AmbitError, Result, config_error};
 use crate::harness::adapter::{
-    PlannedArtifact, PlannedCatalogDir, PlannedHarnessConfig, PlannedSkillsLink, ProjectPaths,
+    PlannedArtifact, PlannedCatalogDir, PlannedHarnessConfig, PlannedSkillsLink,
 };
 use crate::harness::profile::SHARED_SKILLS_DIR;
 use crate::model::catalog::{CatalogLoadOptions, load_catalogs, merge_catalogs};
@@ -35,7 +35,7 @@ use crate::model::config::load_project_config;
 use crate::model::documents::{DocumentShape, driver_for, managed_key, read_document_text};
 use crate::model::sources::SourceContext;
 use crate::model::state::{ArtifactKind, State, owned_paths, read_state};
-use crate::project::install::{adapters_for, install_scope, plan_for};
+use crate::project::install::{adapters_for, plan_for, project_paths};
 use crate::project::ownership::owned_keys;
 use crate::resolution::resolve::resolve_bundle;
 use crate::util::cmp::js_cmp;
@@ -689,11 +689,7 @@ pub fn project_status(
     // No environment involved on either side beyond the scope install decided from the same root:
     // install writes a reference rather than a value, so a plan reads the same on every machine and
     // a set variable can never read as drift.
-    let project = ProjectPaths {
-        root: project_dir.to_path_buf(),
-        scope: Some(install_scope(project_dir, env)),
-        mode: None,
-    };
+    let project = project_paths(project_dir, env, None);
     // Through `plan_for`, so status sees the artifacts install would write: one entry per shared
     // skills target, not one per harness reading it.
     let plan: Vec<PlannedArtifact> = plan_for(&adapters, &bundle, &project)

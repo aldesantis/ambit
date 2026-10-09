@@ -24,7 +24,7 @@ use std::path::Path;
 use indexmap::IndexMap;
 
 use crate::errors::Result;
-use crate::harness::adapter::{PlannedArtifact, PlannedHarnessConfig};
+use crate::harness::adapter::{PlannedArtifact, PlannedHarnessConfig, ProjectPaths};
 use crate::harness::definitions::CODEX;
 use crate::harness::env::referenced_names;
 use crate::model::catalog::MergedMcp;
@@ -34,7 +34,7 @@ use crate::model::lock_file::{LOCK_FILENAME, read_lock_text};
 use crate::model::mcp_entity::McpTransport;
 use crate::model::state::{ArtifactMode, OwnedArtifact};
 use crate::project::gitignore::gitignore_status;
-use crate::project::install::{InstallOptions, PlanContext, plan_install};
+use crate::project::install::{InstallOptions, PlanContext, ignored_artifacts, plan_install};
 use crate::project::status::{ArtifactState, StatusArtifact, status_of_plan};
 use crate::resolution::resolve::Bundle;
 use crate::util::cmp::js_cmp;
@@ -407,6 +407,7 @@ fn drift_step(state: ArtifactState) -> &'static str {
 /// double every finding about a crashed install.
 fn drift_findings(
     project_dir: &Path,
+    project: &ProjectPaths,
     artifacts: &[PlannedArtifact],
     status: &[StatusArtifact],
 ) -> Result<Vec<DoctorFinding>> {
@@ -431,7 +432,7 @@ fn drift_findings(
     // because the two blocks go stale for different reasons: the nested one whenever the bundle
     // changes, the root one almost never.
     let owned: Vec<OwnedArtifact> = artifacts.iter().map(OwnedArtifact::from).collect();
-    let gitignore = gitignore_status(project_dir, &owned)?;
+    let gitignore = gitignore_status(project_dir, ignored_artifacts(project, &owned))?;
 
     findings.extend(gitignore.into_iter().filter(|block| block.changed).map(|block| {
         fail(
@@ -609,6 +610,7 @@ pub fn diagnose_project(
     findings.extend(ownership_findings(&status.artifacts));
     findings.extend(drift_findings(
         project_dir,
+        &planned.project,
         &planned.artifacts,
         &status.artifacts,
     )?);

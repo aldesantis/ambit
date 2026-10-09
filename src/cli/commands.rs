@@ -10,6 +10,7 @@ use indexmap::IndexMap;
 use crate::cli::Io;
 use crate::errors::{AmbitError, ExitCode, Result};
 use crate::model::sources::SourceContext;
+use crate::project::install::{USER_PROJECT_DIRNAME, user_project_dir};
 use crate::util::env::Env;
 use crate::version::VERSION;
 
@@ -378,6 +379,12 @@ struct ProjectFlags {
         help = "project directory"
     )]
     project: Option<String>,
+    #[arg(
+        long,
+        conflicts_with = "project",
+        help = "act on the user-level project in ~/.ambit"
+    )]
+    user: bool,
     #[command(flatten)]
     output: OutputFlags,
 }
@@ -395,9 +402,18 @@ struct OutputFlags {
 /// declaration order.
 pub const ITEM_KIND_NAMES: &[&str] = &["pack", "skill", "mcp", "hook"];
 
-/// The project directory a command acts on: `--project` resolved against the cwd if given,
-/// otherwise the cwd.
+/// The project directory a command acts on: the user-level project under `--user`, `--project`
+/// resolved against the cwd if given, otherwise the cwd.
+///
+/// An unknown home directory leaves `--user` naming a relative `.ambit`, as an unknown home leaves
+/// the cache (`model/git.rs`); no platform ambit ships for lacks one.
 pub fn project_dir_of(ctx: &CommandContext<'_>) -> PathBuf {
+    if ctx.options.flag("user") {
+        let dir = user_project_dir(ctx.env).unwrap_or_else(|| PathBuf::from(USER_PROJECT_DIRNAME));
+
+        return ctx.cwd.join(dir);
+    }
+
     match ctx.options.value("project") {
         Some(given) => crate::util::path::resolve(&ctx.cwd, given),
         None => ctx.cwd.clone(),

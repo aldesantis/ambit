@@ -5,6 +5,7 @@ Usage: ambit status [OPTIONS]
 Options:
       --check          exit 5 when drift is detected
       --project <dir>  project directory
+      --user           act on the user-level project in ~/.ambit
       --json           machine-readable output
       --offline        use only cached catalogs
   -h, --help           Print help
