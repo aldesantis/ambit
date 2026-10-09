@@ -1,8 +1,6 @@
-//! The fixture catalog every other suite resolves against, checked on its own.
-//!
-//! Read through saphyr's loader rather than through ambit's own YAML reader: the fixture is what
-//! proves ambit's parser right, so a test that used it to read the fixture would prove nothing.
-#![allow(clippy::disallowed_methods)] // std::fs is the point: this reads the tree the builder wrote.
+//! Read through saphyr rather than ambit's YAML reader, since the fixture is what proves that
+//! reader right.
+#![allow(clippy::disallowed_methods)]
 
 mod support;
 
@@ -18,7 +16,6 @@ use support::fixture_catalog::{
     file_url, git,
 };
 
-/// Every file under `dir`, as `/`-separated relative paths, sorted.
 fn list_files(dir: &Path) -> Vec<String> {
     fn walk(dir: &Path, prefix: &str, found: &mut Vec<String>) {
         for entry in fs::read_dir(dir).expect("readable dir") {
@@ -54,7 +51,6 @@ fn snapshot(dir: &Path) -> Vec<(String, String)> {
         .collect()
 }
 
-/// A YAML node as JSON, so a whole document compares with one `json!`.
 fn to_json(node: &YamlOwned) -> Value {
     match node {
         YamlOwned::Value(ScalarOwned::Null) => Value::Null,
@@ -88,7 +84,6 @@ fn read_yaml(dir: &Path, file: &str) -> Value {
     parse_yaml(&fs::read_to_string(dir.join(file)).expect("readable file"))
 }
 
-/// Splits a `---`-delimited frontmatter block off the top of a document.
 fn frontmatter(source: &str) -> Value {
     let rest = source
         .strip_prefix("---\n")
@@ -100,7 +95,6 @@ fn frontmatter(source: &str) -> Value {
     parse_yaml(&rest[..end])
 }
 
-/// The `ambit:` block of a frontmatter, where every annotation lives.
 fn annotations(source: &str) -> Value {
     let block = frontmatter(source)["ambit"].clone();
 
@@ -156,7 +150,6 @@ fn parent(document: &str) -> &str {
     document.rsplit_once('/').map_or("", |(dir, _)| dir)
 }
 
-/// The name/path convention, which hooks share with skills: path under `dirname`, `/` read as `.`.
 fn name_from_path(document: &str, dirname: &str) -> String {
     let dir = parent(document);
 
@@ -165,7 +158,6 @@ fn name_from_path(document: &str, dirname: &str) -> String {
         .replace('/', ".")
 }
 
-/// A fresh tempdir holding a freshly built fixture catalog at `<root>/catalog`.
 fn built() -> (tempfile::TempDir, std::path::PathBuf) {
     let root = tempfile::Builder::new()
         .prefix("ambit-fixture-")
@@ -346,7 +338,6 @@ fn defines_a_requires_only_stdio_server_and_a_packed_http_server() {
         })
     );
 
-    // `transport` is the discriminator, so it must never carry more or less than one kind.
     for entity in [&required, &packed] {
         assert_eq!(entity["transport"].as_object().unwrap().len(), 1);
     }
@@ -519,7 +510,6 @@ fn commits_the_fixture_tree_at_a_commit_two_builds_agree_on() {
     let first = build_fixture_git_catalog(&root.path().join("a")).unwrap();
     let second = build_fixture_git_catalog(&root.path().join("b")).unwrap();
 
-    // Fixed identity and dates, so the SHA is a property of the fixture rather than of the run.
     assert_eq!(first.commit.len(), 40);
     assert!(
         first
@@ -560,8 +550,6 @@ fn records_the_hook_script_as_executable_in_the_commit() {
     let root = git_root();
     let fixture = build_fixture_git_catalog(&root.path().join("a")).unwrap();
 
-    // git stores only the one bit, as `100755`, which is what carries the fixture's exec bit
-    // through a `git:` source.
     let listing = git(
         &[
             "--git-dir".as_ref(),

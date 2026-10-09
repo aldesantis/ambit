@@ -1,35 +1,22 @@
-//! Exit codes and the one error type every failure path carries.
-
 use std::fmt;
 
-/// Exit codes. Every failure path maps onto exactly one of these.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ExitCode {
     Success = 0,
     Internal = 1,
-    /// Config or ownership error.
     Config = 2,
-    /// Resolution error: a pattern matching nothing, a missing requirement, a cycle, a name conflict.
     Resolution = 3,
-    /// Network or cache error.
     Network = 4,
-    /// Drift detected (`status --check`, `install --frozen`, `export --check`).
     Drift = 5,
-    /// A health check found something: `doctor` or `audit` failures, or an install the audit refused.
     Doctor = 6,
 }
 
 impl ExitCode {
-    /// The process exit status.
     pub fn as_i32(self) -> i32 {
         self as i32
     }
 }
 
-/// An error with a known exit code and a message already formatted for the user.
-///
-/// Every message names the offending file, the offending identifier, and one concrete next step.
-/// `detail` lines carry the latter two, printed indented under the summary.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AmbitError {
     pub code: ExitCode,
@@ -50,7 +37,6 @@ impl AmbitError {
         }
     }
 
-    /// The full multi-line rendering, without the trailing newline.
     pub fn format(&self) -> String {
         let head = format!("error: {}", self.message);
 
@@ -64,7 +50,6 @@ impl AmbitError {
             .join("\n")
     }
 
-    /// The catch-all for a failure nothing anticipated: always a bug in ambit, exit 1.
     pub fn unexpected(cause: impl fmt::Display) -> Self {
         Self::new(
             ExitCode::Internal,
@@ -93,12 +78,6 @@ impl From<std::io::Error> for AmbitError {
 
 pub type Result<T, E = AmbitError> = std::result::Result<T, E>;
 
-/// The `(file line N)` suffix a message carries, degrading to `(file)` when nothing positioned
-/// the value.
-///
-/// Every error must name the offending file, and the line is what makes it actionable, so the two
-/// are rendered in one place rather than per call site, including for errors raised long after the
-/// document was parsed.
 pub fn at(file: &str, line: Option<usize>) -> String {
     match line {
         None => format!("({file})"),

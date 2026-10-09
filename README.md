@@ -229,14 +229,22 @@ hold yet. A `path:` catalog defaults to `full`. See
 
 ### One install for every project
 
-Your home directory can be the project. `ambit init` and `ambit install` work there like anywhere
-else: `~/ambit.yml` says what you want, and it lands in `~/.agents/` and the harness files under `~`,
-which is where a harness keeps the config it applies to every project on the machine.
+`~/.ambit` is your user-level project. Pass `--user` to any command to act on it from anywhere:
 
-ambit reads that off the root. Your home directory is a user-level install, any other directory is a
-project. Claude MCP servers go into `~/.claude.json` for a user-level install and `.mcp.json` for a
-project install. A hook that ships a script also uses a different address. A project install
-names the script relative to the project root:
+```sh
+ambit init --user
+ambit install --user
+```
+
+It is a project like any other: `~/.ambit/ambit.yml` says what you want, and `ambit.lock`, the
+`skills/`, `mcps/`, `hooks/` and `packs/` directories, and ambit's state live beside it. What it
+installs lands in `~/.agents/` and the harness files under `~`, which is where a harness keeps the
+config it applies to every project on the machine. `~/.ambit` holds a `.gitignore` for the state, so
+you can keep it in git.
+
+Claude MCP servers go into `~/.claude.json` for a user-level install and `.mcp.json` for a project
+install. A hook that ships a script also uses a different address. A project install names the
+script relative to the project root:
 
 ```json
 "command": "${CLAUDE_PROJECT_DIR}/.agents/hooks/guard-secrets/guard.sh"
@@ -747,6 +755,7 @@ when `AMBIT_NO_UPDATE_CHECK` is set to anything. It never delays or fails the co
 | Flag              | Notes                                                                                                  |
 | ----------------- | ------------------------------------------------------------------------------------------------------ |
 | `--project <dir>` | The project to act on. Default: the current directory. Not on `self-update`, which acts on the binary. |
+| `--user`          | Act on the user-level project in `~/.ambit`. Cannot be combined with `--project`.                      |
 | `--json`          | Machine-readable output. Every command supports it.                                                    |
 | `--offline`       | Resolve from the local cache alone. Refused by `outdated`, `update`, and `self-update`.                |
 | `--dry-run`       | On mutating commands: report what would happen and touch nothing.                                      |

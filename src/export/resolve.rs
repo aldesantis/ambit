@@ -1,5 +1,3 @@
-//! Resolving each exported plugin's own bundle.
-
 use indexmap::IndexSet;
 
 use crate::errors::{Result, config_error, resolution_error};
@@ -36,11 +34,6 @@ fn same_pack(a: &MergedPack, b: &MergedPack) -> bool {
     a.catalog == b.catalog && a.name == b.name
 }
 
-/// Resolves each plugin separately, stopping content expansion at other plugin packs.
-///
-/// # Errors
-///
-/// Exit 2 for invalid plugin metadata; exit 3 for a resolution error.
 pub fn resolve_plugins(
     config: &ProjectConfig,
     merged: &MergedCatalog,
@@ -174,8 +167,6 @@ pub fn resolve_plugins(
     Ok(plugins)
 }
 
-/// Walks what `node` requires, recording each plugin pack reached as a dependency and following
-/// through every helper pack and skill that is not one.
 fn follow(
     node: &Requirer,
     merged: &MergedCatalog,
@@ -188,7 +179,6 @@ fn follow(
         return;
     }
 
-    // Manifest arrays retain declaration order, including order within helper packs.
     for entry in &node.requires {
         let found = required_items(entry, node, merged);
 

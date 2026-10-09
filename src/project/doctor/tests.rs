@@ -1,16 +1,3 @@
-//! `ambit doctor`: the checks `status` and `validate` deliberately leave out.
-//!
-//! Every case pins the *exit code and the finding*, because the two can fail apart: a doctor that
-//! always exited 6 would satisfy half of the task, and one that reported a finding under the wrong
-//! check would satisfy the other half while sending someone to the wrong fix. The healthy case is
-//! the load-bearing one: an installed project whose environment is complete must come back with
-//! every check `ok`, or nobody will run the command twice.
-//!
-//! Environment variables are set per test rather than in the fixture, since which of them are set
-//! is the subject of the first check. The fixture's `design-tokens` skill declares
-//! `ACME_FIGMA_TOKEN` and its `linter` server declares `LINTER_API_KEY`, which it also
-//! interpolates into a header, so the default profile needs exactly those two.
-
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fs;
@@ -37,23 +24,15 @@ const CORE_SKILL: &str = "company-context";
 const ENGINEERING_SKILL: &str = "code-review";
 const FRONTEND_SKILL: &str = "design-tokens";
 
-/// The fixture's script-shipping hook and the file its config entry lands in.
-///
-/// `function.engineering` selects it, so the default profile installs a directory of bytes and a
-/// config file besides the skills, which is what makes the ownership and mode checks answer for
-/// both directory kinds rather than only for skills.
 const HOOK_TARGET: &str = ".agents/hooks/guard-secrets";
 const CLAUDE_SETTINGS: &str = ".claude/settings.json";
 
-/// The two variables the default profile's bundle declares.
 const FIGMA_VAR: &str = "ACME_FIGMA_TOKEN";
 const TAGGED_VAR: &str = "LINTER_API_KEY";
 
-/// The hook the harness cases put in the catalog, and the variable one of them has it want.
 const HOOK: &str = "notify";
 const HOOK_VAR: &str = "NOTIFY_WEBHOOK";
 
-/// A pack nothing in the fixture uses, so taking it selects that hook and nothing else.
 const HOOK_PACK: &str = "harness.cases";
 
 const HOOK_LINES: &[&str] = &["event: Stop", "type: command", "command: ./bin/notify"];
@@ -70,7 +49,6 @@ fn engineering_target() -> String {
     format!("{SKILLS_DIR}/{ENGINEERING_SKILL}")
 }
 
-/// What a healthy project reports: every check named, and both finding lists explicitly empty.
 const HEALTHY_REPORT: &str = "checks (6)
   expects    ok
   lock       ok
@@ -85,7 +63,6 @@ failures (0)
 warnings (0)
   (none)";
 
-/// One `requires` entry, taking a whole pack from the fixture catalog.
 fn requires_entry(pack: &str) -> String {
     format!("  - {{ pack: \"{CATALOG_NAME}/{pack}\" }}")
 }
@@ -99,7 +76,6 @@ fn strip(text: &str) -> String {
     text.strip_suffix('\n').unwrap_or(text).to_owned()
 }
 
-/// What one CLI run printed, each stream's lines joined by `\n` with no trailing newline.
 struct Out {
     code: ExitCode,
     stdout: String,
@@ -128,13 +104,10 @@ impl Fixture {
 
         build_fixture_catalog(&fixture.catalog_dir).expect("build the fixture catalog");
         fs::create_dir_all(&fixture.project_dir).expect("create the project");
-        // Three skills (`function.engineering` also selects its nested frontend child) plus the
-        // `linter` http server.
         fixture.write_profile(&["core", "function.engineering", "function.engineering.*"]);
         fixture
     }
 
-    /// Sets `name` in the environment every later run sees, or unsets it for `None`.
     fn stub_env(&self, name: &str, value: Option<&str>) {
         let mut env = self.env.borrow_mut();
 
@@ -144,7 +117,6 @@ impl Fixture {
         };
     }
 
-    /// Points the project at the fixture catalog and gives it a `requires` list.
     fn write_profile(&self, packs: &[&str]) {
         let list = if packs.is_empty() {
             "[]".to_owned()
@@ -167,14 +139,6 @@ impl Fixture {
         );
     }
 
-    /// A profile configuring `harnesses` whose bundle holds exactly one hook, or none, for an empty
-    /// `hooks`: the case about a project that configures a harness and selects no hook at all.
-    ///
-    /// The hook is written into the catalog copy this test owns, gathered by a pack the fixture
-    /// uses nowhere else, and the project takes that pack alone. What these cases are about stays
-    /// the harness the project configures rather than where the hook came from.
-    ///
-    /// `hooks` is the hook's `hook.yml` lines beyond its `name`; empty writes no hook.
     fn write_hook_profile(&self, harnesses: &[&str], hooks: &[&str]) {
         if !hooks.is_empty() {
             let mut text = vec![format!("name: {HOOK}")];
@@ -185,8 +149,6 @@ impl Fixture {
                 &self.catalog_dir.join("hooks").join(HOOK).join("hook.yml"),
                 &text.join("\n"),
             );
-            // The pack the profile below takes: nothing labels itself, so the grouping is a
-            // document.
             write(
                 &self
                     .catalog_dir
@@ -218,7 +180,6 @@ impl Fixture {
         );
     }
 
-    /// Runs the CLI against the project, collecting stdout and stderr.
     fn cli(&self, args: &[&str]) -> Out {
         let project = self.project_dir.to_string_lossy().into_owned();
         let mut argv: Vec<&str> = args.to_vec();
@@ -253,8 +214,6 @@ impl Fixture {
         .expect("diagnoses")
     }
 
-    /// Every file in the project, keyed by relative path and carrying its contents. Symlinks are
-    /// followed, because the default install of a `path:` catalog is a link.
     fn snapshot(&self) -> BTreeMap<String, String> {
         fn walk(current: &Path, relative: &str, found: &mut BTreeMap<String, String>) {
             for entry in read_dir_names(current).expect("list the directory") {
@@ -279,7 +238,6 @@ impl Fixture {
         found
     }
 
-    /// Every finding, as `check/severity: message`, so a whole report fits one assertion.
     fn findings(&self) -> Vec<String> {
         self.diagnose()
             .findings
@@ -293,7 +251,6 @@ impl Fixture {
             .collect()
     }
 
-    /// The detail lines of the one finding whose message contains `needle`.
     fn detail_of(&self, needle: &str) -> Vec<String> {
         let found: Vec<DoctorFinding> = self
             .diagnose()
@@ -306,7 +263,6 @@ impl Fixture {
         found[0].detail.clone()
     }
 
-    /// Every check's verdict, as `check=status`.
     fn checks(&self) -> Vec<String> {
         self.diagnose()
             .checks
@@ -320,7 +276,6 @@ fn s(text: &str) -> String {
     text.to_owned()
 }
 
-/// The fixture with both variables set and the default profile installed.
 fn installed() -> Fixture {
     let fixture = Fixture::new();
 
@@ -402,8 +357,6 @@ fn keeps_a_mode_finding_quiet_when_nothing_is_installed() {
     assert_eq!(installed_mode(root.path()), Some(ArtifactMode::Copy));
 }
 
-// `ambit doctor` on a healthy project.
-
 #[test]
 fn healthy_passes_every_check_and_names_them_rather_than_printing_nothing() {
     let fixture = installed();
@@ -423,7 +376,6 @@ fn healthy_touches_nothing_so_it_can_run_on_a_project_it_reports_failures_on() {
     fs::remove_file(fixture.project_dir.join(LOCK_FILE)).expect("remove the lock");
     assert_eq!(fixture.cli(&["doctor"]).code, ExitCode::Doctor);
 
-    // The lock is the one file the second run was told about; nothing else moved.
     let after = fixture.snapshot();
 
     assert_eq!(
@@ -459,10 +411,6 @@ fn healthy_emits_machine_readable_output_carrying_no_absolute_paths() {
     assert!(!result.stdout.contains(&*fixture.root.to_string_lossy()));
 }
 
-// Spec §5: install cannot fail on a missing variable, which is why this command has to.
-
-/// Installed with neither variable set, so `.mcp.json` holds the placeholder and matches the
-/// plan: the only thing wrong with this project is its environment.
 fn incomplete() -> Fixture {
     let fixture = Fixture::new();
 
@@ -478,7 +426,6 @@ fn incomplete_exits_6_reporting_one_failure_per_unset_variable_in_variable_order
     let result = fixture.cli(&["doctor"]);
 
     assert_eq!(result.code, ExitCode::Doctor);
-    // A finding is a report, not an error: nothing reaches stderr.
     assert_eq!(result.stderr, "");
     assert_eq!(
         fixture.findings(),
@@ -524,8 +471,6 @@ fn incomplete_names_the_server_and_the_reference_install_left_for_the_harness() 
             format!(
                 "\"mcpServers.linter\" in {MCP_FILE} references it, for the harness to expand at spawn"
             ),
-            // No reinstall in the fix: ambit wrote a reference, so setting the variable is the
-            // whole of it.
             format!("set {TAGGED_VAR} in the environment the agent runs in"),
         ]
     );
@@ -555,10 +500,6 @@ fn incomplete_goes_quiet_once_the_variables_are_set_and_installed() {
 
     assert!(is_healthy(&fixture.diagnose()));
 }
-
-// A server whose env map renames a variable: the name the process reads is written in the
-// catalog, and the value comes from a variable of the machine's. Nothing expects that variable, so
-// the reference install left in the file is the only thing that can ask for it.
 
 const PLANNER: &str = "planner";
 const PLANNER_VAR: &str = "ACME_PLANNER_TOKEN";
@@ -624,8 +565,6 @@ fn renaming_goes_quiet_once_that_variable_is_set() {
     assert!(is_healthy(&fixture.diagnose()));
 }
 
-// The lock is a record of a resolution, and `status` never reads it.
-
 #[test]
 fn lock_resolution_would_rewrite_is_reported_naming_the_file() {
     let fixture = installed();
@@ -663,8 +602,6 @@ fn lock_is_quiet_after_a_prune_which_rewrites_it_along_with_state() {
     fixture.write_profile(&["core"]);
     assert_eq!(fixture.cli(&["prune"]).code, ExitCode::Success);
 
-    // Pruning removes artifacts, rewrites state *and* rewrites the lock, so nothing is left
-    // describing the wider bundle.
     assert_eq!(fixture.findings().len(), 0);
     assert_eq!(fixture.cli(&["doctor"]).code, ExitCode::Success);
 }
@@ -680,15 +617,10 @@ fn lock_names_the_two_commands_that_write_it() {
     )));
 }
 
-// Spec §5 rule 4: state is written after the filesystem changes it describes, so an install that
-// dies halfway leaves its own artifacts present and unowned. This is the command that explains
-// that.
-
 #[test]
 fn ownership_reports_every_artifact_ambit_no_longer_owns_and_never_as_drift() {
     let fixture = installed();
 
-    // What a crash between the last write and `write_state` leaves behind.
     fs::remove_file(fixture.project_dir.join(STATE_FILE)).expect("remove state");
 
     assert_eq!(
@@ -737,8 +669,6 @@ fn ownership_reports_a_co_owned_config_key_by_key() {
     )));
 }
 
-// `ambit doctor` against the project.
-
 #[test]
 fn drift_reports_a_deleted_skill_directory_with_statuss_own_detail() {
     let fixture = installed();
@@ -781,9 +711,6 @@ fn reports_every_failure_at_once_rather_than_stopping_at_the_first() {
     crate::util::fs::rm_rf(&fixture.project_dir.join(core_target())).expect("remove the link");
     fs::remove_file(fixture.project_dir.join(LOCK_FILE)).expect("remove the lock");
 
-    // Four checks, three of them failing, in the order they run. `.mcp.json` is deliberately not
-    // among them: ambit wrote a `${VAR}` reference rather than a value, so unsetting the variable
-    // cannot make the installed file differ from what resolution now produces.
     assert_eq!(
         fixture.findings(),
         [
@@ -793,8 +720,6 @@ fn reports_every_failure_at_once_rather_than_stopping_at_the_first() {
         ]
     );
 }
-
-// A mode is a per-run choice, so divergence is worth saying, not failing.
 
 fn copied() -> Fixture {
     let fixture = Fixture::new();
@@ -811,7 +736,6 @@ fn copy_warns_that_a_plain_install_would_symlink_each_skill_and_still_exits_0() 
     let result = fixture.cli(&["doctor"]);
 
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
-    // The hook's own directory among them: both directory kinds have a mode to diverge in.
     assert_eq!(
         fixture.findings(),
         [
@@ -856,8 +780,6 @@ fn copy_stays_silent_about_the_mode_of_a_skill_it_reports_as_modified() {
         "edited by hand\n",
     );
 
-    // One finding for that skill, not two: an artifact install would rewrite anyway has nothing to
-    // say about the mode it would be rewritten in.
     assert_eq!(
         fixture.findings(),
         [
@@ -868,11 +790,6 @@ fn copy_stays_silent_about_the_mode_of_a_skill_it_reports_as_modified() {
         ]
     );
 }
-
-// A hook's `env:` expectation is the fourth route into the one check that reads the environment,
-// and it is the only one of the four with nothing in a harness config file behind it: a `${VAR}`
-// in a hook's `command` is left for the shell the harness spawns, so the declaration is all there
-// is to report.
 
 fn hook_expecting() -> Fixture {
     let fixture = Fixture::new();
@@ -914,11 +831,6 @@ fn hook_expects_goes_quiet_once_it_is_set_without_a_reinstall() {
 
     assert!(is_healthy(&fixture.diagnose()));
 }
-
-// §7's one harness finding: Codex reads hooks only when a user's own config carries
-// `[features] codex_hooks = true`, and that file is not one ambit writes. So ambit can write
-// `.codex/hooks.json` exactly as planned (every other check `ok`) and the hooks still never run,
-// which is the one failure mode nothing else in this command can see.
 
 #[test]
 fn codex_warns_that_it_needs_the_feature_flag_and_still_exits_0() {
@@ -966,8 +878,6 @@ fn codex_names_the_file_ambit_wrote_and_says_the_flag_is_not_ambits_to_write() {
 
 #[test]
 fn codex_says_nothing_when_no_hook_is_selected() {
-    // Nothing is waiting on the flag, so a project that configures codex for its MCP servers alone
-    // has no reason to hear about it.
     let fixture = Fixture::new();
 
     fixture.write_hook_profile(&["codex"], &[]);
@@ -987,8 +897,6 @@ fn codex_says_nothing_when_hooks_are_selected_and_codex_is_not_configured() {
     assert_eq!(fixture.findings().len(), 0);
     assert_eq!(fixture.cli(&["doctor"]).code, ExitCode::Success);
 }
-
-// `ambit doctor` before an install.
 
 #[test]
 fn before_install_reports_the_missing_lock_and_every_missing_artifact() {
@@ -1011,8 +919,6 @@ fn before_install_reports_the_missing_lock_and_every_missing_artifact() {
             "harness=ok",
         ]
     );
-    // The lock, both managed blocks, three missing skills, the missing hook directory, the skills
-    // link, `.claude/settings.json` and `.mcp.json`.
     assert_eq!(doctor_failures(&fixture.diagnose()).len(), 10);
 }
 

@@ -1,11 +1,3 @@
-//! The JSONC driver: `.opencode/opencode.jsonc`.
-//!
-//! JSONC is JSON with comments and trailing commas, which makes a parse round-trip lossy: a
-//! person's comments would not survive it. So this driver never re-serializes the document. It
-//! edits the `jsonc_parser` crate's concrete syntax tree, one key at a time, and renders the tree back, leaving
-//! comments, blank lines, indentation and key order everywhere else untouched. Reads go through the
-//! crate's serde conversion, so a reformatted entry is not drift.
-
 use indexmap::IndexSet;
 use jsonc_parser::ParseOptions;
 use jsonc_parser::cst::{CstInputValue, CstRootNode};
@@ -14,15 +6,8 @@ use crate::errors::{Result, config_error};
 use crate::model::documents::format::{ConfigEntry, DocumentDriver};
 use crate::util::json::{JsonObject, JsonValue, format_number, js_key_order, structurally_equal};
 
-/// The document a file that does not exist yet stands in as.
-///
-/// An empty object rather than an empty string: an edit needs somewhere to put a key, and starting
-/// from `{}` makes a first install produce an ordinary document instead of a fragment.
 const EMPTY_TEXT: &str = "{}\n";
 
-/// Comments are always tolerated; trailing commas are legal JSONC and appear in real configs.
-/// Everything else the crate can be lenient about (loose property names, single quotes, missing
-/// commas, JSON5 numbers and escapes) is refused, as VS Code's JSONC parser refuses it.
 fn parse_options() -> ParseOptions {
     ParseOptions {
         allow_comments: true,
@@ -49,20 +34,10 @@ fn syntax_error(file: &str, offset: usize) -> crate::errors::AmbitError {
     )
 }
 
-/// Parses the whole document into its tree, refusing anything it cannot edit.
-///
-/// The offset in a syntax error is a byte offset into the text.
-///
-/// # Errors
-///
-/// Exit 2 for a document that cannot be parsed even tolerantly, or one whose root is not an
-/// object.
 fn parse(text: &str, file: &str) -> Result<(CstRootNode, JsonObject)> {
     let root = CstRootNode::parse(text, &parse_options())
         .map_err(|error| syntax_error(file, error.range().start))?;
 
-    // A document with no value at all (empty, or only comments) is a syntax error, as it is to
-    // VS Code's parser, reported where the value was expected: the end of the text.
     if root.value().is_none() {
         return Err(syntax_error(file, text.len()));
     }
@@ -83,10 +58,6 @@ fn section_of<'a>(document: &'a JsonObject, section: &str) -> Option<&'a JsonObj
     document.get(section).and_then(JsonValue::as_object)
 }
 
-/// A value in the shape the tree takes for an insert or a replacement.
-///
-/// Keys go in the order JavaScript enumerates them, so an entry renders in the same order the
-/// JSON drivers would write it.
 fn to_cst(value: &JsonValue) -> CstInputValue {
     match value {
         JsonValue::Null => CstInputValue::Null,
@@ -103,7 +74,6 @@ fn to_cst(value: &JsonValue) -> CstInputValue {
     }
 }
 
-/// The JSONC driver.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct JsoncDriver;
 
@@ -149,7 +119,6 @@ impl DocumentDriver for JsoncDriver {
 
         let target = root.object_value_or_set().object_value_or_set(section);
 
-        // An existing key is replaced where it stands; a new one is appended.
         for entry in entries {
             match target.get(&entry.key) {
                 Some(prop) => prop.set_value(to_cst(&entry.value)),
@@ -180,8 +149,6 @@ impl DocumentDriver for JsoncDriver {
             .is_some_and(|actual| structurally_equal(&entry.value, actual)))
     }
 
-    /// The section itself is left in place even when it empties out, same as the JSON driver
-    /// leaving `{}` behind.
     fn remove_keys(
         &self,
         text: Option<&str>,
@@ -203,8 +170,7 @@ impl DocumentDriver for JsoncDriver {
             return Ok(None);
         }
 
-        // Absent only for a document that repeats the section's key, where the parsed value is the
-        // last occurrence and the tree finds the first.
+        // None only for a repeated section key: parsed value is the last, the tree finds the first.
         let Some(target) = root
             .object_value()
             .and_then(|object| object.object_value(section))

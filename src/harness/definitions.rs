@@ -1,24 +1,3 @@
-//! Profiles for every supported harness.
-//!
-//! Each profile's server shape matches what that tool's own documentation tells a person to write
-//! by hand, so an ambit-generated config is indistinguishable from a hand-written one.
-//!
-//! Skills: Claude Code and Cursor read `.claude/skills`, Kiro reads `.kiro/skills`, and Grok reads
-//! `.grok/skills`, so each gets a link to the shared directory. Codex, Copilot, Devin, Gemini and
-//! opencode read `.agents/skills` natively and need no link.
-//!
-//! Hooks: Claude, Copilot, Devin and Grok share both the file (`.claude/settings.json`) and its
-//! renderer, because the last three read Claude's file natively. Codex shares the renderer but not
-//! the file (its entries live in `.codex/hooks.json`). Gemini has its own file and event names,
-//! and an entry shaped like Claude's with its own fields. Cursor and Kiro share nothing: their own
-//! files, their own entry shapes, and for Kiro one flat list rather than one array per event.
-//! opencode has no declarative hooks; a hook selected for it is reported as skipped
-//! (`skipped_hooks`, `profile.rs`).
-//!
-//! How a hook's script is addressed is the one thing no profile decides on its own: every harness
-//! reads the file it is handed as user config when it sits under the home directory, and a
-//! user-level file has no project to be relative to. See [`hook_root`].
-
 use std::sync::LazyLock;
 
 use indexmap::IndexMap;
@@ -37,20 +16,12 @@ use crate::model::mcp_entity::{HttpTransport, McpTransport, StdioTransport};
 use crate::util::cmp::js_cmp;
 use crate::util::json::{JsonObject, JsonValue};
 
-/// Where Claude Code and Cursor look for skills.
 const CLAUDE_SKILLS_LINK: &str = ".claude/skills";
 
-/// Where Kiro looks for skills.
 const KIRO_SKILLS_LINK: &str = ".kiro/skills";
 
-/// Where Grok looks for skills.
 const GROK_SKILLS_LINK: &str = ".grok/skills";
 
-/// Claude Code's hooks file. Also read natively by Copilot, Devin and Grok.
-///
-/// The section is `Array`-shaped, not `Map`-shaped, because the file is the user's own: their
-/// `model`, `permissions`, and hand-written hooks live in it. ambit owns entries inside
-/// `hooks.<Event>` by digest, not the `hooks` root.
 fn claude_hooks() -> HookLayout {
     HookLayout {
         file: ".claude/settings.json",
@@ -62,46 +33,14 @@ fn claude_hooks() -> HookLayout {
     }
 }
 
-/// Where Claude Code resolves a materialized hook script from, in a project install.
-///
-/// `${CLAUDE_PROJECT_DIR}` is Claude's own documented placeholder for referencing hook scripts
-/// relative to the project root, regardless of the session's working directory. A relative path
-/// cannot promise that.
-///
-/// Also written for Copilot, Devin and Grok, which read this same file. Whether each of them
-/// interpolates this placeholder is undocumented either way; see [`COPILOT`].
 fn claude_hook_root() -> String {
     format!("${{CLAUDE_PROJECT_DIR}}/{SHARED_HOOKS_DIR}")
 }
 
-/// Where harnesses with no placeholder resolve a hook script from in a project install: the path
-/// as written, project-relative.
-///
-/// Cursor and Codex interpolate nothing in a `command`. Cursor documents project hooks as running
-/// from the project root, with `./hooks/script.sh` resolving to `<project>/hooks/script.sh`;
-/// nothing confines that to `.cursor/`, so a script under `.agents/` resolves the same way.
-///
-/// Not Codex's own documented suggestion of `$(git rev-parse --show-toplevel)/…`: that requires git
-/// and a POSIX shell. A relative path still misses if a session's cwd is not the project root, but
-/// that is the harness's own limitation, the same one a person writing the hook by hand would hit.
 const RELATIVE_HOOK_ROOT: &str = SHARED_HOOKS_DIR;
 
-/// Where a hook script is resolved from: `project_scoped` for a project install, the expanded
-/// install root for a user-level one.
-///
-/// A user-level file is read in every project on the machine, so nothing project-relative can
-/// reach the scripts ambit installed. `${CLAUDE_PROJECT_DIR}` and a bare relative path both resolve
-/// inside whatever project is open: in one that has no such file the hook silently never runs, and
-/// in one that happens to ship `.agents/hooks/<name>/<name>.sh` the harness runs *that* project's
-/// script with the user's settings behind it, which would make cloning a repository enough to get
-/// code run.
-///
-/// Expanded rather than `$HOME/…`: Cursor and Codex interpolate nothing in a `command`, and ambit
-/// does not assume a POSIX shell expands one (see [`RELATIVE_HOOK_ROOT`]). The path is therefore
-/// machine-specific, which is what a user-level config file is anyway.
-///
-/// `/` rather than a path join, since this is joined to a `/`-separated artifact path either way,
-/// and every shell and harness accepts a forward slash on the platforms ambit runs on.
+// A user-level install must name an absolute path: a project-relative one would run whatever
+// script the currently open project ships.
 fn hook_root(project: &ProjectPaths, project_scoped: &str) -> String {
     if project.scope == Some(InstallScope::User) {
         format!(
@@ -113,16 +52,7 @@ fn hook_root(project: &ProjectPaths, project_scoped: &str) -> String {
     }
 }
 
-/// One hook, Claude-shaped: an entry in `hooks.<Event>` pairing an optional tool `matcher` with
-/// the commands to run.
-///
-/// One entry carries one command, because one declaration is one hook; grouping several under one
-/// entry would make a digest name a set whose membership changes as other hooks come and go.
-///
-/// Copilot reads exactly this shape and ignores `matcher`. Codex reads it too, differing only in
-/// `root`, which is why `root` is a parameter here rather than a constant.
-///
-/// Key order here is the digest's input, so it is fixed in this one place only.
+// Key order is the digest input; reordering renames every installed hook.
 fn claude_hook(hook: &MergedHook, root: &str) -> JsonValue {
     let mut command = JsonObject::new();
 
@@ -146,15 +76,7 @@ fn claude_hook(hook: &MergedHook, root: &str) -> JsonValue {
     JsonValue::Object(entry)
 }
 
-/// Where Codex keeps its hooks: `.codex/hooks.json`, holding Claude's own entry shape.
-///
-/// A separate file rather than `[hooks]` in `.codex/config.toml`, which Codex also reads: a TOML
-/// `hooks` table is an array-of-tables (`[[hooks.PreToolUse]]`), and the TOML driver refuses that
-/// shape. Reaching for `config.toml` would mean a second driver for no benefit, since Codex reads
-/// JSON just as well. No `root_defaults` either, since this file holds hooks and nothing else.
-///
-/// Codex's hooks are experimental, gated behind `[features] codex_hooks = true` in the user's own
-/// config, which ambit does not write into. `doctor` reports this.
+// Not `[hooks]` in `.codex/config.toml`: that is an array-of-tables, which the TOML driver refuses.
 fn codex_hooks() -> HookLayout {
     HookLayout {
         file: ".codex/hooks.json",
@@ -166,11 +88,7 @@ fn codex_hooks() -> HookLayout {
     }
 }
 
-/// How Cursor spells each of ambit's events: the same names, camelCased.
-///
-/// Written out rather than derived, because the mapping is a fact about Cursor: the `match` is
-/// total over [`HookEvent`], so adding an event without a spelling here is a compile error.
-#[allow(clippy::unnecessary_wraps)] // The signature is `HookLayout::events`'.
+#[allow(clippy::unnecessary_wraps)]
 fn cursor_event(event: HookEvent) -> Option<&'static str> {
     Some(match event {
         HookEvent::SessionStart => "sessionStart",
@@ -184,11 +102,6 @@ fn cursor_event(event: HookEvent) -> Option<&'static str> {
     })
 }
 
-/// Where Cursor keeps its hooks: `.cursor/hooks.json`, with a `version` beside them.
-///
-/// `version` is a `root_defaults` value rather than something the renderer writes, because it
-/// belongs to the document, not to an entry: ambit seeds it at 1 when creating the file, and leaves
-/// an existing `version: 2` in place unless ambit replaces the whole document.
 fn cursor_hooks() -> HookLayout {
     let mut root_defaults = JsonObject::new();
 
@@ -204,19 +117,7 @@ fn cursor_hooks() -> HookLayout {
     }
 }
 
-/// One hook, Cursor-shaped: a flat entry naming the command, in the array for its camelCased
-/// event.
-///
-/// Cursor nests nothing (one entry is one command, so there is no inner `hooks` array) and has no
-/// field for a tool `matcher`, so a matcher is dropped. Declaring a matcher on an unmatchable event
-/// is therefore a parse-time error: a dropped matcher would otherwise install the hook unfiltered
-/// rather than not at all, which is the surprising outcome.
-///
-/// A shipped script is named project-relative, because Cursor interpolates nothing in a `command`;
-/// see [`RELATIVE_HOOK_ROOT`]. `root` is a parameter for the same reason it is one on
-/// [`claude_hook`]: a user-level install cannot name a path relative to a project.
-///
-/// Key order here is the digest's input, so it is fixed in this one place only.
+// Key order is the digest input; reordering renames every installed hook.
 fn cursor_hook(hook: &MergedHook, root: &str) -> JsonValue {
     let mut entry = JsonObject::new();
 
@@ -229,16 +130,10 @@ fn cursor_hook(hook: &MergedHook, root: &str) -> JsonValue {
     JsonValue::Object(entry)
 }
 
-/// The remote half of a server: its url, with references translated.
-///
-/// Every string reaching a config file from the catalog is translated into the syntax the reading
-/// harness expands (e.g. a tenant endpoint like `https://${TENANT}.example.com/mcp`), so it is not
-/// left as a literal `${TENANT}` in the file.
 fn url(transport: &HttpTransport, style: EnvRefStyle) -> String {
     translate_refs(&transport.url, style)
 }
 
-/// Headers with `${VAR}` rewritten into one harness's syntax, sorted by name.
 fn headers_for(transport: &HttpTransport, style: EnvRefStyle) -> Option<JsonObject> {
     let mut declared: IndexMap<String, String> = IndexMap::new();
 
@@ -267,7 +162,6 @@ fn headers_for(transport: &HttpTransport, style: EnvRefStyle) -> Option<JsonObje
     )
 }
 
-/// The env map [`stdio_env`] builds, as a JSON object.
 fn env_object(
     mcp: &MergedMcp,
     transport: &StdioTransport,
@@ -282,10 +176,6 @@ fn env_object(
     })
 }
 
-/// The stdio half of a server, shared by every harness that spells it `command`/`args`/`env`.
-///
-/// `args` also carries `${VAR}` references translated, since a server invoked through a bridge
-/// like `mcp-remote` can take its credential as an argument.
 fn stdio(mcp: &MergedMcp, transport: &StdioTransport, style: EnvRefStyle) -> JsonObject {
     let mut server = JsonObject::new();
 
@@ -311,7 +201,6 @@ fn stdio(mcp: &MergedMcp, transport: &StdioTransport, style: EnvRefStyle) -> Jso
     server
 }
 
-/// An `http` server as `type`/`url`/`headers`, with `type` written only when `kind` is given.
 fn remote(transport: &HttpTransport, style: EnvRefStyle, kind: Option<&str>) -> JsonValue {
     let mut server = JsonObject::new();
 
@@ -328,6 +217,7 @@ fn remote(transport: &HttpTransport, style: EnvRefStyle, kind: Option<&str>) -> 
     JsonValue::Object(server)
 }
 
+// Claude Code reads a server with no `type` as stdio.
 fn claude_server(mcp: &MergedMcp) -> JsonValue {
     match &mcp.transport {
         McpTransport::Stdio(transport) => JsonValue::Object(stdio(mcp, transport, shell_ref)),
@@ -339,10 +229,6 @@ fn claude_hook_config(hook: &MergedHook, project: &ProjectPaths) -> JsonValue {
     claude_hook(hook, &hook_root(project, &claude_hook_root()))
 }
 
-/// Claude Code.
-///
-/// `type` is emitted for `http` because the harness treats a server without one as stdio, and
-/// omitted for stdio itself, where `command` already says so.
 pub static CLAUDE: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     name: "claude",
     skills_link: Some(CLAUDE_SKILLS_LINK),
@@ -368,10 +254,6 @@ fn cursor_hook_config(hook: &MergedHook, project: &ProjectPaths) -> JsonValue {
     cursor_hook(hook, &hook_root(project, RELATIVE_HOOK_ROOT))
 }
 
-/// Cursor. Infers the transport from the presence of `url`, so it wants no `type`.
-///
-/// Its hooks live in their own file, under their own event names, in an entry shape unlike
-/// Claude's. All three differences are captured here: a layout, a map, and a renderer.
 pub static CURSOR: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     name: "cursor",
     skills_link: Some(CLAUDE_SKILLS_LINK),
@@ -386,6 +268,7 @@ pub static CURSOR: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     hook_config: Some(cursor_hook_config),
 });
 
+// Not `${input:VAR}`: it only works with a matching `inputs` array, which ambit does not write.
 fn copilot_server(mcp: &MergedMcp) -> JsonValue {
     match &mcp.transport {
         McpTransport::Stdio(transport) => {
@@ -399,22 +282,6 @@ fn copilot_server(mcp: &MergedMcp) -> JsonValue {
     }
 }
 
-/// GitHub Copilot in VS Code. Its section is `servers`, and it wants an explicit `type` on both
-/// transports.
-///
-/// Uses `${env:VAR}` throughout, including in a stdio server's `env`. VS Code also supports
-/// `${input:VAR}`, which prompts the user, but only when the file declares a matching entry in its
-/// own `inputs` array; ambit does not write one, so this form is not used.
-///
-/// Its hooks are Claude's outright: Copilot reads `.claude/settings.json` natively, so this
-/// profile reuses Claude's layout and renderer, including the `${CLAUDE_PROJECT_DIR}` placeholder.
-/// That placeholder is undocumented for Copilot specifically: VS Code documents parsing Claude's
-/// format and expanding `${CLAUDE_PLUGIN_ROOT}` for Claude-format plugins, but no project-root
-/// token, so this may resolve to a literal string rather than a path.
-///
-/// Written anyway: a separate spelling would require two entries in one array for one declared
-/// hook, and both Copilot and Claude would run it, so every project would see the hook twice.
-/// `doctor` is where a harness limitation like this gets surfaced if it turns out to matter.
 pub static COPILOT: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     name: "copilot",
     skills_link: None,
@@ -477,13 +344,6 @@ fn codex_hook_config(hook: &MergedHook, project: &ProjectPaths) -> JsonValue {
     claude_hook(hook, &hook_root(project, RELATIVE_HOOK_ROOT))
 }
 
-/// Codex. TOML, and the one harness with a first-class way to keep a credential out of the file.
-///
-/// The catalog's bearer-token variable becomes `bearer_token_env_var`. A header whose value is
-/// nothing but a `${VAR}` reference becomes `env_http_headers`; other values remain static.
-///
-/// Its hooks live in `.codex/hooks.json` using Claude's own entry shape, so this profile reuses
-/// Claude's renderer; the file itself is Codex's own.
 pub static CODEX: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     name: "codex",
     skills_link: None,
@@ -525,13 +385,6 @@ fn opencode_server(mcp: &MergedMcp) -> JsonValue {
     }
 }
 
-/// opencode. JSONC, `mcp` as its section, and its own vocabulary: `local`/`remote` rather than
-/// stdio/http, one `command` array rather than a command and its arguments, and `environment` for
-/// the env map.
-///
-/// Has no declarative hooks; it runs TypeScript plugins instead, which ambit cannot generate from a
-/// declaration. No `hooks` field is set, and a project that selects a hook for opencode is told the
-/// hook was skipped.
 pub static OPENCODE: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     name: "opencode",
     skills_link: None,
@@ -546,11 +399,6 @@ pub static OPENCODE: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile 
     hook_config: None,
 });
 
-/// How Gemini CLI spells each of ambit's events.
-///
-/// Gemini has no event for a subagent finishing, so a `SubagentStop` hook is skipped rather than
-/// attached to `AfterAgent`, which fires for the main agent's turn. Source:
-/// <https://geminicli.com/docs/hooks/>.
 fn gemini_event(event: HookEvent) -> Option<&'static str> {
     match event {
         HookEvent::SessionStart => Some("SessionStart"),
@@ -558,20 +406,13 @@ fn gemini_event(event: HookEvent) -> Option<&'static str> {
         HookEvent::PreToolUse => Some("BeforeTool"),
         HookEvent::PostToolUse => Some("AfterTool"),
         HookEvent::Stop => Some("AfterAgent"),
+        // Not `AfterAgent`, which fires for the main agent's turn.
         HookEvent::SubagentStop => None,
         HookEvent::PreCompact => Some("PreCompress"),
         HookEvent::SessionEnd => Some("SessionEnd"),
     }
 }
 
-/// Gemini CLI's name for one of Claude Code's built-in tools, or `None` for a name with no
-/// counterpart.
-///
-/// A catalog writes matchers in Claude's vocabulary, which is ambit's neutral one. Gemini matches
-/// the same regex against its own tool names, so `Bash` would never fire there. Claude tools with
-/// no Gemini counterpart (`Task`, `NotebookEdit`) and every other token pass through unchanged.
-/// Source: <https://geminicli.com/docs/reference/tools>, where `grep_search` is the current name
-/// and `search_file_content` a legacy alias.
 fn gemini_tool(name: &str) -> Option<&'static str> {
     match name {
         "Bash" => Some("run_shell_command"),
@@ -588,12 +429,6 @@ fn gemini_tool(name: &str) -> Option<&'static str> {
     }
 }
 
-/// A Claude-vocabulary matcher in Gemini's tool names.
-///
-/// Split on `|`, the alternation every matcher in practice is built from, and only a token that is
-/// exactly a Claude tool name is translated. Anything else (a regex fragment, an `mcp__` tool name,
-/// a name Gemini already uses) is left as written, since rewriting part of a regex could change
-/// what it means.
 fn gemini_matcher(matcher: &str) -> String {
     matcher
         .split('|')
@@ -602,8 +437,6 @@ fn gemini_matcher(matcher: &str) -> String {
         .join("|")
 }
 
-/// Where Gemini CLI keeps its hooks: `hooks` in `.gemini/settings.json`, the same file its servers
-/// live in, under a different section.
 fn gemini_hooks() -> HookLayout {
     HookLayout {
         file: ".gemini/settings.json",
@@ -615,19 +448,11 @@ fn gemini_hooks() -> HookLayout {
     }
 }
 
-/// Where Gemini CLI resolves a materialized hook script from, in a project install.
-///
-/// `$GEMINI_PROJECT_DIR` is Gemini's documented variable for the project root, set in the hook's
-/// environment and written this way in its own examples. Gemini also sets `CLAUDE_PROJECT_DIR` as
-/// an alias; the native name is used so the entry reads as one a Gemini user would write.
 fn gemini_hook_root() -> String {
     format!("$GEMINI_PROJECT_DIR/{SHARED_HOOKS_DIR}")
 }
 
-/// One hook, Gemini-shaped: Claude's nesting, with a `name` on the command, a matcher in Gemini's
-/// tool names, and a timeout in milliseconds where ambit declares seconds.
-///
-/// Key order here is the digest's input, so it is fixed in this one place only.
+// Key order is the digest input; reordering renames every installed hook.
 fn gemini_hook(hook: &MergedHook, root: &str) -> JsonValue {
     let mut command = JsonObject::new();
 
@@ -656,8 +481,6 @@ fn gemini_hook_config(hook: &MergedHook, project: &ProjectPaths) -> JsonValue {
     gemini_hook(hook, &hook_root(project, &gemini_hook_root()))
 }
 
-/// A remote server as Gemini CLI reads it: `httpUrl` names a streamable HTTP endpoint, where `url`
-/// would mean SSE. No `type`: the key itself says which transport.
 fn gemini_server(mcp: &MergedMcp) -> JsonValue {
     let transport = match &mcp.transport {
         McpTransport::Stdio(transport) => {
@@ -668,6 +491,7 @@ fn gemini_server(mcp: &MergedMcp) -> JsonValue {
 
     let mut server = JsonObject::new();
 
+    // Gemini reads `url` as SSE; `httpUrl` is streamable HTTP.
     server.insert("httpUrl".to_owned(), json!(url(transport, shell_ref)));
 
     if let Some(headers) = headers_for(transport, shell_ref) {
@@ -677,11 +501,6 @@ fn gemini_server(mcp: &MergedMcp) -> JsonValue {
     JsonValue::Object(server)
 }
 
-/// Gemini CLI. Its servers and its hooks share `.gemini/settings.json`, in two sections, so a
-/// project using both plans two artifacts at one path.
-///
-/// Gemini ignores a project's `.gemini/settings.json` in a folder the user has not trusted, which
-/// ambit cannot grant.
 pub static GEMINI: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     name: "gemini",
     skills_link: None,
@@ -696,10 +515,6 @@ pub static GEMINI: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     hook_config: Some(gemini_hook_config),
 });
 
-/// How Kiro spells each of ambit's events in a hook file's `trigger`.
-///
-/// Kiro uses Claude's names for the six it shares and has no trigger for a subagent finishing or
-/// for compaction, so those two are skipped. Source: <https://kiro.dev/docs/hooks/>.
 fn kiro_event(event: HookEvent) -> Option<&'static str> {
     match event {
         HookEvent::SessionStart => Some("SessionStart"),
@@ -712,12 +527,6 @@ fn kiro_event(event: HookEvent) -> Option<&'static str> {
     }
 }
 
-/// Where Kiro keeps ambit's hooks: a file of ambit's own in `.kiro/hooks/`, which Kiro reads every
-/// JSON file in.
-///
-/// Its own file rather than one shared with a person's hooks, but still co-owned per entry like
-/// every other hooks file: a person may add entries to it, and the list driver leaves those alone.
-/// `version: "v1"` is required beside the list, so it is seeded as a root default.
 fn kiro_hooks() -> HookLayout {
     let mut root_defaults = JsonObject::new();
 
@@ -733,16 +542,7 @@ fn kiro_hooks() -> HookLayout {
     }
 }
 
-/// One hook, Kiro-shaped: a flat entry naming itself, its trigger, and a command action.
-///
-/// Kiro runs a command in the project root, so a shipped script is named project-relative (see
-/// [`RELATIVE_HOOK_ROOT`]). Its timeout is in seconds, as ambit's is.
-///
-/// The trigger falls back to ambit's own spelling only to keep this total: the planner never
-/// renders a hook [`kiro_event`] has no trigger for, and the list driver refuses an entry whose
-/// trigger disagrees with its key.
-///
-/// Key order here is the digest's input, so it is fixed in this one place only.
+// Key order is the digest input; reordering renames every installed hook.
 fn kiro_hook(hook: &MergedHook, root: &str) -> JsonValue {
     let mut action = JsonObject::new();
 
@@ -781,10 +581,6 @@ fn kiro_server(mcp: &MergedMcp) -> JsonValue {
     }
 }
 
-/// Kiro. Infers the transport from `url`, so it wants no `type`.
-///
-/// Kiro asks the user to approve each environment variable an MCP config references before it
-/// expands one.
 pub static KIRO: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     name: "kiro",
     skills_link: Some(KIRO_SKILLS_LINK),
@@ -799,7 +595,6 @@ pub static KIRO: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     hook_config: Some(kiro_hook_config),
 });
 
-/// Grok's servers: Cursor's shape, in TOML, with `${VAR}` throughout.
 fn grok_server(mcp: &MergedMcp) -> JsonValue {
     match &mcp.transport {
         McpTransport::Stdio(transport) => JsonValue::Object(stdio(mcp, transport, shell_ref)),
@@ -807,12 +602,6 @@ fn grok_server(mcp: &MergedMcp) -> JsonValue {
     }
 }
 
-/// Grok Build. Its servers live in `.grok/config.toml` under `mcp_servers`, and it infers the
-/// transport from `url`.
-///
-/// Its hooks are Claude's: Grok reads `.claude/settings.json` natively, so this profile reuses
-/// Claude's layout and renderer, and a project on both writes the file once. Grok loads a
-/// project's hooks and servers only once the folder is trusted (`/hooks-trust`, or `--trust`).
 pub static GROK: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     name: "grok",
     skills_link: Some(GROK_SKILLS_LINK),
@@ -827,12 +616,6 @@ pub static GROK: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     hook_config: Some(claude_hook_config),
 });
 
-/// Devin's servers: `transport: "http"` beside the url, and `${env:VAR}` for every reference.
-///
-/// Devin documents `${env:VAR}` only for its OAuth fields and says nothing either way about
-/// headers, `args` or `env`. It is the interpolation syntax Devin Desktop inherited from Windsurf's
-/// Cascade, which expands it throughout an MCP config, so it is used everywhere here. Unverified
-/// beyond that.
 fn devin_server(mcp: &MergedMcp) -> JsonValue {
     let transport = match &mcp.transport {
         McpTransport::Stdio(transport) => {
@@ -853,10 +636,6 @@ fn devin_server(mcp: &MergedMcp) -> JsonValue {
     JsonValue::Object(server)
 }
 
-/// Devin (Devin Desktop and Devin Local, formerly Windsurf).
-///
-/// Its hooks are Claude's: Devin reads `.claude/settings.json` natively, so this profile reuses
-/// Claude's layout and renderer, and a project on both writes the file once.
 pub static DEVIN: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     name: "devin",
     skills_link: None,
@@ -871,7 +650,6 @@ pub static DEVIN: LazyLock<HarnessProfile> = LazyLock::new(|| HarnessProfile {
     hook_config: Some(claude_hook_config),
 });
 
-/// Every profile this build ships, in the order `--help` and error messages list them.
 pub static PROFILES: LazyLock<Vec<&'static HarnessProfile>> = LazyLock::new(|| {
     vec![
         &*CLAUDE, &*CODEX, &*COPILOT, &*CURSOR, &*DEVIN, &*GEMINI, &*GROK, &*KIRO, &*OPENCODE,

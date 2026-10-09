@@ -1,13 +1,3 @@
-//! `ambit install` against the fixture catalog: config in, skills on disk, ownership recorded.
-//!
-//! The tree assertions are exhaustive rather than spot checks. "Exactly the resolved skill
-//! directories" is the claim, and a test that only looks for what should be there would pass while
-//! an extra skill sat next to it.
-//!
-//! Almost every case resolves a real project, which goes through config loading, catalog parsing
-//! and state (B1), resolution (B2) and source resolution (B3); those are ignored until the batches
-//! merge.
-
 use std::path::{Path, PathBuf};
 
 use pretty_assertions::assert_eq;
@@ -26,7 +16,6 @@ use crate::project::lock::LOCK_FILENAME;
 use crate::util::fs;
 use crate::util::path::{join, relative, to_slash};
 
-/// A project with the default three-pack profile written.
 fn project() -> Project {
     let project = Project::new();
 
@@ -62,67 +51,67 @@ fn skill(name: &str) -> String {
     format!("{SKILLS_DIR}/{name}")
 }
 
-// install_scope
-//
-// The rule that decides which config a harness will read an install as. The only input is the
-// root, and the only consequence is how a hook's shipped script is addressed (`hook_root`,
-// `harness/definitions.rs`).
-
 fn home_env(home: &str) -> Env {
     Env::from([("HOME".to_owned(), home.to_owned())])
 }
 
+fn scope_of(project_dir: &str, env: &Env) -> (PathBuf, InstallScope) {
+    let paths = project_paths(Path::new(project_dir), env, None);
+
+    (paths.root, paths.scope.unwrap())
+}
+
 #[test]
-fn reads_the_home_directory_as_the_users_own_config_and_anything_else_as_a_projects() {
-    let home = "/home/jane";
+fn installs_the_user_project_into_the_home_directory_and_anything_else_into_itself() {
+    let env = home_env("/home/jane");
 
     assert_eq!(
-        install_scope(Path::new(home), &home_env(home)),
-        InstallScope::User
+        scope_of("/home/jane/.ambit", &env),
+        (PathBuf::from("/home/jane"), InstallScope::User)
     );
     assert_eq!(
-        install_scope(Path::new("/home/jane/work/acme"), &home_env(home)),
-        InstallScope::Project
+        scope_of("/home/jane/work/acme", &env),
+        (PathBuf::from("/home/jane/work/acme"), InstallScope::Project)
     );
-    // Not a prefix test: a sibling whose name starts with the home directory's is a project.
     assert_eq!(
-        install_scope(Path::new("/home/jane-backup"), &home_env(home)),
+        scope_of("/home/jane", &env),
+        (PathBuf::from("/home/jane"), InstallScope::Project)
+    );
+    assert_eq!(
+        scope_of("/home/jane/.ambit-backup", &env).1,
         InstallScope::Project
     );
 }
 
 #[test]
 fn compares_resolved_paths_so_spelling_the_same_directory_differently_cannot_change_the_answer() {
-    let home = "/home/jane";
+    let env = home_env("/home/jane");
 
+    assert_eq!(scope_of("/home/jane/.ambit/", &env).1, InstallScope::User);
     assert_eq!(
-        install_scope(Path::new("/home/jane/"), &home_env(home)),
+        scope_of("/home/jane/work/../.ambit", &env).1,
         InstallScope::User
     );
     assert_eq!(
-        install_scope(Path::new("/home/jane/work/.."), &home_env(home)),
-        InstallScope::User
-    );
-    assert_eq!(
-        install_scope(Path::new(home), &home_env("/home/jane/")),
+        scope_of("/home/jane/.ambit", &home_env("/home/jane/")).1,
         InstallScope::User
     );
 }
 
 #[test]
 fn falls_back_to_the_platforms_own_home_directory_when_home_is_unset() {
-    let Some(home) = platform_home() else {
+    let Some(home) = home_dir(&Env::new()) else {
         return;
     };
+    let user = project_paths(&home.join(USER_PROJECT_DIRNAME), &Env::new(), None);
 
-    assert_eq!(install_scope(&home, &Env::new()), InstallScope::User);
+    assert_eq!(user.scope, Some(InstallScope::User));
+    assert_eq!(user.root, home);
     assert_eq!(
-        install_scope(&home.join("work"), &Env::new()),
-        InstallScope::Project
+        project_paths(&home.join("work"), &Env::new(), None).scope,
+        Some(InstallScope::Project)
     );
 }
-
-// the Claude adapter's plan
 
 #[test]
 fn targets_one_directory_per_bundle_skill_and_one_config_file_and_touches_nothing() {
@@ -142,7 +131,6 @@ fn targets_one_directory_per_bundle_skill_and_one_config_file_and_touches_nothin
         ]
     );
 
-    // The fixture is a `path:` catalog, so every skill is planned as a link.
     let skills: Vec<&crate::harness::adapter::PlannedSkillDir> = plan
         .iter()
         .filter_map(|artifact| match artifact {
@@ -200,8 +188,6 @@ fn plans_no_server_config_file_for_a_bundle_with_no_servers() {
 
     let plan = claude_adapter().plan(&project.bundle(), &paths(&project.dir, None));
 
-    // The skills link is still planned: Claude Code reads through it whatever the bundle holds.
-    // The one config file left is the settings file, which this profile's hook needs.
     assert_eq!(
         plan.iter().map(PlannedArtifact::kind).collect::<Vec<_>>(),
         [
@@ -212,8 +198,6 @@ fn plans_no_server_config_file_for_a_bundle_with_no_servers() {
     );
     assert!(!plan.iter().any(|artifact| artifact.path() == MCP_FILE));
 }
-
-// ambit install
 
 #[test]
 fn writes_exactly_the_resolved_skill_directories() {
@@ -266,14 +250,12 @@ fn creates_no_skills_directory_for_an_empty_bundle() {
     assert_eq!(project.state_artifacts(), []);
 }
 
-/// What the default profile's install records, in state's own order.
 fn default_state_artifacts() -> Vec<OwnedArtifact> {
     vec![
         owned(HOOK_DIR, ArtifactKind::HookDir, "link"),
         owned(&skill(ENGINEERING_SKILL), ArtifactKind::SkillDir, "link"),
         owned(&skill(CORE_SKILL), ArtifactKind::SkillDir, "link"),
         owned(&skill(FRONTEND_SKILL), ArtifactKind::SkillDir, "link"),
-        // `shape` too, which prune and clean read to know the section is an array of entries.
         config(
             CLAUDE_SETTINGS,
             DocumentFormat::Json,
@@ -333,8 +315,6 @@ fn leaves_the_same_tree_behind_on_a_second_run() {
 
 #[test]
 fn replaces_an_owned_skill_directory_rather_than_merging_into_it() {
-    // `--copy` because the claim is about a directory of ambit's own bytes: writing into a
-    // *linked* skill writes into the catalog.
     let project = project();
 
     project.cli(&["install", "--copy"]);
@@ -353,8 +333,6 @@ fn lists_what_it_wrote() {
     let project = project();
     let result = project.cli(&["install"]);
 
-    // Both columns but the last are padded out to their longest cell, so the kinds line up down
-    // the section and the config file's missing mode reads as a gap rather than a shifted row.
     let width = skill(CORE_SKILL).len();
     let row = |path: &str, rest: &str| format!("  {path:<width$}  {rest}");
 
@@ -392,8 +370,6 @@ fn emits_machine_readable_output_carrying_no_absolute_paths() {
                 { "kind": "skill-dir", "mode": "link", "path": skill(FRONTEND_SKILL) },
                 { "kind": "hook-dir", "mode": "link", "path": HOOK_DIR },
                 { "kind": "skills-link", "mode": "link", "path": CLAUDE_LINK },
-                // No `format`: a report shows what a reader needs, and the path already says
-                // which it is.
                 {
                     "kind": "harness-config",
                     "managedKeys": [format!("mcpServers.{PACKED_MCP}")],
@@ -407,8 +383,6 @@ fn emits_machine_readable_output_carrying_no_absolute_paths() {
             ],
             "harnesses": ["claude"],
             "skills": three_skills(),
-            // Present and empty rather than absent, so a consumer reads one shape whether or not
-            // a harness had to decline something.
             "skipped": [],
         })
     );
@@ -433,11 +407,6 @@ fn returns_the_bundle_it_installed() {
     assert_eq!(result.harnesses, ["claude"]);
 }
 
-// how a skill's source reaches its target
-//
-// The materialization modes, and the reason for them: a local catalog is a working tree someone
-// edits, so the file the agent reads must be that file and not a duplicate of it.
-
 const CORE_SOURCE: &str = "skills/company-context";
 const EDITED: &str = "---\nname: company-context\ntags: [core]\n---\n\n# edited\n";
 
@@ -449,7 +418,6 @@ fn read_installed(project: &Project) -> String {
     project.read(&format!("{}/SKILL.md", skill(CORE_SKILL)))
 }
 
-/// The mode state records for one skill directory.
 fn recorded_mode(project: &Project, target: &str) -> Option<ArtifactMode> {
     project
         .state_artifacts()
@@ -478,8 +446,6 @@ fn symlinks_a_path_catalogs_skill_relatively_at_the_directory_the_catalog_holds(
             .as_str()
         )
     );
-    // Relative, so the project and its catalog can be moved together, and so no absolute path
-    // from this machine lands in the working tree.
     assert!(written.unwrap().starts_with(".."));
     assert_eq!(
         recorded_mode(&project, &skill(CORE_SKILL)),
@@ -494,7 +460,6 @@ fn makes_editing_the_installed_skill_edit_the_tracked_source() {
     project.cli(&["install"]);
     project.write(&format!("{}/SKILL.md", skill(CORE_SKILL)), EDITED);
 
-    // The whole point of linking: there is no second copy to go stale.
     assert_eq!(read_source(&project), EDITED);
 }
 
@@ -529,7 +494,6 @@ fn replaces_a_copy_with_a_link_and_a_link_with_a_copy_when_the_mode_changes() {
         recorded_mode(&project, &skill(CORE_SKILL)),
         Some(ArtifactMode::Link)
     );
-    // Replaced, not written through: the source still holds exactly what the catalog ships.
     assert_eq!(read_installed(&project), read_source(&project));
 
     assert_eq!(project.cli(&["install", "--copy"]).code, ExitCode::Success);
@@ -543,8 +507,6 @@ fn replaces_a_copy_with_a_link_and_a_link_with_a_copy_when_the_mode_changes() {
 
 #[test]
 fn refuses_copy_and_link_together_rather_than_picking_one() {
-    // Declared as conflicting options, so the refusal is clap's and arrives before the
-    // handler, which is why nothing is installed, either way round.
     let project = project();
 
     for flags in [["--copy", "--link"], ["--link", "--copy"]] {
@@ -574,7 +536,6 @@ fn unlinks_a_pruned_skill_without_following_the_link_into_the_catalog() {
 
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
     assert_eq!(project.installed_skills(), [CORE_SKILL]);
-    // The skill ambit stopped selecting is gone from the project and untouched in the catalog.
     assert!(!project.exists(&skill(ENGINEERING_SKILL)));
     assert!(exists(&join(
         &project.catalog,
@@ -582,9 +543,6 @@ fn unlinks_a_pruned_skill_without_following_the_link_into_the_catalog() {
     )));
 }
 
-// .mcp.json
-
-/// A profile holding both servers: the packed one by pack, and `fixture` only via `requires`.
 const BOTH_SERVERS: &[&str] = &[
     "function.engineering",
     "function.engineering.*",
@@ -599,7 +557,6 @@ fn tagged_server() -> serde_json::Value {
     })
 }
 
-/// stdio servers carry an `env` map so the harness passes each declared variable to the process.
 fn fixture_server() -> serde_json::Value {
     json!({
         "command": "npx",
@@ -626,7 +583,6 @@ fn holds_exactly_the_tag_matched_server_and_the_requires_only_one() {
     let result = project.cli(&["install"]);
 
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
-    // Both transport kinds at once: `fixture` is stdio, the packed one is http.
     assert_eq!(
         project.mcp_config(),
         json!({ "mcpServers": { FIXTURE_MCP: fixture_server(), PACKED_MCP: tagged_server() } })
@@ -654,8 +610,6 @@ fn writes_a_reference_rather_than_the_value_even_with_the_variable_set() {
         .insert(PACKED_KEY_VAR.to_owned(), "s3cret".to_owned());
     project.cli(&["install"]);
 
-    // The credential stays in the environment. Resolving it here would put a live token into a
-    // file ambit deliberately does not gitignore, and make the output differ per machine.
     assert_eq!(
         project.mcp_config(),
         json!({ "mcpServers": { PACKED_MCP: tagged_server() } })
@@ -681,8 +635,6 @@ fn writes_the_same_reference_whether_or_not_the_variable_is_set() {
 
 #[test]
 fn gives_a_server_the_variable_names_it_reads_from_the_ones_the_machine_sets() {
-    // The rename an `expects` entry cannot express on its own: two servers wanting `PLANNER_TOKEN`
-    // read the same name, and each takes it from a variable of its own.
     let project = project();
 
     project.write_catalog(
@@ -718,8 +670,6 @@ fn gives_a_server_the_variable_names_it_reads_from_the_ones_the_machine_sets() {
             "mcpServers": {
                 "planner": {
                     "command": "planner-mcp",
-                    // The variable the entry names supplies the token, so it is not also passed
-                    // under its own name; the literal is written as the catalog wrote it.
                     "env": { "PLANNER_TOKEN": "${ACME_PLANNER_TOKEN}", "PLANNER_WORKSPACE": "acme" },
                 },
             },
@@ -798,7 +748,6 @@ fn leaves_a_hand_added_server_and_every_foreign_key_untouched() {
             "extra": { "kept": true },
         })
     );
-    // Keys already in the file keep their position; ambit's are appended.
     assert_eq!(keys_of(&document), ["mcpServers", "extra"]);
     assert_eq!(
         keys_of(&document["mcpServers"]),
@@ -880,16 +829,8 @@ fn exits_2_when_the_servers_section_is_not_an_object() {
     assert_eq!(project.read(MCP_FILE), "{\"mcpServers\": []}\n");
 }
 
-// .gitignore
-//
-// The text transformation is pinned in `project/gitignore/tests.rs`; what these cases add is the
-// part only a real install can show: which paths land in which of the two files, that the nested
-// block tracks the bundle across runs, and that a `.gitignore` someone else wrote survives being
-// written into.
-
 const HANDWRITTEN_IGNORE: &str = "node_modules/\n.env\n";
 
-/// The lines between the markers of one file, which is exactly what ambit claims to own.
 fn managed_block(project: &Project, file: &str) -> Vec<String> {
     let text = project.read(file);
     let lines: Vec<&str> = text.split('\n').collect();
@@ -912,8 +853,6 @@ fn lists_every_skill_directory_it_installed_in_the_shared_directorys_own_file() 
 
     assert_eq!(project.cli(&["install"]).code, ExitCode::Success);
 
-    // The hook's materialized directory among them, and sorted with the rest: everything ambit
-    // writes under the shared directory is volatile, whichever namespace put it there.
     assert_eq!(
         managed_block(&project, SHARED_GITIGNORE_FILE),
         [
@@ -931,8 +870,6 @@ fn keeps_at_the_root_only_what_a_nested_file_cannot_reach() {
 
     assert_eq!(project.cli(&["install"]).code, ExitCode::Success);
 
-    // Not `.mcp.json` and not `ambit.lock`: a team commits both. Not `.agents/.gitignore` either:
-    // it is generated, but tracked.
     assert_eq!(
         managed_block(&project, GITIGNORE_FILENAME),
         [".ambit/", CLAUDE_LINK]
@@ -956,8 +893,6 @@ fn ignores_a_linked_skill_too_which_git_would_otherwise_track_as_a_symlink() {
 
     project.cli(&["install"]);
 
-    // The fixture is a `path:` catalog, so these are links, and the pattern carries no trailing
-    // slash precisely so that it still matches them.
     assert!(project.link_at(&skill(CORE_SKILL)).is_some());
     assert!(
         managed_block(&project, SHARED_GITIGNORE_FILE).contains(&format!("/skills/{CORE_SKILL}"))
@@ -993,7 +928,6 @@ fn drops_the_skill_a_narrowed_profile_no_longer_installs() {
         managed_block(&project, SHARED_GITIGNORE_FILE),
         [format!("/skills/{CORE_SKILL}")]
     );
-    // The root block is the stable one: narrowing the bundle does not touch it.
     assert_eq!(
         managed_block(&project, GITIGNORE_FILENAME),
         [".ambit/", CLAUDE_LINK]
@@ -1048,8 +982,6 @@ fn removes_the_nested_file_when_a_project_ends_up_installing_no_skills_at_all() 
     project.write_profile(&[], None, &[]);
     assert_eq!(project.cli(&["install"]).code, ExitCode::Success);
 
-    // An empty bundle would leave a pair of markers with nothing between them, which says less
-    // than no file at all.
     assert!(!project.exists(SHARED_GITIGNORE_FILE));
 }
 
@@ -1067,18 +999,11 @@ fn exits_2_rather_than_guessing_at_an_unterminated_block_leaving_the_file_alone(
         "{GITIGNORE_FILENAME} holds an unterminated ambit block"
     )));
     assert_eq!(project.read(GITIGNORE_FILENAME), broken);
-    // The block is written last, so the skills themselves are installed and the retry is free.
     let mut sorted = three_skills();
 
     sorted.sort();
     assert_eq!(project.installed_skills(), sorted);
 }
-
-// a project as its own catalog
-//
-// `source: path:.` names the project as a catalog, and its `skills/` and `mcps/` are read exactly
-// as any other catalog's. The second catalog is the fixture, so the project's own items are merged
-// beside somebody else's rather than being all there is.
 
 const OWN_SKILL: &str = "readwise-cli";
 const OWN_PACK: &str = "own";
@@ -1109,8 +1034,6 @@ fn self_catalog_project() -> Project {
         ]
         .join("\n"),
     );
-    // The pack the self-catalog profile takes: a project that ships items groups them the way any
-    // other catalog does.
     project.write(
         &format!("packs/{OWN_PACK}.yml"),
         &[
@@ -1173,7 +1096,6 @@ fn links_the_skill_to_the_projects_own_directory_not_to_a_copy_of_it() {
 
     project.cli(&["install"]);
 
-    // A `path:` catalog has no cache entry, so the link resolves back into the working tree.
     assert_eq!(
         project.link_at(&skill(OWN_SKILL)),
         Some(to_slash(Path::new(&relative(
@@ -1206,8 +1128,6 @@ fn names_the_catalog_local_since_that_is_what_the_config_called_it() {
     );
 }
 
-// ambit install failures
-
 #[test]
 fn exits_2_for_an_mcp_entity_whose_transport_names_no_kind_or_two_kinds() {
     for transport in [
@@ -1237,7 +1157,6 @@ fn exits_2_for_a_harness_with_no_adapter() {
 
     assert_eq!(result.code, ExitCode::Config);
     assert!(result.stderr.contains("unknown harness \"zed\""));
-    // The message lists what this build does ship, so a typo is one line from being fixed.
     assert!(
         result
             .stderr
@@ -1292,15 +1211,6 @@ fn exits_2_rather_than_trusting_an_unreadable_state_file() {
     assert!(result.stderr.contains("not a valid ambit state file"));
 }
 
-// install --dry-run
-//
-// "Touches nothing" is asserted as the whole project rather than as the absence of the skills
-// directory, because a preview that wrote the lock, or state, or a `.gitignore` block would satisfy
-// the narrower claim. And the artifact rows are compared against the ones the real install goes on
-// to print: a dry run whose output is a different rendering of the same plan is a second
-// implementation, which is exactly what the `plan`/`apply` split exists to prevent.
-
-/// The `files` section, which says of each derived file whether install would rewrite it.
 fn files_section(lock: &str, root: &str, shared: &str) -> String {
     [
         "files (3)".to_owned(),
@@ -1311,7 +1221,6 @@ fn files_section(lock: &str, root: &str, shared: &str) -> String {
     .join("\n")
 }
 
-/// The two sections a preview adds after the ones install itself prints.
 fn extra_sections(lock: &str, root: &str, shared: &str) -> String {
     [
         "pruned (0)".to_owned(),
@@ -1328,7 +1237,6 @@ fn writes_nothing_at_all() {
     let result = project.cli(&["install", "--dry-run"]);
 
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
-    // The config is the only file the project had, and the only one it still has.
     assert_eq!(
         project.snapshot().into_keys().collect::<Vec<_>>(),
         ["ambit.yml"]
@@ -1467,16 +1375,10 @@ fn still_refuses_a_stale_lock_under_frozen_since_refusing_writes_nothing() {
     );
 }
 
-// ownership
-//
-// Every refusal test asserts what is still on disk afterwards, because "exits 2" is only half the
-// claim: the other half is that nothing moved.
-
 const HANDWRITTEN_SKILL: &str = "---\nname: hand-written\n---\n\n# not ambit's\n";
 const STRAY: &str = "notes nobody told ambit about\n";
 const STATE_FILE: &str = ".ambit/state.json";
 
-/// A directory the plan targets, holding files no state claims.
 fn write_unowned_skill_dir(project: &Project) {
     project.write(
         &format!("{}/SKILL.md", skill(CORE_SKILL)),
@@ -1485,7 +1387,6 @@ fn write_unowned_skill_dir(project: &Project) {
     project.write(&format!("{}/notes.md", skill(CORE_SKILL)), STRAY);
 }
 
-/// A `.mcp.json` whose packed key collides with the one the fixture's server would write.
 fn write_unowned_server(project: &Project) -> String {
     let contents = pretty(&json!({
         "mcpServers": {
@@ -1526,8 +1427,6 @@ fn leaves_an_unowned_directory_byte_identical_and_installs_nothing_else_either()
     write_unowned_skill_dir(&project);
     project.cli(&["install"]);
 
-    // The check sees the whole plan before the first write, so the other two skills, the server
-    // file, the lock, and the state file are all still absent.
     assert_eq!(
         project.tree(SKILLS_DIR),
         [
@@ -1616,7 +1515,6 @@ fn replaces_an_adopted_skill_directory_rather_than_copying_into_it() {
     let result = project.cli(&["install", "--adopt"]);
 
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
-    // The stray file is gone and SKILL.md is the catalog's, which is what taking ownership means.
     assert_eq!(project.tree(SKILLS_DIR), three_skill_tree());
     assert_eq!(
         project.read(&format!("{}/SKILL.md", skill(CORE_SKILL))),
@@ -1681,14 +1579,8 @@ fn changes_nothing_when_there_is_nothing_to_adopt() {
     assert_eq!(project.read(MCP_FILE), servers);
 }
 
-// pruning
-//
-// Install bundle A, install bundle B, and what only A held is gone from disk, from `.mcp.json`, and
-// from state, while anything ambit does not own stays exactly where it was.
-
 const HANDMADE_SKILL: &str = "hand-written";
 
-/// A skill directory beside ambit's that no state claims.
 fn write_foreign_skill_dir(project: &Project) {
     project.write(
         &format!("{}/SKILL.md", skill(HANDMADE_SKILL)),
@@ -1736,8 +1628,6 @@ fn stops_claiming_what_it_removed() {
         project.state_artifacts(),
         [
             owned(&skill(CORE_SKILL), ArtifactKind::SkillDir, "link"),
-            // The settings file survives the narrowing, holding one entry rather than two: `core`
-            // still selects the inline hook, so what was pruned is the other one's key.
             config(
                 CLAUDE_SETTINGS,
                 DocumentFormat::Json,
@@ -1793,10 +1683,7 @@ fn removes_only_the_server_keys_the_new_bundle_dropped() {
     let result = project.cli(&["install"]);
 
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
-    // The packed server is still in the engineering pack; `fixture` only ever arrived through the
-    // project skill's `requires`, which this profile no longer selects.
     assert_eq!(keys_of(&project.mcp_config()["mcpServers"]), [PACKED_MCP]);
-    // The engineering pack requires the core pack, so its members survive the narrowing too.
     assert_eq!(project.state_artifacts(), default_state_artifacts());
 }
 
@@ -1808,8 +1695,6 @@ fn empties_the_servers_section_rather_than_deleting_a_file_it_co_owns() {
     project.write_profile(&["core"], None, &[]);
     project.cli(&["install"]);
 
-    // A bundle with no servers plans no `.mcp.json` artifact at all, so this can only come from
-    // state, and the file stays, because ambit owns keys in it and not the document.
     assert_eq!(project.mcp_config(), json!({ "mcpServers": {} }));
     assert!(
         !project
@@ -1870,7 +1755,6 @@ fn removes_a_skill_an_entry_named_once_the_entry_goes() {
         )],
     );
     project.cli(&["install"]);
-    // The project skill requires the core skill and `fixture`, so dropping it drops all three.
     assert_eq!(project.installed_skills(), [PROJECT_SKILL, CORE_SKILL]);
     project.write_profile(&[], None, &[]);
 
@@ -1911,7 +1795,6 @@ fn succeeds_when_what_it_owned_is_already_gone() {
 
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
     assert_eq!(project.installed_skills(), [CORE_SKILL]);
-    // Pruning a key from a file someone deleted must not put the file back.
     assert!(!project.exists(MCP_FILE));
 }
 
@@ -1920,13 +1803,9 @@ fn exits_2_rather_than_guessing_at_a_managed_key_that_names_no_section() {
     let project = project();
 
     project.cli(&["install"]);
-    // A key ambit still owns, so ownership enforcement passes and pruning is what has to deal with
-    // the second one, which no build of ambit could have written.
     let mut state = project.state();
 
     for artifact in &mut state.artifacts {
-        // `.mcp.json` alone: rewriting every config file's keys would put keys naming no section
-        // into the settings file too, and ownership would refuse before pruning got a look.
         if artifact.kind == ArtifactKind::HarnessConfig && artifact.path == MCP_FILE {
             artifact.managed_keys = Some(vec![
                 format!("mcpServers.{PACKED_MCP}"),
@@ -1947,27 +1826,18 @@ fn exits_2_rather_than_guessing_at_a_managed_key_that_names_no_section() {
     );
 }
 
-// idempotence
-//
-// A second install of an unchanged project changes no bytes. The claim is about every file at
-// once, and a per-file assertion cannot notice a new file appearing, so this compares the entire
-// project and asserts what the comparison covered.
-
 fn project_files() -> Vec<String> {
     let mut files = vec![
         STATE_FILE.to_owned(),
         format!("{}/SKILL.md", skill(ENGINEERING_SKILL)),
         format!("{}/SKILL.md", skill(CORE_SKILL)),
         format!("{}/SKILL.md", skill(FRONTEND_SKILL)),
-        // The script-shipping hook's materialized directory, which is bytes rather than config.
         format!("{HOOK_DIR}/hook.yml"),
         format!("{HOOK_DIR}/guard.sh"),
-        // The link Claude Code reads through, which is one entry however many skills sit behind.
         CLAUDE_LINK.to_owned(),
         MCP_FILE.to_owned(),
         CLAUDE_SETTINGS.to_owned(),
         LOCK_FILENAME.to_owned(),
-        // Both managed blocks are files install writes, so they belong in the claim.
         GITIGNORE_FILENAME.to_owned(),
         SHARED_GITIGNORE_FILE.to_owned(),
         "ambit.yml".to_owned(),
@@ -2024,8 +1894,6 @@ fn prints_the_same_report_twice() {
     assert_eq!(project.cli(&["install"]).stdout, first.stdout);
 }
 
-// state
-
 #[test]
 fn treats_an_absent_file_as_owning_nothing() {
     let project = project();
@@ -2051,8 +1919,6 @@ fn rejects_a_state_file_from_a_future_version() {
     );
 }
 
-// planning, without a filesystem
-
 #[test]
 fn plans_each_shared_artifact_once_across_adapters() {
     let adapters = adapters_for(&strings(&["claude", "cursor"])).expect("adapters");
@@ -2071,7 +1937,6 @@ fn plans_each_shared_artifact_once_across_adapters() {
     };
     let plans = plan_for(&adapters, &bundle, &paths(Path::new("/project"), None));
 
-    // Claude plans the skill and the link; Cursor names both too, and defers on each.
     assert_eq!(
         plans
             .iter()

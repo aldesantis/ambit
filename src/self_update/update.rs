@@ -1,23 +1,3 @@
-//! Replacing the running ambit binary with a released one.
-//!
-//! Split into a plan and an apply, because everything that can refuse the update is knowable before
-//! a byte is downloaded: whether a release ships an asset for this machine, whether the file can be
-//! written at all. `--dry-run` is the plan on its own.
-//!
-//! Two invariants the apply holds:
-//!
-//! - **The bytes are verified before they are installed.** The archive is hashed as it streams and
-//!   checked against the release's `<asset>.sha256`, the same file `install.sh` checks against. A
-//!   mismatch deletes the download and leaves the old binary in place. There is no flag to skip it.
-//! - **The swap is a rename.** A rename within one directory is atomic, so an interrupted update
-//!   leaves either the old binary or the new one and never a half-written file where ambit used to
-//!   be. Windows cannot rename over a running executable, so there the old one is moved aside
-//!   first; see [`swap_in_place`].
-//!
-//! The archive layout is cargo-dist's: a `.tar.xz` holds `ambit-<triple>/ambit`, a `.zip` holds
-//! `ambit.exe`. Either is accepted at the archive root or under the one `ambit-<triple>/`
-//! directory, so a change in how dist nests the zip does not break every Windows update.
-
 use std::ffi::OsString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -31,68 +11,38 @@ use crate::self_update::release::{
 use crate::util::fs::rm_rf;
 use crate::version::VERSION;
 
-/// Suffix of the extracted binary while it waits to be swapped in, beside the binary it replaces.
 const INCOMING_SUFFIX: &str = ".incoming";
 
-/// Suffix of the downloaded archive while it is still unverified, beside the binary it may replace.
 const DOWNLOAD_SUFFIX: &str = ".download";
 
-/// Suffix of the displaced binary on Windows, which cannot rename over a running executable.
 const DISPLACED_SUFFIX: &str = ".old";
 
-/// The archive extensions cargo-dist uses, `.tar.xz` everywhere but Windows.
 const TAR_XZ: &str = ".tar.xz";
 const ZIP: &str = ".zip";
 
-/// Everything self-update reads about the machine it runs on, gathered at the CLI boundary.
-///
-/// Passed in rather than read down here, so one command run sees one machine and a test can
-/// describe a different one without touching the real environment. Same reason
-/// [`source_context_of`](crate::cli::commands::source_context_of) exists for the commands that
-/// resolve catalogs.
 #[derive(Clone)]
 pub struct SelfContext<'a> {
-    /// `std::env::consts::OS`.
     pub os: &'a str,
-    /// `std::env::consts::ARCH`.
     pub arch: &'a str,
-    /// The executable this process is running, before symlinks are resolved.
     pub exec_path: PathBuf,
     pub http: &'a dyn Http,
 }
 
-/// What an update would do, decided without downloading anything.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SelfUpdatePlan {
-    /// The version running now, as `Cargo.toml` spells it: no leading `v`.
     pub current: String,
-    /// The release that would be installed, as a tag: with a leading `v`.
     pub target: String,
-    /// The release archive for this machine.
     pub asset: String,
-    /// The file that would be replaced, with symlinks resolved.
     pub binary: PathBuf,
-    /// Whether `target` is a different release from `current`.
     pub changed: bool,
 }
 
-/// `path` with `suffix` appended to its file name.
 fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
     let mut text: OsString = path.as_os_str().to_owned();
     text.push(suffix);
     PathBuf::from(text)
 }
 
-/// What `ambit self-update` would do, or the reason it cannot.
-///
-/// The local refusals are made in order of cost: whether this machine has an asset, then whether
-/// the file can be written. Only after both does anything reach the network, so a user on a
-/// read-only install is told so immediately rather than after a download.
-///
-/// # Errors
-///
-/// Exit 2 when no release ships an asset for this platform, or when the binary's directory is not
-/// writable; exit 4 when the latest release cannot be looked up.
 pub fn plan_self_update(
     context: &SelfContext<'_>,
     requested: Option<&str>,
@@ -137,17 +87,8 @@ pub fn plan_self_update(
     })
 }
 
-/// Puts `incoming` where `binary` is.
-///
-/// POSIX renames straight over the running executable: the running process keeps the old inode,
-/// and the next run gets the new one. Windows refuses to replace a file that is open for execution,
-/// but allows *renaming* it, so the old binary is moved aside first and the new one takes its name.
-/// The displaced file cannot be deleted while it is still running, so a failure to remove it is
-/// ignored; [`apply_self_update`] sweeps it up on the next run.
-///
-/// # Errors
-///
-/// The I/O error of a rename that failed.
+/// Windows cannot replace a running executable but can rename it, so the old binary is moved
+/// aside first; it cannot be deleted while running and is swept up on the next run.
 pub fn swap_in_place(binary: &Path, incoming: &Path, windows: bool) -> std::io::Result<()> {
     if !windows {
         return std::fs::rename(incoming, binary);
@@ -168,7 +109,6 @@ pub fn swap_in_place(binary: &Path, incoming: &Path, windows: bool) -> std::io::
     Ok(())
 }
 
-/// The error for an archive that holds no ambit binary, or one that cannot be read as an archive.
 fn missing_binary(asset: &str, reason: impl Into<String>) -> AmbitError {
     network_error(
         format!("{asset} does not contain the ambit binary"),
@@ -179,15 +119,12 @@ fn missing_binary(asset: &str, reason: impl Into<String>) -> AmbitError {
     )
 }
 
-/// Whether an archive member is the binary: `<binary_name>` at the root, or under the one
-/// `ambit-<triple>/` directory cargo-dist nests archives in.
 fn is_binary_member(member: &str, root_dir: &str, binary_name: &str) -> bool {
     let member = member.strip_prefix("./").unwrap_or(member);
 
     member == binary_name || member.strip_prefix(root_dir) == Some(binary_name)
 }
 
-/// Writes `reader` to `incoming`, executable where the platform has the bit.
 fn write_incoming(reader: &mut dyn Read, incoming: &Path) -> std::io::Result<()> {
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create(true).truncate(true);
@@ -205,11 +142,6 @@ fn write_incoming(reader: &mut dyn Read, incoming: &Path) -> std::io::Result<()>
     Ok(())
 }
 
-/// Extracts the ambit binary out of a verified archive into `incoming`.
-///
-/// # Errors
-///
-/// Exit 4 when the archive cannot be read, or holds no ambit binary.
 fn extract_binary(archive: &Path, asset: &str, windows: bool, incoming: &Path) -> Result<()> {
     let binary_name = if windows { "ambit.exe" } else { "ambit" };
     let stem = asset
@@ -259,20 +191,11 @@ fn extract_binary(archive: &Path, asset: &str, windows: bool, incoming: &Path) -
     ))
 }
 
-/// Downloads the planned release, verifies it, extracts the binary, and swaps it in.
-///
-/// # Errors
-///
-/// Exit 4 when the download fails, its hash does not match the release's `.sha256`, or the archive
-/// does not contain the ambit binary. Either way the old binary is untouched and the download is
-/// deleted.
 pub fn apply_self_update(plan: &SelfUpdatePlan, context: &SelfContext<'_>) -> Result<()> {
     let windows = context.os == "windows";
     let incoming = with_suffix(&plan.binary, INCOMING_SUFFIX);
     let download = with_suffix(&plan.binary, DOWNLOAD_SUFFIX);
 
-    // A leftover from a Windows update that could not delete its own displaced binary while it was
-    // still running. Harmless, but it is this command's mess to clear.
     if windows {
         rm_rf(&with_suffix(&plan.binary, DISPLACED_SUFFIX))?;
     }
@@ -320,7 +243,6 @@ pub fn apply_self_update(plan: &SelfUpdatePlan, context: &SelfContext<'_>) -> Re
     Ok(())
 }
 
-/// Whether the plan describes a move to a strictly newer release, as opposed to a downgrade.
 pub fn is_upgrade(plan: &SelfUpdatePlan) -> bool {
     is_newer(&plan.current, &plan.target)
 }

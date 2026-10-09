@@ -1,10 +1,3 @@
-//! Locating a Markdown document's frontmatter block with the `gray_matter` crate.
-//!
-//! `gray_matter` only confirms the block. Its own YAML engine is never compiled in: the block goes
-//! through ambit's loader, so no laxer parser ever sees ambit's YAML and errors read like every
-//! other YAML error ambit reports. The block's text is cut from the document here, not taken from
-//! `gray_matter`, which trims the first line's indentation along with the surrounding blank lines.
-
 use gray_matter::engine::Engine;
 use gray_matter::{Matter, ParsedEntity, Pod};
 
@@ -12,7 +5,6 @@ use crate::errors::{AmbitError, Result, config_error};
 
 const DELIMITER: &str = "---";
 
-/// An engine that parses nothing, so `gray_matter` hands back the raw block untouched.
 struct Raw;
 
 impl Engine for Raw {
@@ -21,24 +13,12 @@ impl Engine for Raw {
     }
 }
 
-/// A document's frontmatter block, and where it sits.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Frontmatter {
-    /// The block, without its leading and trailing blank lines.
     pub block: String,
-    /// Lines of the document above the block's first line.
     pub line_offset: usize,
 }
 
-/// Finds the frontmatter block of a Markdown document (`SKILL.md`'s, in practice).
-///
-/// `text` is the whole document, frontmatter included; `file` is how it is named in error messages.
-/// The block opens with a `---` line, which must be the document's first, and runs to the next
-/// `---` line.
-///
-/// # Errors
-///
-/// Exit 2 if there is no frontmatter block, or it is unclosed or empty.
 pub(super) fn frontmatter(text: &str, file: &str) -> Result<Frontmatter> {
     let text = text.strip_prefix('\u{FEFF}').unwrap_or(text);
     let mut lines = text.lines();
@@ -78,7 +58,6 @@ pub(super) fn frontmatter(text: &str, file: &str) -> Result<Frontmatter> {
         .take_while(|line| line.trim_end() != DELIMITER)
         .collect();
     let is_text = |line: &&str| !line.trim().is_empty();
-    // A non-empty `matter` means the block holds a line with text, so both searches succeed.
     let first = raw.iter().position(is_text).unwrap_or(0);
     let last = raw.iter().rposition(is_text).unwrap_or(first);
 
@@ -88,7 +67,6 @@ pub(super) fn frontmatter(text: &str, file: &str) -> Result<Frontmatter> {
     })
 }
 
-/// The error for a block holding nothing, or nothing but comments.
 pub(super) fn empty(file: &str) -> AmbitError {
     config_error(
         format!("{file} has an empty frontmatter block"),

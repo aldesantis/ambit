@@ -1,14 +1,5 @@
-//! Node `path` semantics: lexical, with no filesystem access.
-//!
-//! `Path::join` neither normalizes `..` nor ignores an absolute second argument the way
-//! `path.join` does, so ambit joins, resolves and relativizes paths through these instead.
-
 use std::path::{Component, Path, PathBuf};
 
-/// `path.normalize`: resolves `.` and `..` lexically and drops trailing separators.
-///
-/// A `..` above the root of an absolute path stays at the root; a leading `..` of a relative path
-/// is kept. An empty result is `.`.
 pub fn normalize(p: &Path) -> PathBuf {
     let mut prefix = PathBuf::new();
     let mut parts: Vec<std::ffi::OsString> = Vec::new();
@@ -43,8 +34,6 @@ pub fn normalize(p: &Path) -> PathBuf {
     normalized
 }
 
-/// `path.join(base, rel)`: concatenates and normalizes. An absolute `rel` is appended, not
-/// substituted, as Node does.
 pub fn join(base: &Path, rel: &str) -> PathBuf {
     let mut joined = base.to_path_buf();
 
@@ -58,8 +47,6 @@ pub fn join(base: &Path, rel: &str) -> PathBuf {
     normalize(&joined)
 }
 
-/// `path.resolve(base, p)`: `p` itself when absolute, otherwise `p` under `base`; normalized either
-/// way. `base` is expected to be absolute already.
 pub fn resolve(base: &Path, p: &str) -> PathBuf {
     let given = Path::new(p);
 
@@ -70,8 +57,6 @@ pub fn resolve(base: &Path, p: &str) -> PathBuf {
     }
 }
 
-/// `path.relative(from, to)`: the path from `from` to `to`, with the platform's separator. Empty
-/// when the two are the same.
 pub fn relative(from: &Path, to: &Path) -> String {
     let from = normalize(from);
     let to = normalize(to);
@@ -97,7 +82,6 @@ pub fn relative(from: &Path, to: &Path) -> String {
     result.to_string_lossy().into_owned()
 }
 
-/// The path with `/` separators, as state, the lock, `.gitignore` and messages record paths.
 pub fn to_slash(p: &Path) -> String {
     let text = p.to_string_lossy();
 

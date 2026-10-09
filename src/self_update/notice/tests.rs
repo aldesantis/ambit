@@ -1,13 +1,3 @@
-//! The update notice: when it stays quiet, and how rarely it asks.
-//!
-//! Most of these assert a negative, because a notice is only tolerable if it is nearly always
-//! absent. Every guard is checked one at a time against an otherwise valid context, so a guard that
-//! stopped working could not hide behind another one still holding.
-//!
-//! The cache cases assert on whether the [`Http`] was called at all, not on the returned line: the
-//! promise of a daily check is a promise about requests, and a version comparison that happened to
-//! be right would say nothing about how it was reached.
-
 use std::path::Path;
 
 use super::*;
@@ -18,7 +8,6 @@ use crate::test_support::tempdir;
 const NEWER: &str = "v99.0.0";
 const NOW: u64 = 1_760_000_000_000;
 
-/// A GitHub that names [`NEWER`] as latest.
 fn counting() -> FakeHttp {
     FakeHttp::new(|url| {
         if !url.ends_with("/releases/latest") {
@@ -31,7 +20,6 @@ fn counting() -> FakeHttp {
     })
 }
 
-/// A GitHub that is unreachable.
 fn failing() -> FakeHttp {
     FakeHttp::new(|_| Err("offline".to_owned()))
 }
@@ -106,7 +94,6 @@ fn says_nothing_when_the_latest_release_is_the_one_running() {
     assert_eq!(update_notice(&context(&env, &args, &http)), None);
 }
 
-/// Asserts the notice is silent for this invocation, and that it asked nothing.
 fn assert_silent(extra_env: &[(&str, &str)], args: &[&str], is_tty: bool) {
     let home = tempdir();
     let env = env_with(home.path(), extra_env);
@@ -247,7 +234,6 @@ fn ignores_a_cache_file_that_is_not_the_shape_it_wrote() {
 #[test]
 fn says_nothing_and_fails_nothing_when_the_cache_cannot_be_written() {
     let home = tempdir();
-    // A file where the cache directory should be.
     std::fs::write(home.path().join(CACHE_DIRNAME), "").expect("block the cache");
     let env = env_with(home.path(), &[]);
     let args = argv(&["status"]);

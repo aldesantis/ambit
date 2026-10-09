@@ -1,8 +1,3 @@
-//! The handler's report: the plan as text and as JSON, and what `--dry-run` leaves alone.
-//!
-//! Driven through [`run_self_update`] with a described machine and a fake GitHub, since the
-//! shipped handler reads the real executable and the real network.
-
 use std::path::{Path, PathBuf};
 
 use super::*;

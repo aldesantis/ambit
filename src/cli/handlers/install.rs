@@ -1,23 +1,3 @@
-//! `ambit install`: resolve, write the lock, materialize, record ownership.
-//!
-//! Output names artifacts by their project-relative path, so it is comparable between machines.
-//! The lock is not among them: it's a record of the resolution, not an owned artifact, so nothing
-//! prunes it and it is not ambit's to delete.
-//!
-//! `--dry-run` prints the same two sections the install would print, plus what only a preview can
-//! usefully say: what install would remove, and whether `ambit.lock` and each managed `.gitignore`
-//! block would change. The artifact rows match the real run's shape so the two outputs diff
-//! cleanly.
-//!
-//! A hook a configured harness cannot express is a warning on stderr, and exit stays 0. Stderr
-//! because stdout is the report a script parses and a skip isn't part of what was installed. A
-//! warning, not an error, because the hook did install everywhere else; failing would let one
-//! harness veto every other harness's hooks.
-//!
-//! A new or changed http MCP server from a `trust: review` catalog is a warning on stderr for the
-//! same reason. Hooks and stdio servers are refused before this module sees a result (see
-//! `project/exec.rs`).
-
 use serde_json::json;
 
 use crate::cli::commands::{
@@ -38,13 +18,6 @@ use crate::project::install::{
 use crate::project::lock::LOCK_FILENAME;
 use crate::util::json::{JsonObject, JsonValue, stringify_pretty};
 
-/// `--copy` / `--link`, as the materialization mode they force.
-///
-/// `None` (neither flag) means the mode follows each skill's source; it is the absence of an
-/// override, not a third mode value.
-///
-/// The two together never reach here: they're declared as conflicting options
-/// (`cli/commands.rs`), so the parser refuses the invocation with exit 2 before any handler runs.
 fn mode_override(ctx: &CommandContext<'_>) -> Option<ArtifactMode> {
     if ctx.options.flag("copy") {
         return Some(ArtifactMode::Copy);
@@ -57,7 +30,6 @@ fn mode_override(ctx: &CommandContext<'_>) -> Option<ArtifactMode> {
     None
 }
 
-/// Every flag `install_project` and `preview_install` share, so the two paths cannot diverge.
 fn options_of(ctx: &CommandContext<'_>) -> InstallOptions {
     InstallOptions {
         frozen: ctx.options.flag("frozen"),
@@ -69,11 +41,6 @@ fn options_of(ctx: &CommandContext<'_>) -> InstallOptions {
     }
 }
 
-/// Why one harness could not take one hook, in a sentence.
-///
-/// The two reasons read differently on purpose: one is about the harness as a whole ("opencode
-/// will never run this"), the other about one event it has no counterpart for ("Kiro has no
-/// trigger for compaction").
 fn skip_reason(skipped: &SkippedHook) -> String {
     match skipped.reason {
         HookSkipReason::NoMechanism => {
@@ -86,10 +53,6 @@ fn skip_reason(skipped: &SkippedHook) -> String {
     }
 }
 
-/// One line per skipped hook, named the way its declaration names it.
-///
-/// Shared with `ambit update`, which ends in an install and owes the same warning: a hook a harness
-/// cannot express is still skipped even when it arrived through an updated catalog.
 pub fn skip_warnings(skipped: &[SkippedHook]) -> Vec<String> {
     skipped
         .iter()
@@ -104,10 +67,6 @@ pub fn skip_warnings(skipped: &[SkippedHook]) -> Vec<String> {
         .collect()
 }
 
-/// One line per audit warning about the bundle.
-///
-/// Shared with `ambit update`, which installs through the same audit. Stderr, beside the skipped
-/// hooks, for the same reason: the install went ahead, and stdout is the report of what it wrote.
 pub fn audit_warnings(findings: &[AuditFinding]) -> Vec<String> {
     findings
         .iter()
@@ -115,9 +74,6 @@ pub fn audit_warnings(findings: &[AuditFinding]) -> Vec<String> {
         .collect()
 }
 
-/// One line per http MCP server whose endpoint the lock did not hold.
-///
-/// Shared with `ambit update`, which installs through the same gate.
 pub fn endpoint_warnings(endpoints: &[ExecChange]) -> Vec<String> {
     endpoints
         .iter()
@@ -133,8 +89,6 @@ pub fn endpoint_warnings(endpoints: &[ExecChange]) -> Vec<String> {
         .collect()
 }
 
-/// One skipped hook as a JSON record. Carries the reason kind, not the sentence; wording is the
-/// text renderer's job.
 pub fn skip_json(skipped: &SkippedHook) -> JsonObject {
     let mut record = JsonObject::new();
 
@@ -145,7 +99,6 @@ pub fn skip_json(skipped: &SkippedHook) -> JsonObject {
     record
 }
 
-/// Each artifact as a JSON record, as a JSON array.
 fn artifacts_json<A: ReportedArtifact>(artifacts: &[A]) -> JsonValue {
     JsonValue::Array(
         artifacts
@@ -228,9 +181,6 @@ fn preview_text(preview: &InstallPreview) -> Vec<String> {
     lines
 }
 
-/// # Errors
-///
-/// Whatever the install returns, already in the standard message shape.
 pub fn install_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
     let options = options_of(ctx);
     let project_dir = project_dir_of(ctx);

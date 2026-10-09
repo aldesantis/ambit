@@ -1,25 +1,3 @@
-//! Git sources end to end, against a bare repository on the local filesystem: `file://` is a git
-//! URL like any other, so ambit needs no test mode and no test needs a network.
-//!
-//! The claim under test is that a git source is not a second kind of catalog. The same fixture,
-//! installed once from a repository and once from a directory, must leave byte-identical projects
-//! behind; anything else means fetching quietly changed what a project gets. The two files that
-//! record *where* it came from are the deliberate exception, and are named in [`PER_SOURCE_FILES`];
-//! the materialization mode is the other one, since a commit is copied and a working directory is
-//! linked, so the comparison passes `--copy` on the directory side.
-//!
-//! The second claim is about the cache: a resolve that the cache can already answer must not touch
-//! the remote. That is asserted the only way it can be believed: by deleting the remote between the
-//! two runs.
-//!
-//! The third is `--offline`, which is the same claim from the other side: with the remote present
-//! and perfectly reachable, an offline run against a cold cache has to fail rather than quietly
-//! fetch. Deleting the remote proves the cache can answer; leaving it in place proves ambit did not
-//! ask it to.
-//!
-//! The CLI cases need the catalog loader (B1) and install (B4). The `fetch` cases below them drive
-//! [`fetch_git_source`] directly, so this module's own behaviour is pinned without either.
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -41,13 +19,8 @@ const CATALOG_NAME: &str = "company";
 const CORE_SKILL: &str = "company-context";
 const SKILLS_DIR: &str = ".agents/skills";
 
-/// Selects three skills and the `tagged` server, so the comparison covers every artifact kind.
 const TAGS: &[&str] = &["core", "function.engineering", "function.engineering.*"];
 
-/// Files whose contents must differ between the two projects, and so cannot take part in the
-/// comparison: `ambit.yml` names a different source, which is the whole experiment, and
-/// `ambit.lock` records that source and the commit behind it. A git source has one and a directory
-/// has none, so a lock that matched would mean the lock was not doing its job.
 const PER_SOURCE_FILES: &[&str] = &["ambit.yml", "ambit.lock"];
 
 struct World {
@@ -60,11 +33,6 @@ struct World {
     path_project: PathBuf,
 }
 
-/// The fixture catalog as a directory and as a repository, and one project on each.
-///
-/// The cache is machine-wide, so every test points it somewhere disposable rather than writing into
-/// the developer's real one. `LINTER_API_KEY`, which the tagged server interpolates, is left unset
-/// so the file is predictable.
 fn world() -> World {
     let dir = tempdir();
     let root = dir.path().to_path_buf();
@@ -90,8 +58,6 @@ fn world() -> World {
     }
 }
 
-/// Writes a project pointing one catalog at `source`. `extra` lines are appended after the
-/// `requires` list.
 fn write_project(dir: &Path, source: &str, r#ref: Option<&str>, extra: &[&str]) {
     let ref_line = r#ref.map_or(String::new(), |r#ref| format!("    ref: \"{ref}\"\n"));
     let requires: Vec<String> = TAGS
@@ -112,7 +78,6 @@ fn write_project(dir: &Path, source: &str, r#ref: Option<&str>, extra: &[&str]) 
 }
 
 impl World {
-    /// Runs the CLI against one project.
     fn cli(&self, dir: &Path, argv: &[&str]) -> CliResult {
         let dir = dir.to_string_lossy();
         let mut args = argv.to_vec();
@@ -120,7 +85,6 @@ impl World {
         run_cli(&args, &self.root, &self.env)
     }
 
-    /// Where the fixture repository is cached, and where its commit is checked out.
     fn cache_paths(&self) -> (PathBuf, PathBuf) {
         let cache = cache_root(&self.env);
         let key = git_cache_key(&self.fixture.url);
@@ -131,7 +95,6 @@ impl World {
         )
     }
 
-    /// The catalog the git-source project resolves to, loaded in process so `commit` is visible.
     fn git_catalog(&self) -> (PathBuf, Option<String>) {
         let config = load_project_config(&self.git_project).expect("load the config");
         let context = SourceContext {
@@ -162,10 +125,6 @@ impl World {
     }
 }
 
-/// Every file ambit left in a project, keyed by relative path and carrying its contents.
-///
-/// Symlinks are followed: a `path:` catalog's skills are linked by default, and what this compares
-/// is the files a harness would read, not how they got there.
 fn installed(dir: &Path) -> BTreeMap<String, String> {
     fn walk(current: &Path, relative: &str, found: &mut BTreeMap<String, String>) {
         for entry in crate::util::fs::read_dir_names(current).expect("list a directory") {
@@ -205,15 +164,9 @@ fn remove(target: &Path) {
     crate::util::fs::rm_rf(target).expect("remove");
 }
 
-// A catalog fetched from git.
-
 #[test]
 fn installs_exactly_what_the_same_catalog_installs_from_a_directory() {
     let w = world();
-    // `--copy` on the directory side, because that is the one thing the two sources legitimately
-    // disagree about: a commit is immutable and gets copied, a working directory gets linked, and
-    // state records which. Everything else, every skill and every server key, must match byte for
-    // byte, so the flag is what keeps this comparison about fetching.
     assert_success(&w.cli(&w.path_project, &["install", "--copy"]));
     assert_success(&w.cli(&w.git_project, &["install"]));
 
@@ -296,7 +249,6 @@ fn resolves_from_the_cache_on_a_second_run_with_the_remote_gone() {
     assert_success(&w.cli(&w.git_project, &["install"]));
     let before = installed(&w.git_project);
 
-    // Nothing but the cache can answer now, so a second run that succeeds fetched nothing.
     remove(&w.fixture.repo);
 
     assert_success(&w.cli(&w.git_project, &["install"]));
@@ -336,11 +288,6 @@ fn shares_one_clone_between_the_url_and_its_git_spelling() {
     );
 }
 
-// The lock a git source writes: the commit half of the lock, which only a git source can exercise.
-// A `path:` catalog has no revision to pin, so this is the only place the lock's `commit` fields
-// can be shown to be real.
-
-/// The lock as ambit's own parser reads it, which also proves what was emitted is loadable.
 fn lock(dir: &Path) -> YamlMapping {
     let text = crate::util::fs::read_text(&dir.join(LOCK_FILENAME)).expect("read the lock");
 
@@ -390,8 +337,6 @@ fn leaves_the_commit_out_for_a_catalog_read_from_a_directory() {
     assert_eq!(entry.optional_string("commit").unwrap(), None);
     assert_eq!(entry.require_string("source").unwrap(), "path:../catalog");
 }
-
-// Git source failures.
 
 #[test]
 fn exits_2_for_a_ref_the_repository_does_not_have() {
@@ -449,9 +394,6 @@ fn exits_4_for_a_repository_that_is_not_there() {
     assert!(result.stderr.contains("git said:"));
 }
 
-// --offline.
-
-/// Fills the cache the way a normal run does, so an offline run has something to work from.
 fn warm_the_cache(w: &World) {
     assert_success(&w.cli(&w.git_project, &["install"]));
 }
@@ -485,8 +427,6 @@ fn offline_installs_a_project_that_never_fetched_from_the_cache_another_project_
 fn offline_checks_a_commit_out_from_a_clone_it_already_has() {
     let w = world();
     warm_the_cache(&w);
-    // The clone stays; only the materialized checkout goes, which is the case the cache can still
-    // answer without asking anyone.
     let (_, checkouts) = w.cache_paths();
 
     remove(&checkouts.join(&w.fixture.commit));
@@ -505,8 +445,6 @@ fn offline_checks_a_commit_out_from_a_clone_it_already_has() {
 #[test]
 fn offline_exits_4_naming_the_catalog_it_would_have_had_to_clone_and_clones_nothing() {
     let w = world();
-    // The remote is right there and reachable, so a run that succeeds fetched something it was
-    // told not to.
     let result = w.cli(&w.git_project, &["install", "--offline"]);
 
     assert_eq!(result.code, ExitCode::Network);
@@ -534,7 +472,6 @@ fn offline_exits_4_for_a_ref_the_cached_clone_was_never_told_about_without_fetch
     assert!(result.stderr.contains(&format!(
         "cannot resolve ref \"v2\" from the cache for catalog \"{CATALOG_NAME}\""
     )));
-    // The online path would have tried a fetch before deciding, and said so.
     assert!(!result.stderr.contains("cannot fetch"));
 }
 
@@ -547,8 +484,6 @@ fn offline_has_nothing_to_say_about_a_catalog_read_from_a_directory() {
         installed(&w.path_project).contains_key(&format!("{SKILLS_DIR}/{CORE_SKILL}/SKILL.md"))
     );
 }
-
-// fetch_git_source on its own.
 
 #[test]
 fn fetch_clones_into_the_cache_and_checks_the_commit_out_there() {
@@ -699,7 +634,6 @@ fn fetch_exits_4_for_a_repository_that_is_not_there_and_leaves_nothing() {
         "cannot clone catalog \"company\" (ambit.yml line 3)"
     );
     assert!(error.detail[0].starts_with("git said:"), "{error:?}");
-    // A failed clone must leave nothing a later run would mistake for a cache hit.
     let repos = cache_root(&w.env).join(REPOS_DIRNAME).join("local");
     let leftovers = crate::util::fs::read_dir_names(&repos).unwrap_or_default();
 
@@ -789,7 +723,6 @@ fn fetch_checks_a_commit_out_offline_from_a_clone_it_already_has() {
     );
 }
 
-/// A second commit on the branch, leaving the tag where it was.
 fn advance_the_remote(w: &World) -> String {
     commit_fixture_git_revision(
         &w.fixture,
@@ -823,7 +756,6 @@ fn fetch_stays_on_the_cached_commit_until_asked_to_advance() {
 
     assert_eq!(probed.commit, moved);
     assert_eq!(probed.moving, Some(true));
-    // A probe leaves the clone's own refs where they were.
     assert_eq!(
         fetch_git_source(&w.request(Some("main")))
             .expect("fetch")
@@ -877,7 +809,6 @@ fn fetch_checks_a_pin_out_without_resolving_the_ref() {
     fetch_git_source(&w.request(None)).expect("fetch");
     let moved = advance_the_remote(&w);
 
-    // The pin is not in the warm clone, so it is fetched once.
     let pinned = GitFetchRequest {
         pin: Some(moved.clone()),
         ..w.request(Some("v1"))
@@ -942,7 +873,6 @@ fn keys_unparseable_and_scp_shapes() {
         git_cache_key("Git.Acme.Test:acme/skills"),
         "git.acme.test/acme/skills"
     );
-    // A colon followed by a slash is not the scp shape.
     assert_eq!(git_cache_key("c:/repos/skills"), "local/c-/repos/skills");
     assert_eq!(
         git_cache_key("https://GitHub.com/a%20b/c d.git"),

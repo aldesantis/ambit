@@ -1,18 +1,3 @@
-//! `ambit validate`, for CI: one report over one subject.
-//!
-//! Validates everything a project configures: every catalog it lists, and its own `requires`
-//! entries. This also covers a catalog repo, since a catalog repo lists itself as `source: path:.`,
-//! so its `packs/`, `skills/`, `mcps/` and `hooks/` arrive as an ordinary catalog and get checked
-//! the same way.
-//!
-//! The report is printed and the exit code carries the verdict, like `status --check`: a catalog
-//! with problems is a finding, not a failure of ambit's, and a CI job needs both the list to fix
-//! and the code to fail on.
-//!
-//! A clean run still prints what it checked, since "no problems found" alone would be
-//! indistinguishable from a run that found nothing to look at (e.g. a catalog whose skills all
-//! failed to be discovered).
-
 use serde_json::json;
 
 use crate::cli::commands::{CommandContext, json_requested, source_context_of};
@@ -57,9 +42,6 @@ fn count(total: usize, noun: &str) -> String {
     format!("{total} {noun}{}", if total == 1 { "" } else { "s" })
 }
 
-/// The problems block: each summary indented like a section row, each detail line indented under
-/// it the way an error's own `format()` does. Column padding is deliberately absent: these are
-/// sentences, not a table.
 fn problem_lines(problems: &[ValidationProblem]) -> Vec<String> {
     let mut lines = vec![format!("problems ({})", problems.len())];
 
@@ -93,13 +75,6 @@ fn to_text(report: &ValidationReport) -> Vec<String> {
     lines
 }
 
-/// `ambit validate`: everything the project configures, the project's own catalog included.
-///
-/// # Errors
-///
-/// Exit 2 for a missing or malformed config, an unresolvable source, or a catalog that does not
-/// parse; exit 4 if a fetch fails. Problems are a report, not an error: they exit 3 through the
-/// returned code.
 pub fn validate_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
     let found = validate_project(&source_context_of(ctx))?;
 

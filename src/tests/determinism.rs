@@ -1,37 +1,7 @@
-//! Determinism, as a suite.
-//!
-//! Determinism is a requirement rather than a preference: sort every collection before iterating,
-//! never depend on map order, never emit a timestamp, never let filesystem read order reach output.
-//! Each module's tests assert their own corner of it (`ambit.lock`'s bytes,
-//! `resolve --explain --json`, the catalog report, both scaffolds). This file is the systematic
-//! version. One table lists every surface ambit prints; every surface is run twice, then run again
-//! with every directory listing permuted, and the bytes must not move. **Adding a command means
-//! adding a row to [`surfaces!`]**, which is the whole of extending this file.
-//!
-//! Read order is permuted through [`util::fs::read_order`](crate::util::fs::read_order), not by
-//! rebuilding the fixture in a different order. The order a filesystem hands entries back in is not
-//! something a test can arrange (APFS answers in one stable hash order, ext4 in another, and neither
-//! is the creation order a test could shuffle), so a hook in the one directory-listing function is
-//! the only way to make the second determinism claim testable at all. That makes the hook
-//! load-bearing: a suite whose shuffle quietly stopped applying would pass forever, so the first
-//! cases below prove the permutation reaches the listings *ambit* reads. Clippy's
-//! `disallowed-methods` on `std::fs::read_dir` is what keeps every listing going through it.
-//!
-//! Nothing in the surface table writes, so each case shares one installed project, one catalog and
-//! one empty directory among its surfaces; the "wrote nothing" case is what pins that, and it is
-//! the reason the `--dry-run` previews are safe to list beside the read-only commands.
-//!
-//! One thing the table cannot do on its own: every surface in it is sorted twice over (a catalog's
-//! directory entries as they are read, its items again before they are emitted), so a single
-//! missing sort moves none of those bytes. The "report of problems" cases near the end are where
-//! the shuffle bites, because a problem list and a duplicate-stem refusal are in *found* order and
-//! have nothing but the entry sort protecting them. Read the two together: the table says the
-//! surfaces are stable, and those cases say the mechanism keeping them stable is still there.
-//!
-//! The hook is thread-local and every CLI run here is in-process on the test's own thread, so
-//! parallel test threads never see each other's permutation.
+//! The `read_order` hook is thread-local: every CLI run here must stay in-process on the
+//! test's own thread so parallel tests never see each other's permutation.
 
-#![allow(clippy::disallowed_methods)] // The snapshot walks with std::fs on purpose: see `snapshot`.
+#![allow(clippy::disallowed_methods)]
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -49,14 +19,8 @@ const CATALOG_NAME: &str = "company";
 
 const CORE_SKILL: &str = "company-context";
 
-/// The pack this file writes to gather [`EXTRA_HOOKS`], since nothing labels itself any more.
 const EXTRA_PACK: &str = "determinism.extras";
 
-/// Enough packs to select every skill and server the fixture holds, so each surface has as much to
-/// sort as it can. The third is a descendant of the second by name, which takes an entry of its
-/// own: a name is a name, and there is no subtree rule that would reach it implicitly.
-///
-/// The last is this file's own, written beside the extra hooks below.
 const SELECTED_PACKS: &[&str] = &[
     "core",
     "function.engineering",
@@ -65,12 +29,6 @@ const SELECTED_PACKS: &[&str] = &[
     EXTRA_PACK,
 ];
 
-/// Three hooks written into the catalog copy this file owns.
-///
-/// Beyond the three the fixture ships, and arranged so both orderings a hook config file has are
-/// non-trivial: two share an event, so an array's own order has to come from the bundle, and the
-/// event keys are written in an order that is not the order the names sort in. All three are
-/// gathered into [`EXTRA_PACK`], which the project selects.
 const EXTRA_HOOKS: &[(&str, &[&str])] = &[
     (
         "guard",
@@ -91,22 +49,13 @@ const EXTRA_HOOKS: &[(&str, &[&str])] = &[
     ),
 ];
 
-/// The fixture's two credentials, stubbed so no surface depends on the developer's environment.
 const ENV_STUBS: &[(&str, &str)] = &[
     ("LINTER_API_KEY", "determinism-linter-key"),
     ("FIXTURE_API_KEY", "determinism-fixture-key"),
 ];
 
-/// The orders every claim here is repeated under, beyond the filesystem's own.
 const SHUFFLED: [ReadOrder; 2] = [ReadOrder::Reversed, ReadOrder::Rotated];
 
-/// Which of the two directories a surface is pointed at.
-///
-/// Both are named by `--project`, the only directory flag there is. `Empty` is a project directory
-/// with nothing in it, which exists for the one surface whose subject is the *absence* of a
-/// project: `ambit init` refuses a directory that already holds a config, so it cannot be aimed at
-/// `Project` like the rest. `Reviewed` is the same profile with its catalog at `trust: review` and
-/// never installed, for the execution gate's refusal, whose order is the bundle's.
 #[derive(Clone, Copy, Debug)]
 enum Subject {
     Project,
@@ -114,16 +63,13 @@ enum Subject {
     Reviewed,
 }
 
-/// One thing ambit prints, and which directory it is pointed at.
 #[derive(Clone, Copy, Debug)]
 struct Surface {
-    /// The words a user types, without the directory flag.
     argv: &'static [&'static str],
     dir: Subject,
 }
 
 impl Surface {
-    /// How a surface's case is titled: what a reader would have to type to reproduce it.
     fn title(&self) -> String {
         let dir = match self.dir {
             Subject::Project => "project",
@@ -135,24 +81,10 @@ impl Surface {
     }
 }
 
-/// Declares [`SURFACES`] and, for every row, one case per claim, so a failure names the surface.
-///
-/// Text and `--json` are separate rows on purpose: they are two renderings, and only one of them is
-/// covered by the goldens. The `--dry-run` rows are here because a preview is a report: the one
-/// surface of a mutating command that prints without writing, and the one nothing else asserts
-/// twice. They preview a project's init, install, prune and clean, which is every command that
-/// writes.
-///
-/// The project's one catalog is a `path:` source, so `outdated` and `update --dry-run` reach no
-/// remote and report it as `unversioned`, which is the case worth pinning here rather than in spite
-/// of it: a report whose rows depend on nothing outside the fixture is exactly what a determinism
-/// table can assert.
 macro_rules! surfaces {
     ($($name:ident: [$($arg:expr),+] in $dir:ident;)+) => {
-        /// Every surface whose bytes this file pins.
         const SURFACES: &[Surface] = &[$(Surface { argv: &[$($arg),+], dir: Subject::$dir }),+];
 
-        /// Every surface prints the same bytes twice.
         mod twice {
             #[allow(clippy::wildcard_imports)]
             use super::*;
@@ -168,7 +100,6 @@ macro_rules! surfaces {
             )+
         }
 
-        /// Every surface ignores the order the filesystem lists directories in.
         mod shuffled {
             #[allow(clippy::wildcard_imports)]
             use super::*;
@@ -221,7 +152,6 @@ surfaces! {
     install_dry_run_refused_json: ["install", "--dry-run", "--json"] in Reviewed;
 }
 
-/// One installed project beside its catalog, and an empty directory, under one temporary root.
 struct Fixture {
     root: tempfile::TempDir,
     env: Env,
@@ -229,9 +159,7 @@ struct Fixture {
     project: PathBuf,
     empty: PathBuf,
     reviewed: PathBuf,
-    /// The project as install left it.
     installed: BTreeMap<String, String>,
-    /// The catalog as the fixture builder left it.
     built: BTreeMap<String, String>,
 }
 
@@ -309,12 +237,10 @@ fn cli(argv: &[&str], cwd: &Path, env: &Env) -> CliResult {
     run_cli(argv, cwd, env)
 }
 
-/// One `requires` entry, taking a whole pack from the catalog.
 fn requires_entry(pack: &str) -> String {
     format!("  - {{ pack: \"{CATALOG_NAME}/{pack}\" }}")
 }
 
-/// Points a project at a sibling `catalog/` directory and takes every pack the fixture declares.
 fn write_profile(dir: &Path) {
     let entries: Vec<String> = SELECTED_PACKS
         .iter()
@@ -331,7 +257,6 @@ fn write_profile(dir: &Path) {
     .expect("write ambit.yml");
 }
 
-/// [`write_profile`], with the catalog at `trust: review`.
 fn write_reviewed_profile(dir: &Path) {
     write_profile(dir);
 
@@ -348,10 +273,6 @@ fn write_reviewed_profile(dir: &Path) {
     .expect("write ambit.yml");
 }
 
-/// Adds [`EXTRA_HOOKS`] to the catalog, and the pack that gathers them.
-///
-/// The pack is nested one directory deep, so this file's own catalog edit exercises the `packs/**`
-/// walk rather than only the flat case.
 fn write_extra_hooks(dir: &Path) {
     for (name, lines) in EXTRA_HOOKS {
         let target = dir.join("hooks").join(name);
@@ -385,13 +306,8 @@ fn write_extra_hooks(dir: &Path) {
     .expect("write the pack");
 }
 
-/// Every path under `dir`, relative and `/`-separated, mapped to what is there: a file's bytes, or
-/// `-> target` for a symlink.
-///
-/// Deliberately does not follow a link. Which of the two shapes install chose is part of what has
-/// to stay stable, and descending into a linked skill would compare the catalog's own bytes
-/// instead. Walks with `std::fs::read_dir`, so the snapshot itself neither records nor permutes a
-/// listing.
+/// Deliberately does not follow links, and walks with `std::fs::read_dir` so the snapshot
+/// neither records nor permutes a listing.
 fn snapshot(dir: &Path) -> BTreeMap<String, String> {
     fn walk(current: &Path, relative: &str, found: &mut BTreeMap<String, String>) {
         for entry in fs::read_dir(current).expect("list a directory") {
@@ -447,9 +363,6 @@ fn ignores_the_read_order(surface: Surface) {
     }
 }
 
-// The shuffled read order this suite relies on. Both cases fail loudly rather than vacuously: the
-// first if the permutation stops permuting, the second if it stops reaching ambit's own listings.
-
 #[test]
 fn hands_a_directorys_entries_back_in_a_different_order_under_each_shuffle() {
     let dir = tempdir();
@@ -496,8 +409,6 @@ fn permutes_the_listings_ambit_reads_not_only_the_ones_this_file_reads() {
 
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
 
-    // Every half of a catalog is walked through the hook, so a sort removed from any one would
-    // show up in the cases below rather than passing unobserved.
     let seen = take_seen();
 
     for half in ["skills", "mcps", "packs"] {
@@ -510,10 +421,6 @@ fn permutes_the_listings_ambit_reads_not_only_the_ones_this_file_reads() {
         );
     }
 }
-
-// No surface carries anything machine-specific: output that named a machine path or the wall
-// clock would differ between two machines even though it is stable on one, which is the failure a
-// golden file cannot catch.
 
 #[test]
 fn names_no_absolute_path_from_this_machine() {
@@ -556,8 +463,6 @@ fn prints_no_date_and_no_clock_time() {
     }
 }
 
-// The `Reviewed` rows are only worth having if what they pin is the refusal.
-
 #[test]
 fn the_reviewed_project_is_refused_by_the_execution_gate() {
     let fixture = Fixture::new();
@@ -578,10 +483,6 @@ fn the_reviewed_project_is_refused_by_the_execution_gate() {
         result.stderr
     );
 }
-
-// Nothing in the surface table touches disk: the guard on sharing one project and one catalog
-// across every surface. Each row is either read-only or a `--dry-run`, and a row that turned out
-// to write would have corrupted the fixture for whatever ran after it.
 
 #[test]
 fn nothing_in_the_surface_table_touches_disk() {
@@ -613,16 +514,6 @@ fn nothing_in_the_surface_table_touches_disk() {
     );
 }
 
-/// A broken *catalog repo*: a copy of the fixture carrying the three-line `ambit.yml` that lists
-/// itself, which is how a catalog is validated.
-///
-/// The two cases using it are what make the shuffle more than a formality. Everything the table
-/// asserts is protected twice over, so a single missing sort would not move any of those bytes.
-/// These two do move: a report of *problems* is in the order they were found, and the two documents
-/// in a duplicate-stem refusal are named in the order the directory listed them, so nothing but the
-/// entry sort stands between read order and output. Both are `ambit validate`, the surface that
-/// reports rather than throws on the first offender. Every catalog here is a per-test copy: the
-/// shared fixture has to stay valid.
 struct BrokenCatalog {
     root: tempfile::TempDir,
     env: Env,
@@ -636,8 +527,6 @@ impl BrokenCatalog {
         let catalog = root.path().join("catalog");
 
         build_fixture_catalog(&catalog).expect("build the fixture catalog");
-        // What makes the directory a project as well as a catalog, and so `ambit validate`'s
-        // subject.
         fs::write(
             catalog.join("ambit.yml"),
             "version: 1\ncatalogs:\n  - name: local\n    source: path:.\n",
@@ -647,8 +536,6 @@ impl BrokenCatalog {
         Self { root, env, catalog }
     }
 
-    /// Adds a skill whose frontmatter `name` disagrees with its path: the one problem parsing
-    /// collects.
     fn write_mismatched_skill(&self, relative: &str, declared: &str) {
         let target = self.catalog.join("skills").join(relative);
 
@@ -670,7 +557,6 @@ impl BrokenCatalog {
         })
     }
 
-    /// Asserts the two shuffles print exactly what the filesystem's own order printed.
     fn assert_stable(&self, expected: &CliResult) {
         for order in SHUFFLED {
             assert_eq!(&self.validate(order), expected, "read order: {order:?}");
@@ -693,7 +579,6 @@ fn lists_two_skills_whose_names_disagree_with_their_paths_in_one_order() {
         "{}",
         baseline.stdout
     );
-    // The report is in the order the walk found them, so the sort has to be in the walk.
     let alpha = baseline
         .stdout
         .find("broken-alpha")
@@ -731,12 +616,6 @@ fn names_the_two_documents_defining_one_mcp_entity_in_one_order() {
     broken.assert_stable(&baseline);
 }
 
-/// The write path's own determinism: the whole installed tree (lock, state, `.mcp.json`, the
-/// gitignore block, and every symlink target) comes out the same when the catalog's directories are
-/// read in a different order.
-///
-/// Each order installs into its own project directory, all of them siblings of one catalog, so the
-/// relative symlinks a linked skill carries are comparable between them.
 #[test]
 fn ambit_install_puts_identical_bytes_and_identical_links_in_every_project() {
     let root = tempdir();

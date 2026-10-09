@@ -1,8 +1,3 @@
-//! `ambit export`: selected packs as Claude plugins.
-//!
-//! The export is built in full in memory, compared or written as one tree, and swapped into place
-//! by rename, so a failed export never leaves a half-written directory where the previous one was.
-
 pub mod claude;
 pub mod files;
 pub mod resolve;
@@ -27,7 +22,6 @@ use crate::util::cmp::js_cmp;
 use crate::util::fs::{mkdir_p, rm_rf, symlink_dir, symlink_file};
 use crate::util::path::{join, resolve};
 
-/// The prefix of the staging and backup directories made beside the output.
 const STAGING_PREFIX: &str = ".ambit-export-";
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -39,7 +33,6 @@ pub struct ExportOptions {
     pub check: bool,
 }
 
-/// One exported plugin, as the command reports it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExportedPlugin {
     pub name: String,
@@ -53,7 +46,6 @@ pub struct ExportResult {
     pub plugins: Vec<ExportedPlugin>,
 }
 
-/// A fresh directory beside `output`, kept until the caller removes or renames it.
 fn sibling_tempdir(output: &Path) -> Result<PathBuf> {
     let parent = output.parent().unwrap_or(output);
 
@@ -64,8 +56,6 @@ fn sibling_tempdir(output: &Path) -> Result<PathBuf> {
         .map_err(|error| io_failed(&error, parent))
 }
 
-/// Sets a written file's permission bits. Windows has none beyond read-only, so nothing is set
-/// there.
 fn set_mode(target: &Path, mode: u32) -> std::io::Result<()> {
     #[cfg(unix)]
     {
@@ -81,7 +71,6 @@ fn set_mode(target: &Path, mode: u32) -> std::io::Result<()> {
     }
 }
 
-/// Writes `tree` under `staging`, reusing the bytes of unchanged files from `current`.
 fn write_tree(staging: &Path, tree: &ExportTree, current: &ExportTree) -> Result<()> {
     for (relative, file) in tree {
         let target = join(staging, relative);
@@ -115,8 +104,6 @@ fn write_tree(staging: &Path, tree: &ExportTree, current: &ExportTree) -> Result
     Ok(())
 }
 
-/// Moves `staging` to `output`, replacing an existing export through a backup that is restored
-/// if the second rename fails.
 fn swap_into_place(staging: &Path, output: &Path, existing: bool) -> Result<()> {
     if existing {
         let backup = sibling_tempdir(output)?;
@@ -130,11 +117,9 @@ fn swap_into_place(staging: &Path, output: &Path, existing: bool) -> Result<()> 
 
         return match replaced {
             Ok(()) => {
-                // The new export is in place; a leftover backup is only clutter.
                 let _ = rm_rf(&backup);
                 Ok(())
             }
-            // Keep the backup available if restoring the previous export also failed.
             Err(error) => Err(config_error(
                 format!("cannot replace export at {}", output.display()),
                 [
@@ -145,7 +130,6 @@ fn swap_into_place(staging: &Path, output: &Path, existing: bool) -> Result<()> 
         };
     }
 
-    // Reserve exclusively so concurrent exports cannot replace another writer's output.
     std::fs::create_dir(output).map_err(|error| io_failed(&error, output))?;
 
     if let Err(error) = std::fs::rename(staging, output) {
@@ -156,12 +140,6 @@ fn swap_into_place(staging: &Path, output: &Path, existing: bool) -> Result<()> 
     Ok(())
 }
 
-/// Exports or checks selected packs, honoring existing catalog lock pins.
-///
-/// # Errors
-///
-/// Exit 2 for invalid packages or an existing output; exit 3 for resolution errors; exit 5 for
-/// drift.
 pub fn export_plugins(context: &SourceContext, options: &ExportOptions) -> Result<ExportResult> {
     let output = resolve(&context.project_dir, &options.output);
 

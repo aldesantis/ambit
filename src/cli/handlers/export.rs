@@ -1,5 +1,3 @@
-//! `ambit export`: selected packs as Claude plugins.
-
 use crate::cli::commands::{CommandContext, dry_run_requested, json_requested, source_context_of};
 use crate::errors::{ExitCode, Result, config_error};
 use crate::export::{ExportOptions, ExportResult, export_plugins};
@@ -25,9 +23,6 @@ fn to_json(result: &ExportResult) -> JsonValue {
     JsonValue::Object(record)
 }
 
-/// # Errors
-///
-/// Whatever the command's own operation returns, already in the standard message shape.
 pub fn export_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
     let (Some("claude-plugin"), Some(output)) =
         (ctx.options.value("format"), ctx.options.value("output"))

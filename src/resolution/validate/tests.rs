@@ -1,19 +1,3 @@
-//! Full-catalog validation: `ambit validate`, one command over one subject.
-//!
-//! A catalog repo lists **itself**, so the case a separate catalog command once existed for is a
-//! project like any other and is asserted here as one; see the catalog-repo cases.
-//!
-//! Two claims carry this suite. The first is the split from resolution: validation must find what
-//! `resolve` deliberately ignores, so the broken-but-unselected cases assert *both* commands: exit
-//! 0 from `resolve` and exit 3 from `validate`, on the same catalog.
-//!
-//! The second is that a CI command lists every problem. Each case that could stop at the first one
-//! plants two problems and asserts both, because "exits 3" would pass either way and the whole
-//! point of the command is not having to run it six times.
-//!
-//! Every mutation lands in the per-test copy of the fixture catalog. The shared fixture must stay
-//! clean: it is what a golden profile resolves against, and this suite asserts it validates.
-
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -33,17 +17,13 @@ use crate::util::env::Env;
 
 const CATALOG_NAME: &str = "company";
 
-/// The fixture's shape, which a clean report counts back.
 const FIXTURE_PACKS: usize = 4;
 const FIXTURE_SKILLS: usize = 4;
 const FIXTURE_MCPS: usize = 2;
 const FIXTURE_HOOKS: usize = 3;
 
-/// [`Fixture::write_profile`] puts the first `requires` entry here, after the four-line preamble
-/// and the key.
 const FIRST_ENTRY_LINE: usize = 6;
 
-/// What a clean catalog reports: what was checked, and an explicitly empty problem list.
 fn clean_report() -> String {
     [
         format!(
@@ -56,26 +36,18 @@ fn clean_report() -> String {
     .join("\n")
 }
 
-/// One `requires` entry, taking a whole pack from `catalog`.
 fn requires_entry(pack: &str, catalog: &str) -> String {
     format!("  - {{ pack: \"{catalog}/{pack}\" }}")
 }
 
-/// One entry of a skill's own `requires`, **unqualified**: the spelling a catalog demands, since
-/// the alias in `catalogs:` belongs to the consumer and a catalog author cannot write it.
-///
-/// By exact name, a pattern with no wildcard, because what these cases are about is which edges
-/// the report finds rather than what a glob reaches.
 fn needs(kind: &str, name: &str) -> String {
     format!("{{ {kind}: \"{name}\" }}")
 }
 
-/// A skill's whole `requires` list as one annotation line, from [`needs`] entries.
 fn requires(entries: &[String]) -> String {
     format!("requires: [{}]", entries.join(", "))
 }
 
-/// The annotation lines as §3.2 nests them: under a top-level `ambit:`, indented with it.
 fn ambit_block(annotations: &[String]) -> Vec<String> {
     if annotations.is_empty() {
         return Vec::new();
@@ -95,14 +67,12 @@ fn strip(text: &str) -> String {
     text.strip_suffix('\n').unwrap_or(text).to_owned()
 }
 
-/// What one CLI run printed, each stream's lines joined by `\n` with no trailing newline.
 struct Out {
     code: ExitCode,
     stdout: String,
     stderr: String,
 }
 
-/// One problem's `kind`, `message`, and `detail`, as `--json` reports them.
 #[derive(Debug, PartialEq, Eq)]
 struct ProblemRecord {
     kind: String,
@@ -110,7 +80,6 @@ struct ProblemRecord {
     detail: Vec<String>,
 }
 
-/// The `--json` report, parsed.
 struct Report {
     valid: bool,
     checked: Value,
@@ -143,8 +112,6 @@ impl Fixture {
         fixture
     }
 
-    /// Points the project at the fixture catalog and gives it a `requires` list, one `pack:`
-    /// entry per pack.
     fn write_profile(&self, packs: &[&str]) {
         let list = if packs.is_empty() {
             "[]".to_owned()
@@ -167,10 +134,6 @@ impl Fixture {
         );
     }
 
-    /// Adds a skill to the catalog copy this test owns, its name derived from its path per §2.
-    ///
-    /// `within` is the catalog root to write it into, so a case about two catalogs providing one
-    /// name can put a copy in each.
     fn write_skill_within(within: &Path, relative: &str, annotations: &[String]) {
         let mut text = vec![
             "---".to_owned(),
@@ -189,8 +152,6 @@ impl Fixture {
         Self::write_skill_within(&self.catalog_dir, relative, annotations);
     }
 
-    /// The same, with a frontmatter `name` the path does not derive: the one recoverable
-    /// violation.
     fn write_misnamed_skill(&self, relative: &str, declared: &str) {
         write(
             &self
@@ -210,7 +171,6 @@ impl Fixture {
         );
     }
 
-    /// Adds a hook, its name derived from its directory per §2.
     fn write_hook(&self, name: &str, lines: &[&str]) {
         let mut text = vec![format!("name: {name}")];
 
@@ -241,20 +201,14 @@ impl Fixture {
         }
     }
 
-    /// Runs the CLI against the project, collecting stdout and stderr.
     fn cli(&self, args: &[&str]) -> Out {
         self.run(args, &self.project_dir)
     }
 
-    /// The same, pointed at the catalog directory rather than at the project: how a catalog
-    /// repo's CI invokes the command, once the repo carries the three-line `ambit.yml` that lists
-    /// itself.
     fn cli_in_catalog_repo(&self, args: &[&str]) -> Out {
         self.run(args, &self.catalog_dir)
     }
 
-    /// Turns the fixture catalog into a catalog *repo*: what `ambit init` scaffolds for one. No
-    /// `requires:` list at all.
     fn write_self_listing_config(&self) {
         write(
             &self.catalog_dir.join("ambit.yml"),
@@ -269,7 +223,6 @@ impl Fixture {
         );
     }
 
-    /// The `--json` report, parsed.
     fn report(&self) -> Report {
         let result = self.cli(&["validate", "--json"]);
         let parsed: Value = serde_json::from_str(&result.stdout).expect("JSON");
@@ -404,7 +357,6 @@ fn lists_parsed_problems_first_and_counts_every_copy() {
 
     assert_eq!(report.checked.skills, 2);
     assert_eq!(report.problems[0], parsed);
-    // `personal` provides an item and nothing is qualified with it.
     assert_eq!(
         report.problems[1].message,
         "catalog \"personal\" is configured but nothing selects from it (ambit.yml)"
@@ -427,10 +379,6 @@ fn validate_exits_0_against_the_fixture_catalog_saying_what_it_checked() {
 
 #[test]
 fn validate_checks_a_catalog_repo_which_lists_itself_and_selects_nothing() {
-    // A catalog repo is a project that lists its own `skills/`, `mcps/` and `hooks/` as
-    // `source: path:.`, and every item in the merged catalog is checked whether anything selects
-    // it or not. Nothing here consumes anything (there is no `requires:` list at all) and the
-    // whole repo is still checked.
     let fixture = Fixture::new();
 
     fixture.write_self_listing_config();
@@ -444,8 +392,6 @@ fn validate_checks_a_catalog_repo_which_lists_itself_and_selects_nothing() {
 
 #[test]
 fn validate_reports_a_catalog_repos_own_broken_skill_which_nothing_selects() {
-    // The report is about items no `requires` entry reaches, which is every item in a catalog
-    // repo.
     let fixture = Fixture::new();
 
     fixture.write_self_listing_config();
@@ -464,8 +410,6 @@ fn validate_reports_a_catalog_repos_own_broken_skill_which_nothing_selects() {
 
 #[test]
 fn validate_exits_2_on_a_catalog_that_does_not_parse() {
-    // The deliberate boundary: there is no semantic report to build about a document ambit cannot
-    // read, so parsing failures stay the exit-2 errors they are everywhere else.
     let fixture = Fixture::new();
 
     write(
@@ -482,8 +426,6 @@ fn validate_exits_2_on_a_catalog_that_does_not_parse() {
 
 #[test]
 fn validate_refuses_a_catalog_that_still_holds_a_scopes_yml() {
-    // The registry is gone, and a file that still parses as one would otherwise sit there looking
-    // like it labels something.
     let fixture = Fixture::new();
 
     write(
@@ -501,10 +443,6 @@ fn validate_refuses_a_catalog_that_still_holds_a_scopes_yml() {
     );
     assert!(result.stderr.contains("a group of items is a pack now"));
 }
-
-// Spec §4's validation split, in both directions: `resolve` hard-validates the selected closure,
-// so a skill nothing selects may carry a dangling `requires`, and `validate` is what refuses to
-// let that sit in the catalog.
 
 #[test]
 fn validate_reports_a_dangling_requirement_resolve_deliberately_ignores() {
@@ -550,7 +488,6 @@ fn validate_reports_a_missing_hook_by_its_bare_name() {
     let resolved = fixture.cli(&["resolve"]);
     let found = fixture.report();
 
-    // Nothing selects the skill, so `resolve` never walks the edge and only `validate` reports it.
     assert_eq!(resolved.code, ExitCode::Success, "{}", resolved.stderr);
     assert_eq!(found.problems.len(), 1);
     assert_eq!(found.problems[0].kind, "unmatched-pattern");
@@ -572,8 +509,6 @@ fn validate_resolves_a_hook_requirement_against_the_hooks_a_catalog_provides() {
 
 #[test]
 fn validate_follows_no_edge_out_of_a_hook_when_hunting_cycles() {
-    // A hook named like a skill in the cycle would send a one-step walk round it twice; the entry
-    // declares its namespace, so the edge reaches the hook and stops there.
     let fixture = Fixture::new();
 
     fixture.write_hook(
@@ -672,8 +607,6 @@ fn validate_reports_a_dangling_requirement_and_a_cycle_from_one_run() {
     assert_eq!(kinds(&fixture.report()), ["unmatched-pattern", "cycle"]);
 }
 
-// Name↔path agreement.
-
 #[test]
 fn validate_lists_a_mismatch_as_a_problem_instead_of_stopping_the_run_at_it() {
     let fixture = Fixture::new();
@@ -688,7 +621,6 @@ fn validate_lists_a_mismatch_as_a_problem_instead_of_stopping_the_run_at_it() {
     let found = fixture.report();
 
     assert_eq!(validated.code, ExitCode::Resolution);
-    // Every other command takes the path's name in silence; here the mismatch is reported.
     assert_eq!(kinds(&found), ["name-mismatch", "unmatched-pattern"]);
     assert!(
         found.problems[0]
@@ -707,8 +639,6 @@ fn validate_lists_a_mismatch_as_a_problem_instead_of_stopping_the_run_at_it() {
 
 #[test]
 fn validate_goes_on_to_check_the_misnamed_skill_under_the_name_its_path_derives() {
-    // Continuing past the mismatch is only worth anything if the rest of the skill is still
-    // checked, and the path is the name every other tool would have installed it under.
     let fixture = Fixture::new();
 
     fixture.write_misnamed_skill("misnamed-thing", "wrong-name");
@@ -729,17 +659,11 @@ fn a_mismatch_is_not_an_error_outside_validation() {
     assert!(result.stdout.contains("misnamed-thing"));
 }
 
-// A name two catalogs provide is not a `validate` finding: nothing is dropped, both copies are
-// addressable, and the only place two copies are a conflict is a project that selects both, which
-// is resolution's judgement, not a fact about a catalog. So `validate` reports nothing, and
-// `resolve` on the very same project refuses.
-
 const SECOND: &str = "personal";
 
 fn with_two_copies() -> Fixture {
     let fixture = Fixture::new();
 
-    // An exact copy of the fixture, so every name is provided twice.
     build_fixture_catalog(&fixture.root.join(SECOND)).expect("build the second catalog");
     write(
         &fixture.project_dir.join("ambit.yml"),
@@ -767,7 +691,6 @@ fn two_copies_exit_0_counting_every_copy_checked() {
 
     assert!(found.valid);
     assert_eq!(found.problems.len(), 0);
-    // Both copies, not both names: each is a document this run read and checked on its own terms.
     assert_eq!(
         found.checked,
         json!({
@@ -781,8 +704,6 @@ fn two_copies_exit_0_counting_every_copy_checked() {
 
 #[test]
 fn two_copies_leave_the_collision_to_resolve_which_refuses_the_same_project() {
-    // `validate` passes a catalog pair that is perfectly well-formed, and the project selecting
-    // both copies is what fails.
     let fixture = with_two_copies();
 
     assert_eq!(fixture.cli(&["validate"]).code, ExitCode::Success);
@@ -824,9 +745,6 @@ fn two_copies_of_a_broken_skill_are_reported_once_each() {
 
 #[test]
 fn two_copies_do_not_let_one_catalogs_copy_satisfy_the_others_requires() {
-    // `personal` ships `needed`, `company` does not, and `company`'s skill asking for it is
-    // unsatisfied however plainly the merged view holds a match. A catalog can only require what
-    // it ships.
     let fixture = with_two_copies();
 
     fixture.write_skill("needs-across", &[requires(&[needs("skill", "needed")])]);
@@ -854,9 +772,6 @@ fn two_copies_do_not_let_one_catalogs_copy_satisfy_the_others_requires() {
     );
 }
 
-// The multi-problem variant of what resolution returns one at a time. Both surfaces use the same
-// error builders, so the assertion is that `validate` lists what `resolve` stops at.
-
 #[test]
 fn validate_lists_every_entry_that_matches_nothing_in_document_order() {
     let fixture = Fixture::new();
@@ -866,15 +781,12 @@ fn validate_lists_every_entry_that_matches_nothing_in_document_order() {
     let resolved = fixture.cli(&["resolve"]);
     let found = fixture.report();
 
-    // `resolve` reports the alphabetically first offender and nothing else, so which one it names
-    // does not fall to the order the config happens to list them in.
     assert_eq!(resolved.code, ExitCode::Resolution);
     assert!(resolved.stderr.contains(&format!(
         "\"pack:{CATALOG_NAME}/alpha.unknown\" matches nothing"
     )));
     assert!(!resolved.stderr.contains("zeta.unknown"));
 
-    // `validate` lists all of them, down the file the reader has open.
     assert_eq!(
         found
             .problems
@@ -897,9 +809,6 @@ fn validate_lists_every_entry_that_matches_nothing_in_document_order() {
 
 #[test]
 fn validate_checks_the_projects_own_skills_when_it_lists_itself_as_a_catalog() {
-    // A project that publishes something is a catalog, so `validate` reads it with no special
-    // case, and a broken skill it ships is a finding like any other, whether the project selects it
-    // or not.
     let fixture = Fixture::new();
 
     Fixture::write_skill_within(
@@ -949,14 +858,6 @@ fn validate_reports_nothing_about_an_entry_some_configured_catalogs_items_satisf
     assert_eq!(fixture.cli(&["validate"]).code, ExitCode::Success);
 }
 
-// The one finding whose subject is the config alone: a catalog it lists and never selects from.
-//
-// This is what a typo'd `source:` escapes into now that a catalog is a directory and nothing else:
-// a misspelled path is not a parse failure, and where no pattern is qualified with the alias,
-// nothing else has a reason to look at it. Both of its exemptions are here too, because each of
-// them is what keeps `validate` passing on something `ambit init` produced.
-
-/// Points the project at the fixture catalog plus one more, selecting only from the fixture.
 fn write_two_catalogs(fixture: &Fixture, name: &str, source: &str) {
     write(
         &fixture.project_dir.join("ambit.yml"),
@@ -1002,8 +903,6 @@ fn unselected_catalog_with_items_no_entry_is_qualified_with_is_reported() {
 
 #[test]
 fn unselected_catalog_is_reported_as_the_unmatched_pattern_when_an_entry_names_it() {
-    // Qualified with, not matched by. An entry spelled `personal/nope` mentions the catalog, so
-    // the pattern is the offender and one mistake is reported once.
     let fixture = Fixture::new();
 
     build_fixture_catalog(&fixture.root.join(SECOND)).expect("build the second catalog");
@@ -1029,9 +928,6 @@ fn unselected_catalog_is_reported_as_the_unmatched_pattern_when_an_entry_names_i
 
 #[test]
 fn unselected_catalog_with_no_items_is_just_empty() {
-    // `ambit init` scaffolds a live `local` entry against three empty directories and comments out
-    // the entry that would select it, so a finding here would fail `validate` on every fresh
-    // project.
     let fixture = Fixture::new();
 
     fs::create_dir_all(fixture.root.join("empty")).expect("create the empty catalog");
@@ -1044,8 +940,6 @@ fn unselected_catalog_with_no_items_is_just_empty() {
 
 #[test]
 fn unselected_catalog_the_project_itself_is_is_never_reported() {
-    // Publishing is not consuming: a repo that ships items and selects none of them is the normal
-    // state of a catalog repo, and `ambit init` scaffolded the entry that says so.
     let fixture = Fixture::new();
 
     Fixture::write_skill_within(&fixture.project_dir, "readwise-cli", &[]);
@@ -1059,8 +953,6 @@ fn unselected_catalog_the_project_itself_is_is_never_reported() {
         FIXTURE_SKILLS + 1
     )));
 }
-
-// `ambit validate` output.
 
 #[test]
 fn validate_emits_the_problem_list_as_json_with_the_verdict_and_what_was_checked() {

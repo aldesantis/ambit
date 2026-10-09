@@ -1,12 +1,3 @@
-//! The array-section driver: the piece that makes hooks co-ownable.
-//!
-//! Every claim here is about coexistence, because that is the whole reason this driver exists
-//! rather than the map-shaped JSON one: a harness's hooks root is `event → array`, arrays have no
-//! identity key, and the tool ambit replaces answers that by rewriting the entire root and
-//! destroying whatever a person wrote in it. So the fixtures below always hold a foreign hook in
-//! the *same* event array ambit writes into (the case a merge keyed on anything but content gets
-//! wrong), and the assertions are on bytes wherever bytes are the promise.
-
 use indexmap::IndexSet;
 use serde_json::json;
 
@@ -17,12 +8,10 @@ use crate::util::json::{parse, stringify_pretty};
 const SECTION: &str = "hooks";
 const FILE: &str = ".claude/settings.json";
 
-/// The driver as every harness but Cursor gets it: nothing to seed at the document's root.
 fn driver() -> ArraySectionDriver {
     array_section_driver(None)
 }
 
-/// The entry ambit renders for a `PostToolUse` hook, in Claude's shape.
 fn format_value() -> JsonValue {
     json!({
         "matcher": "Edit",
@@ -37,7 +26,6 @@ fn format_entry() -> ConfigEntry {
     }
 }
 
-/// A second one, on an event the fixture's own hooks do not use.
 fn greet_value() -> JsonValue {
     json!({ "hooks": [{ "type": "command", "command": "./greet.sh" }] })
 }
@@ -49,11 +37,6 @@ fn greet_entry() -> ConfigEntry {
     }
 }
 
-/// Settings of the kind a person actually has: two hooks they wrote themselves (one on the very
-/// event ambit is about to write to) and root keys that are none of ambit's business.
-///
-/// Written in the layout `JSON.stringify(…, null, 2)` produces, so that "unchanged" can be
-/// asserted on the bytes rather than on parsed values.
 const HANDWRITTEN: &str = r#"{
   "model": "opus",
   "permissions": {
@@ -108,7 +91,6 @@ fn parsed(text: &str) -> JsonObject {
         .clone()
 }
 
-/// The `hooks` object of a document.
 fn hooks_of(text: &str) -> JsonObject {
     parsed(text)[SECTION]
         .as_object()
@@ -153,10 +135,6 @@ mod the_managed_key {
 
     #[test]
     fn digests_the_entry_in_the_order_the_renderer_built_it() {
-        // Deliberately *not* order-insensitive: the digest describes the bytes ambit writes, and an
-        // entry read back off disk keeps the order it was written in. A reordered entry is a
-        // different entry, which is what makes a hand-edit show up as drift instead of being
-        // silently accepted.
         let reordered = json!({
             "hooks": format_value()["hooks"],
             "matcher": format_value()["matcher"],
@@ -290,15 +268,11 @@ mod merging_a_hook_into_hand_written_settings {
     fn is_idempotent_a_second_merge_of_the_same_entries_is_a_no_op() {
         let once = merge(Some(HANDWRITTEN), &[format_entry(), greet_entry()]);
 
-        // Byte-identical, not merely equivalent: this is the claim `ambit install` twice rests on,
-        // and getting it wrong grows the array by one duplicate hook per run.
         assert_eq!(merge(Some(&once), &[format_entry(), greet_entry()]), once);
     }
 
     #[test]
     fn does_not_append_a_second_copy_of_an_entry_a_person_wrote_by_hand() {
-        // Same digest, so as far as this driver is concerned it is already there. Whether ambit is
-        // allowed to claim it is `ownership`'s question, not the driver's.
         let by_hand = merge(None, &[format_entry()]);
 
         assert_eq!(merge(Some(&by_hand), &[format_entry()]), by_hand);
@@ -336,17 +310,11 @@ mod removing_hooks {
 
         let removed = remove(&driver(), &once, &[greet_entry().key]);
 
-        // The array is a container ambit created but does not own the way it owns the entries in
-        // it, and a person may be about to put a hook of their own in it: the stance the map driver
-        // takes on `{}`.
         assert_eq!(hooks_of(&removed)["Stop"], json!([]));
     }
 
     #[test]
     fn reports_nothing_to_do_rather_than_rewriting_a_file_it_would_not_change() {
-        // Each of these is a prune that must leave the file byte-identical: an entry already gone,
-        // an event array that never existed, a file with no hooks at all, and a file that is not
-        // there.
         let driver = driver();
         let format_key = [format_entry().key];
 
@@ -375,9 +343,6 @@ mod reading_the_section {
 
     #[test]
     fn derives_every_key_from_the_file_alone_foreign_entries_included() {
-        // Nothing here knows a hook's name, and nothing needs to: the digest is the identity, so
-        // the keys ownership compares a plan against are readable off any settings file, however it
-        // was written.
         assert_eq!(
             driver().section_keys(Some(HANDWRITTEN), SECTION, FILE),
             Ok(set(&[
@@ -496,9 +461,6 @@ mod root_defaults {
 
     #[test]
     fn adds_nothing_on_a_removal() {
-        // A file with no `version` (one Cursor wrote itself, say) being pruned by a build that has
-        // defaults. Defaults belong to writing a document, and pruning is not that: `prune` and
-        // `clean` must take entries out and add nothing.
         let once = merge(Some(HANDWRITTEN), &[greet_entry()]);
 
         let removed = remove(&versioned(), &once, &[greet_entry().key]);
@@ -514,8 +476,6 @@ mod selecting_the_driver {
 
     #[test]
     fn takes_the_shape_since_the_format_cannot_tell_the_two_json_files_apart() {
-        // An array-section driver is built per call (it carries the caller's root defaults), so the
-        // claim is what it writes rather than which object it is.
         let array = driver_for(DocumentFormat::Json, DocumentShape::Array, None).expect("a driver");
 
         assert_eq!(
@@ -523,7 +483,6 @@ mod selecting_the_driver {
             Ok(merge(None, &[format_entry()]))
         );
 
-        // The map driver writes the entry under its key, not appended to an array.
         let map = driver_for(DocumentFormat::Json, DocumentShape::Map, None).expect("a driver");
         let entry = ConfigEntry {
             key: "PostToolUse".to_owned(),
@@ -541,9 +500,6 @@ mod selecting_the_driver {
 
     #[test]
     fn hands_the_root_defaults_it_is_given_to_the_driver_it_builds() {
-        // The route Cursor's `version: 1` travels: a profile's layout declares it, the planned
-        // artifact carries it, and applying the harness config passes it here. Nothing else in
-        // ambit seeds a root key.
         let defaults = json!({ "version": 1 });
         let merged = driver_for(
             DocumentFormat::Json,
@@ -555,15 +511,11 @@ mod selecting_the_driver {
         .expect("merge succeeds");
 
         assert_eq!(parsed(&merged)["version"], json!(1));
-        // And an absent argument seeds nothing, which is what Claude's and Codex's files want.
         assert!(!parsed(&merge(None, &[format_entry()])).contains_key("version"));
     }
 
     #[test]
     fn refuses_a_format_with_no_array_section_driver() {
-        // Nothing plans one (every hooks file is JSON), so answering with the TOML driver would
-        // mean editing arrays as if they were tables. Exit 1: a bug in ambit, not something a
-        // project did.
         for format in [DocumentFormat::Toml, DocumentFormat::Jsonc] {
             let Err(error) = driver_for(format, DocumentShape::Array, None) else {
                 panic!("expected a refusal for {format}");
@@ -632,9 +584,6 @@ mod what_it_refuses {
 
     #[test]
     fn refuses_a_key_that_names_no_event_as_a_bug_rather_than_a_config_error() {
-        // Only this build writes these keys, so a key with no `@` in it cannot have come from a
-        // project. Guessing at it would mean appending a duplicate hook, or leaving a claimed entry
-        // forever.
         let error = refusal(
             HANDWRITTEN,
             &[ConfigEntry {

@@ -1,14 +1,7 @@
-//! Shaping for command output.
-//!
-//! Both modes must be deterministic: `--json` is compared as a golden file, and the text form is
-//! diffed by hand between runs. JSON records are built in the order given, not by object-key
-//! order, and text sections are laid out from one place so `search` and `resolve` look consistent.
-
 use crate::cli::Io;
 use crate::util::json::{JsonObject, JsonValue};
 use crate::util::text::{js_len, js_trim_end, pad_end};
 
-/// A record with the keys in the order given, so the emitted JSON is byte-stable.
 pub fn keyed<T>(
     items: &[T],
     name: impl Fn(&T) -> String,
@@ -23,7 +16,6 @@ pub fn keyed<T>(
     record
 }
 
-/// Pads every column but the last, so the eye can run down a section.
 pub fn columns<R: AsRef<[String]>>(rows: &[R]) -> Vec<String> {
     let mut widths: Vec<usize> = Vec::new();
 
@@ -58,7 +50,6 @@ pub fn columns<R: AsRef<[String]>>(rows: &[R]) -> Vec<String> {
         .collect()
 }
 
-/// A titled, counted, indented block, closed by a blank line.
 pub fn section<R: AsRef<[String]>>(title: &str, rows: &[R]) -> Vec<String> {
     let body = if rows.is_empty() {
         vec!["(none)".to_owned()]
@@ -73,8 +64,6 @@ pub fn section<R: AsRef<[String]>>(title: &str, rows: &[R]) -> Vec<String> {
     lines
 }
 
-/// Prints section lines, dropping the trailing blank line that closes the last one: it separates
-/// sections from each other, not the output from the shell prompt.
 pub fn print_sections(lines: &[String], io: &mut dyn Io) {
     for line in &lines[..lines.len().saturating_sub(1)] {
         io.stdout(line);

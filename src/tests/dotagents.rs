@@ -1,30 +1,4 @@
-//! The dotagents compatibility promise, made executable.
-//!
-//! ambit replaces dotagents, but a catalog must stay a plain skills repo so that dotagents (or
-//! skills.sh, or anything else that reads `skills/<name>/SKILL.md`) can install from the same
-//! directory. ambit's additions (`mcps/`, `hooks/`, the extra frontmatter keys) are supposed to be
-//! additive and ignored. That is the guarantee most likely to rot, which is why it is checked by
-//! running the real tool instead of by reasoning about it.
-//!
-//! The claim is asserted against ambit's own answer rather than a hand-written list:
-//! [`parse_catalog_directory`] says which skills the catalog holds, and dotagents must install
-//! exactly that set, under exactly the names ambit derives from the paths, with each `SKILL.md`
-//! byte-identical to the source. So a frontmatter key that made another parser choke, an `mcps/`
-//! entity mistaken for a skill, or a nested skill directory another tool cannot see all fail here.
-//!
-//! One catalog, the hand-written fixture. It declares `tags`, `requires` and `expects` between its
-//! skills, which is the whole of what ambit adds to a frontmatter block, so one case covers every
-//! key another tool's parser could choke on.
-//!
-//! **This is the one test allowed to reach the network** (nothing else in the suite may follow
-//! it). Two consequences are deliberate. `@sentry/dotagents` is left unpinned, since the guarantee
-//! is about the release people actually have rather than one frozen when this was written. And an
-//! unreachable registry is a *skip*, with a printed reason, for a developer working offline, but a
-//! failure when `CI` is set, because a compatibility test that quietly passed by never running is
-//! worse than no test at all. `AMBIT_SKIP_NETWORK_TESTS=1` skips without even probing. Rust tests
-//! have no skip status, so a skip is a printed reason and an early return.
-
-#![allow(clippy::disallowed_methods)] // The test reads CI and the skip switch from the process, and lists with std::fs.
+#![allow(clippy::disallowed_methods)]
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -39,53 +13,39 @@ use crate::model::catalog::{CatalogParseOptions, SKILL_FILENAME, parse_catalog_d
 use crate::test_support::fixture_catalog::build_fixture_catalog;
 use crate::test_support::tempdir;
 
-/// Unpinned on purpose: the promise is about whatever dotagents currently ships.
 const DOTAGENTS_PACKAGE: &str = "@sentry/dotagents";
 
-/// Set to skip the probe and the case outright: the offline developer's escape hatch.
 const SKIP_VAR: &str = "AMBIT_SKIP_NETWORK_TESTS";
 
-/// dotagents refuses a `path:` source resolving outside the project root, so the catalog under
-/// test lives inside the project it is installed into.
+/// dotagents refuses a `path:` source resolving outside the project root.
 const CATALOG_DIRNAME: &str = "catalog";
 
-/// Where dotagents materializes skills, and the symlink it points each harness at.
 const AGENTS_DIRNAME: &str = ".agents";
 const INSTALLED_DIR: &str = ".agents/skills";
 const CLAUDE_LINK: &str = ".claude/skills";
 
-/// npm's retry-with-backoff is what turns "no network" into a minute of silence, so the child is
-/// told to give up after one attempt, but only outside CI, where a transient registry blip
-/// deserves a retry rather than a report that the promise is broken.
+/// npm's retry-with-backoff turns no network into a minute of silence; retry only in CI.
 const IMPATIENT_NPM: &[(&str, &str)] = &[
     ("npm_config_fetch_retries", "0"),
     ("npm_config_fetch_timeout", "20000"),
 ];
 
-/// A hard ceiling on every child, so an offline run ends in a message rather than a hang.
 const CHILD_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// How much of npm's own complaint to quote: enough to name the cause, not its stack trace.
 const QUOTED_STDERR_LINES: usize = 3;
 
-/// Whether `name` is set to something other than the empty string in the process environment.
 fn is_set(name: &str) -> bool {
     std::env::var(name).is_ok_and(|value| !value.is_empty())
 }
 
-/// What a child process did.
 struct ChildResult {
-    /// `None` when it was killed (by the ceiling) or could not be started.
     code: Option<i32>,
     stdout: String,
     stderr: String,
 }
 
-/// Runs `npx @sentry/dotagents <args>`, reporting how it went instead of panicking, so a failure
-/// is an assertion naming the command's own output.
-///
-/// The cache and user-level install directories are redirected into `home`, because dotagents
-/// defaults them under `$HOME` and a test that writes there is a test that changed the machine.
+/// dotagents defaults its cache and user-level directories under `$HOME`, so they are
+/// redirected into `home`.
 fn dotagents(args: &[&str], cwd: &Path, home: &Path) -> ChildResult {
     let mut command = Command::new("npx");
 
@@ -128,7 +88,6 @@ fn dotagents(args: &[&str], cwd: &Path, home: &Path) -> ChildResult {
         text
     });
 
-    // The ceiling: a watcher waits on the child, and the test kills it if no answer comes in time.
     let (sender, receiver) = mpsc::channel();
     let pid_child = std::sync::Arc::new(std::sync::Mutex::new(child));
     let waiter = std::sync::Arc::clone(&pid_child);
@@ -163,9 +122,6 @@ fn dotagents(args: &[&str], cwd: &Path, home: &Path) -> ChildResult {
     }
 }
 
-/// Writes the project dotagents installs into: a wildcard entry over the catalog inside it, plus
-/// the two `.gitignore` lines whose absence dotagents warns about (that warning is noise here, not
-/// the subject).
 fn write_dotagents_project(dir: &Path) {
     fs::create_dir_all(dir).expect("create the project");
     fs::write(
@@ -182,7 +138,6 @@ fn write_dotagents_project(dir: &Path) {
     .expect("write .gitignore");
 }
 
-/// The head of a failed child's complaint, since npm follows its reason with a stack trace.
 fn first_lines(text: &str) -> String {
     text.split('\n')
         .filter(|line| !line.trim().is_empty())
@@ -191,8 +146,6 @@ fn first_lines(text: &str) -> String {
         .join("\n")
 }
 
-/// Whether `npx @sentry/dotagents` runs at all, and why not when it does not. Doubles as the
-/// warm-up: the install resolves from the npx cache this fills.
 fn probe(home: &Path) -> Option<String> {
     if is_set(SKIP_VAR) {
         return Some(format!("{SKIP_VAR} is set"));
@@ -224,8 +177,6 @@ fn probe(home: &Path) -> Option<String> {
 fn installs_every_skill_in_the_hand_written_fixture_catalog_ignoring_ambits_additions() {
     let home = tempdir();
 
-    // Loud either way, for opposite reasons: offline, a developer needs to know the promise went
-    // unchecked; in CI, a promise that quietly passed by never running is worse than no test.
     if let Some(reason) = probe(home.path()) {
         assert!(!is_set("CI"), "{reason}");
         eprintln!("skipping the dotagents compatibility test: {reason}");
@@ -250,8 +201,7 @@ fn installs_every_skill_in_the_hand_written_fixture_catalog_ignoring_ambits_addi
 
     assert_ne!(catalog.skills.len(), 0);
 
-    // `--project`, because dotagents operates on the global scope by default: a bare `install`
-    // writes `~/.agents/agents.toml` and reports success, leaving the project untouched.
+    // dotagents defaults to the global scope: a bare `install` writes `~/.agents/agents.toml`.
     let result = dotagents(&["--project", "install"], &project, home.path());
 
     assert_eq!(result.code, Some(0), "{}\n{}", result.stdout, result.stderr);
@@ -296,8 +246,6 @@ fn installs_every_skill_in_the_hand_written_fixture_catalog_ignoring_ambits_addi
 
     assert!(mismatched.is_empty(), "SKILL.md changed: {mismatched:?}");
 
-    // Every harness reads skills through this link, so an install that skipped it installed
-    // nothing.
     assert!(
         fs::metadata(project.join(CLAUDE_LINK)).is_ok(),
         "{CLAUDE_LINK} is missing"

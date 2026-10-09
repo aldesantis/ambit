@@ -1,9 +1,3 @@
-//! JSONC exists so that a person can annotate their config, so the claims here are the same ones
-//! the TOML driver makes and for the same reason: comments, trailing commas, indentation and key
-//! order everywhere ambit does not own survive being written into. What differs is drift: this
-//! format *can* be parsed losslessly enough to compare values, so a reformatted entry is not a
-//! change.
-
 use indexmap::IndexSet;
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -14,7 +8,6 @@ use crate::errors::{AmbitError, ExitCode};
 const SECTION: &str = "mcp";
 const FILE: &str = ".opencode/opencode.jsonc";
 
-/// A local server, in the shape the opencode profile emits.
 fn fixture() -> ConfigEntry {
     ConfigEntry {
         key: "fixture".to_owned(),
@@ -29,8 +22,6 @@ fn entry(key: &str, value: JsonValue) -> ConfigEntry {
     }
 }
 
-/// A config someone maintains by hand: a line comment, a block comment, a trailing comma, and
-/// keys ambit has no business touching.
 const HANDWRITTEN: &str = r#"{
   // The model I actually use.
   "model": "anthropic/claude-opus-4",
@@ -57,10 +48,6 @@ fn refusal(text: &str) -> AmbitError {
         .expect_err("expected a refusal")
 }
 
-/// The document a merge produced, parsed, for the claims that are about values, not bytes.
-///
-/// Through jsonc-parser rather than plain JSON, since the whole point of the fixtures here is that
-/// they hold comments and trailing commas that plain JSON would reject.
 fn parsed(text: &str) -> JsonObject {
     match jsonc_parser::parse_to_serde_value::<JsonValue>(text, &parse_options()) {
         Ok(JsonValue::Object(document)) => document,
@@ -87,8 +74,6 @@ mod merging_a_server_into_an_opencode_config {
 
         assert!(merged.contains("// The model I actually use."));
         assert!(merged.contains("/* Servers I added myself, long before ambit ran here. */"));
-        // The trailing comma the person wrote is still there: this driver edits the syntax tree
-        // rather than re-serializing the document, so it has no opinion about their style.
         assert!(merged.contains(r#""command": ["node", "./scripts/local-mcp.js"],"#));
     }
 
@@ -194,8 +179,6 @@ mod removing_servers {
 
         let removed = remove(&only, &["fixture"]).expect("something was removed");
 
-        // The section is a key ambit created but does not own the way it owns the entries in it,
-        // and a person may be about to add their own server to it. `{}` is the honest state.
         assert_eq!(
             JsonValue::Object(parsed(&removed)),
             json!({ "model": "x", "mcp": {} })
@@ -227,8 +210,6 @@ mod reading_the_section {
 
     #[test]
     fn reads_an_absent_file_an_absent_section_and_a_non_object_section_as_holding_none() {
-        // None of the three is a *collision* with anything ambit would write; an unusable section
-        // is `merge_section`'s error to raise, since that is the code that cannot proceed with it.
         for text in [None, Some("{\"model\": \"x\"}"), Some("{\"mcp\": []}")] {
             assert_eq!(
                 JsoncDriver.section_keys(text, SECTION, FILE),
@@ -255,9 +236,6 @@ mod whether_an_entry_is_already_what_install_would_write {
     #[test]
     fn says_yes_for_a_reformatted_reordered_entry_because_ambit_owns_the_value_and_not_its_layout()
     {
-        // The opposite of the TOML driver's answer, deliberately: this format can be compared
-        // structurally, so sending someone to look at a file that is already correct would be a
-        // bug.
         let reformatted = r#"{
   "mcp": { "fixture": { "command": ["npx", "-y", "@acme/fixture-mcp"], "type": "local" } }
 }
@@ -343,7 +321,6 @@ mod what_it_refuses {
     }
 }
 
-/// Every recorded input, with the exact bytes this driver writes for it.
 #[test]
 fn writes_the_recorded_bytes() {
     let corpus: JsonValue =

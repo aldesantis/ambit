@@ -1,15 +1,3 @@
-//! What ambit reads off a GitHub release: which tag is latest, what a checksum line says, and the
-//! bytes of one asset.
-//!
-//! Every case here supplies its own [`Http`], so the suite stays offline and can describe answers
-//! GitHub gives rarely: a repository with no release, a truncated download, a `.sha256` naming
-//! another file. Those are the paths that matter, because they are the ones that decide whether
-//! unverified bytes get installed.
-//!
-//! The download test hashes a real file written to a real directory rather than asserting against
-//! a stub, since the whole point of that function is that the hash and the file come from the same
-//! stream.
-
 use super::*;
 use crate::errors::ExitCode;
 use crate::self_update::fake_http::{Canned, FakeHttp};
@@ -19,7 +7,6 @@ use crate::util::hash::sha256_hex;
 const TAG: &str = "v1.2.3";
 const ASSET: &str = "ambit-x86_64-unknown-linux-gnu.tar.xz";
 
-/// An [`Http`] that answers every URL with the same response.
 fn answering(response: impl Fn() -> Canned + 'static) -> FakeHttp {
     FakeHttp::new(move |_| Ok(response()))
 }

@@ -1,8 +1,3 @@
-//! The list-section driver: co-ownership of one flat list of entries.
-//!
-//! As with the array-section driver, every fixture holds a foreign entry in the very list ambit
-//! writes into, and assertions are on bytes wherever bytes are the promise.
-
 use indexmap::IndexSet;
 use serde_json::json;
 
@@ -55,8 +50,6 @@ fn greet_entry() -> ConfigEntry {
     }
 }
 
-/// A hooks file a person wrote: one entry on the trigger ambit is about to write to, and a root
-/// key that is none of ambit's business.
 const HANDWRITTEN: &str = r#"{
   "version": "v1",
   "description": "mine",
@@ -222,8 +215,6 @@ mod removing_entries {
 
     #[test]
     fn does_not_remove_an_entry_with_the_same_digest_under_another_trigger() {
-        // A key names a trigger and a digest; an entry whose trigger differs is not that key, even
-        // though the content digest is computed the same way.
         let other = ConfigEntry {
             key: array_entry_key("PostToolUse", &guard_value()),
             value: guard_value(),
@@ -372,7 +363,6 @@ mod what_it_refuses {
 
     #[test]
     fn refuses_an_entry_whose_trigger_disagrees_with_its_key() {
-        // Written, it would never be found again, and every install would append it once more.
         let error = refusal(
             None,
             &[ConfigEntry {

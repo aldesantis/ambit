@@ -1,11 +1,8 @@
-//! A canned [`Http`] for the self-update suites, so none of them reaches the network.
-
 use std::cell::{Cell, RefCell};
 use std::io::Cursor;
 
 use crate::self_update::release::{GetOptions, Http, HttpResponse};
 
-/// One canned answer: a status, an optional `Location`, and a body.
 pub struct Canned {
     pub status: u16,
     pub location: Option<String>,
@@ -13,7 +10,6 @@ pub struct Canned {
 }
 
 impl Canned {
-    /// A 200 carrying `body`.
     pub fn ok(body: impl Into<Vec<u8>>) -> Self {
         Self {
             status: 200,
@@ -22,7 +18,6 @@ impl Canned {
         }
     }
 
-    /// A bodiless answer with `status`.
     pub fn status(status: u16) -> Self {
         Self {
             status,
@@ -31,7 +26,6 @@ impl Canned {
         }
     }
 
-    /// A 302 pointing at `location`.
     pub fn redirect(location: &str) -> Self {
         Self {
             status: 302,
@@ -43,7 +37,6 @@ impl Canned {
 
 type Route = Box<dyn Fn(&str) -> Result<Canned, String>>;
 
-/// Answers every request through `route`, counting requests and remembering their URLs.
 pub struct FakeHttp {
     route: Route,
     pub calls: Cell<usize>,
@@ -59,13 +52,11 @@ impl FakeHttp {
         }
     }
 
-    /// One that fails the test if it is asked anything.
     pub fn unreachable() -> Self {
         Self::new(|url| panic!("should not be called: {url}"))
     }
 }
 
-/// A `.tar.xz` holding `members` (path, bytes), as cargo-dist builds one.
 pub fn tar_xz(members: &[(&str, &[u8])]) -> Vec<u8> {
     let mut builder = tar::Builder::new(Vec::new());
 
@@ -87,7 +78,6 @@ pub fn tar_xz(members: &[(&str, &[u8])]) -> Vec<u8> {
     xz.finish().expect("finish the xz stream")
 }
 
-/// A `.zip` holding `members` (path, bytes), stored uncompressed.
 pub fn zip(members: &[(&str, &[u8])]) -> Vec<u8> {
     let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
     let options =

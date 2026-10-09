@@ -1,6 +1,4 @@
-//! The program as a user reaches it: the surface, the usage-error contract, the flag-rule seam,
-//! and `self-update`'s wiring. Each command's own behaviour is its own suite's.
-#![allow(clippy::disallowed_methods)] // std::fs reads the recorded fixtures.
+#![allow(clippy::disallowed_methods)]
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -23,7 +21,6 @@ fn invoke_with(argv: &[&str], handlers: &CommandHandlers, rules: &CommandRules) 
     captured(code, &io)
 }
 
-/// Every command the surface declares, by name.
 fn command_names() -> Vec<String> {
     Cli::command()
         .get_subcommands()
@@ -41,13 +38,10 @@ fn captured(code: ExitCode, io: &CaptureIo) -> CliResult {
     }
 }
 
-/// `ambit <argv>` with the shipped handlers and rules. Only for invocations that never reach a
-/// handler: help, usage errors and rules.
 fn invoke(argv: &[&str]) -> CliResult {
     invoke_with(argv, &handlers(), &rules())
 }
 
-/// The shipped handlers, with `name`'s replaced by one that records each visit and succeeds.
 fn stub(name: &str) -> (CommandHandlers, Rc<RefCell<usize>>) {
     let visits = Rc::new(RefCell::new(0));
     let mut handlers = handlers();
@@ -80,7 +74,6 @@ mod recorded_surface {
             .unwrap_or_else(|error| panic!("{name}: {error}"))
     }
 
-    /// The same matrix `tests/cli_surface.rs` runs through the binary, run in-process.
     #[test]
     fn reproduces_every_recorded_case_in_process() {
         let root = tempdir();
@@ -137,8 +130,6 @@ mod the_command_surface {
 
     #[test]
     fn gives_every_command_the_same_global_flags_and_none_of_them_a_catalog_directory() {
-        // `self-update` is the one command without `--project`, because its subject is the binary
-        // and not a project. It keeps `--offline`, which it refuses with a message of its own.
         for name in command_names() {
             let result = invoke(&[&name, "--help"]);
             let help = &result.stdout;
@@ -281,8 +272,6 @@ mod the_command_surface {
     }
 }
 
-/// A usage error leaves `run` as exit 2 and prints through ambit's own output, exactly as one of
-/// ambit's own errors does.
 mod usage_errors_and_the_exit_code_contract {
     use super::*;
 
@@ -307,7 +296,6 @@ mod usage_errors_and_the_exit_code_contract {
                 .stderr
                 .contains("tip: a similar argument exists: '--json'")
         );
-        // Refused before the handler ran, so nothing it would have printed reached stdout.
         assert_eq!(result.stdout, "");
     }
 
@@ -434,9 +422,6 @@ mod usage_errors_and_the_exit_code_contract {
     }
 }
 
-/// The flag-rule seam: a rule refuses before the handler, and runs once, for the command it
-/// belongs to. Each case injects its own rule, which is also how the seam is exercised by a
-/// command that has none.
 mod the_flag_rules_enforced_before_a_handler_runs {
     use super::*;
 
@@ -448,8 +433,6 @@ mod the_flag_rules_enforced_before_a_handler_runs {
 
         assert_eq!(keys, ["outdated", "self-update", "update"]);
 
-        // `outdated` and `update` ask a remote the same question, so their refusal is one rule
-        // twice; `self-update` refuses for a different reason and carries its own.
         let outdated = invoke(&["outdated", "--offline"]);
         let update = invoke(&["update", "--offline"]);
         let self_update = invoke(&["self-update", "--offline"]);
@@ -522,7 +505,6 @@ mod the_flag_rules_enforced_before_a_handler_runs {
     }
 }
 
-/// `ambit self-update` as a user reaches it: the spec, the rule, and the handler wired together.
 mod ambit_self_update {
     use super::*;
 
@@ -560,7 +542,6 @@ mod ambit_self_update {
     }
 }
 
-/// Help wraps to the width stdout reports, up to [`MAX_HELP_WIDTH`].
 mod help_width {
     use super::*;
 

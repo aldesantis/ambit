@@ -1,10 +1,3 @@
-//! `ambit prune`: remove owned artifacts not in the current bundle.
-//!
-//! The report is what was removed, not what survived: `ambit status` is where to see everything
-//! still installed. A run with nothing to remove says so explicitly (`(none)` under a counted
-//! heading) rather than printing nothing, so a quiet prune is distinguishable from a prune that did
-//! not run.
-
 use crate::cli::commands::{
     CommandContext, dry_run_requested, json_requested, offline_requested, project_dir_of,
 };
@@ -35,9 +28,6 @@ fn to_text(result: &PruneResult) -> Vec<String> {
     section("pruned", &removal_rows(&result.pruned))
 }
 
-/// # Errors
-///
-/// Whatever the prune returns, already in the standard message shape.
 pub fn prune_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
     let result = prune_project(
         &project_dir_of(ctx),

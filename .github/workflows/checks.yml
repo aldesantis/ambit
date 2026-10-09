@@ -1,19 +1,3 @@
-# The checks every commit has to pass: format, lint, and the test suite on Linux, macOS and Windows.
-# Called by ci.yml on pull requests and pushes to `main`, and by release.yml (through `plan-jobs` in
-# dist-workspace.toml) on the tagged commit before any binary is built.
-#
-# Three decisions worth knowing:
-#
-#   - The toolchain comes from rust-toolchain.toml. Every runner image ships rustup, which installs
-#     the pinned version on first use, so a new stable release cannot turn this red on its own.
-#   - The suite runs on all three platforms because the symlink, path and self-update code differs
-#     per platform and each variant ships.
-#   - `core.autocrlf` is turned off before checkout. Windows runners default it to true, which would
-#     rewrite the golden files and fixtures the tests compare byte for byte.
-#
-# release.yml also runs on pull requests (only `dist plan` there), and ci.yml already runs these
-# checks for the same pull request. `github.workflow` is the caller's name, so each job skips itself
-# when the caller is the release workflow and the event is a pull request.
 name: checks
 
 on:
@@ -25,6 +9,7 @@ env:
 jobs:
   lint:
     name: fmt and clippy
+    # `github.workflow` is the caller's name: on a pull request ci.yml already runs these checks.
     if: github.workflow != 'Release' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -37,8 +22,6 @@ jobs:
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
 
-      # Separate from clippy because the failure means something different: clippy failing is a
-      # defect to think about, fmt failing is `cargo fmt` and nothing else.
       - name: Format
         run: cargo fmt --check
 
@@ -54,6 +37,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
+      # Windows runners default autocrlf to true, which rewrites the byte-compared golden files.
       - name: Keep line endings as committed
         run: git config --global core.autocrlf false
 
@@ -66,7 +50,6 @@ jobs:
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
 
-      # git is preinstalled on every hosted runner; the suite drives it for git catalog sources.
       - name: Show the git version
         run: git --version
 

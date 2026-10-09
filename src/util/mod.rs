@@ -1,11 +1,3 @@
-//! Shared low-level helpers: JavaScript string and JSON semantics, lexical paths, filesystem
-//! calls, and the process environment as a value.
-//!
-//! Every module reaches the filesystem, the environment, and string ordering through here, so
-//! ambit's observable rules (UTF-16 ordering, lossy UTF-8 reads, lexical path normalization, only
-//! `NotFound` meaning absent) are decided once. `clippy.toml` forbids the std calls this module
-//! wraps everywhere else.
-
 pub mod cmp;
 pub mod env;
 pub mod fs;
@@ -14,11 +6,7 @@ pub mod json;
 pub mod path;
 pub mod text;
 
-/// Declares an enum whose variants each have one fixed spelling in ambit's files and output.
-///
-/// Declaration order is the derived `Ord`, so sorting by kind sorts as the reports list them. Each
-/// variant names its spelling once; `as_str`, `parse`, `Display` and serde all use it. `ALL` lists
-/// the variants in that order.
+// Variant declaration order is the derived `Ord`, which is the order reports list kinds in.
 macro_rules! string_enum {
     (
         $(#[$meta:meta])*
@@ -36,19 +24,16 @@ macro_rules! string_enum {
         }
 
         impl $name {
-            /// Every variant, in declaration order.
-            #[allow(dead_code)] // the macro serves every union; not each one is enumerated
+            #[allow(dead_code)]
             pub const ALL: &'static [Self] = &[$(Self::$variant),+];
 
-            /// The variant's spelling in files and output.
             pub fn as_str(self) -> &'static str {
                 match self {
                     $(Self::$variant => $text),+
                 }
             }
 
-            /// The variant spelled `text`, if any.
-            #[allow(dead_code)] // the macro serves every union; not each one is parsed from text
+            #[allow(dead_code)]
             pub fn parse(text: &str) -> Option<Self> {
                 match text {
                     $($text => Some(Self::$variant),)+

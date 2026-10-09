@@ -1,15 +1,3 @@
-//! `ambit self-update [version]`: replace this binary with a released one.
-//!
-//! The one command whose subject is ambit rather than a project, which is why it takes no
-//! `--project` and why the version is a positional rather than a `--version` flag: `--version` is
-//! already how the program prints its own.
-//!
-//! A named version is installed whether it is newer or older, so a bad release can be backed out
-//! without hunting down the install script. Only the report says which direction it went.
-//!
-//! `--dry-run` prints the plan, which is the whole decision: the plan is made before anything is
-//! downloaded, so it is also what every refusal comes out of.
-
 use std::path::PathBuf;
 
 use crate::cli::commands::{CommandContext, dry_run_requested, json_requested, offline_requested};
@@ -21,16 +9,6 @@ use crate::self_update::update::{
 };
 use crate::util::json::{JsonObject, JsonValue, stringify_pretty};
 
-/// The refusal of `--offline`.
-///
-/// A rule rather than a check in the handler, so the parser enforces it before dispatch and a run
-/// that cannot mean anything never starts. Worded for this command rather than shared with
-/// `outdated` and `update`: those refuse because only a remote knows where a ref points now, and
-/// this one refuses because the bytes it installs do not exist locally.
-///
-/// # Errors
-///
-/// Exit 4 when `--offline` was given.
 pub fn refuses_offline_self_update_rule(ctx: &CommandContext<'_>) -> Result<()> {
     if !offline_requested(ctx) {
         return Ok(());
@@ -45,17 +23,11 @@ pub fn refuses_offline_self_update_rule(ctx: &CommandContext<'_>) -> Result<()> 
     ))
 }
 
-/// What the machine looks like to self-update.
-///
-/// Built here, at the CLI boundary, for the same reason
-/// [`source_context_of`](crate::cli::commands::source_context_of) is: one command run sees one
-/// machine, and nothing further down reaches for ambient state of its own.
 pub fn self_context_of(http: &dyn Http) -> SelfContext<'_> {
     SelfContext {
         os: std::env::consts::OS,
         arch: std::env::consts::ARCH,
-        // An executable whose own path cannot be read has nothing self-update could replace; the
-        // empty path fails the writability check with a message naming it.
+        // An unreadable path becomes empty, which fails the writability check by name.
         exec_path: std::env::current_exe().unwrap_or_else(|_| PathBuf::new()),
         http,
     }
@@ -78,7 +50,6 @@ fn to_json(plan: &SelfUpdatePlan, installed: bool) -> JsonValue {
     JsonValue::Object(record)
 }
 
-/// The last line: what happened, or what would have.
 fn verdict(plan: &SelfUpdatePlan, dry_run: bool) -> String {
     if !plan.changed {
         return format!("ambit {} is already installed", plan.target);
@@ -115,11 +86,6 @@ fn to_text(plan: &SelfUpdatePlan, dry_run: bool) -> Vec<String> {
     lines
 }
 
-/// [`self_update_handler`] against a given machine, so a test can describe one.
-///
-/// # Errors
-///
-/// Whatever planning or applying the update returns.
 pub(crate) fn run_self_update(
     ctx: &mut CommandContext<'_>,
     context: &SelfContext<'_>,
@@ -143,9 +109,6 @@ pub(crate) fn run_self_update(
     Ok(ExitCode::Success)
 }
 
-/// # Errors
-///
-/// Whatever planning or applying the update returns, already in the standard message shape.
 pub fn self_update_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
     let http = UreqHttp;
     let context = self_context_of(&http);

@@ -1,5 +1,3 @@
-//! The data ambit reads and records: configs, catalogs, entities, state, and the lock.
-
 pub mod catalog;
 pub mod config;
 pub mod documents;

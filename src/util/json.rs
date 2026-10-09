@@ -1,52 +1,26 @@
-//! JSON with JavaScript's semantics: `JSON.stringify` bytes and `JSON.parse` key order.
-//!
-//! Hook digests in `.ambit/state.json` and `ambit.lock` are hashes of `JSON.stringify` output, so
-//! the serializer here is written by hand rather than through serde's: numbers print as JavaScript
-//! prints them (`1`, not `1.0`; `1e+21`), and integer-like keys lead every object in ascending
-//! numeric order, which is how a JavaScript object enumerates them whatever order they were
-//! inserted in. String escaping is `serde_json`'s, which matches `JSON.stringify` for every string
-//! Rust can hold.
-//!
-//! Integers above 2^53 keep full precision here where JavaScript would round them. That divergence
-//! is accepted.
-
 use std::cmp::Ordering;
 
 pub type JsonValue = serde_json::Value;
 pub type JsonObject = serde_json::Map<String, JsonValue>;
 
-/// `JSON.stringify(v)`.
 pub fn stringify(v: &JsonValue) -> String {
     let mut out = String::new();
     write_value(&mut out, v, None, 0);
     out
 }
 
-/// `JSON.stringify(v, null, 2)`, with no trailing newline.
 pub fn stringify_pretty(v: &JsonValue) -> String {
     let mut out = String::new();
     write_value(&mut out, v, Some(2), 0);
     out
 }
 
-/// `JSON.parse(text)`.
-///
-/// A duplicate key keeps its first position and its last value. Integer-like keys move to the front
-/// of each object in ascending numeric order, as a JavaScript object enumerates them.
-///
-/// # Errors
-///
-/// The `serde_json` error for text that is not JSON.
 pub fn parse(text: &str) -> std::result::Result<JsonValue, serde_json::Error> {
     let mut value: JsonValue = serde_json::from_str(text)?;
     reorder_keys(&mut value);
     Ok(value)
 }
 
-/// Structural equality, ignoring key order, with numbers compared as JavaScript compares them.
-///
-/// What "unchanged" means for a format ambit can parse losslessly: a person may have reformatted
-/// the file or reordered a server's keys, and neither counts as drift.
 pub fn structurally_equal(a: &JsonValue, b: &JsonValue) -> bool {
     match (a, b) {
         (JsonValue::Number(x), JsonValue::Number(y)) => x.as_f64() == y.as_f64(),
@@ -64,7 +38,6 @@ pub fn structurally_equal(a: &JsonValue, b: &JsonValue) -> bool {
     }
 }
 
-/// Whether `key` is a canonical array index, which a JavaScript object enumerates first.
 pub fn is_array_index(key: &str) -> bool {
     if key.is_empty() || !key.bytes().all(|b| b.is_ascii_digit()) {
         return false;
@@ -77,7 +50,6 @@ pub fn is_array_index(key: &str) -> bool {
     key.parse::<u64>().is_ok_and(|n| n < u64::from(u32::MAX))
 }
 
-/// The keys of `object` in the order JavaScript enumerates them.
 pub fn js_key_order(object: &JsonObject) -> Vec<&String> {
     let mut indices: Vec<&String> = object.keys().filter(|k| is_array_index(k)).collect();
     indices.sort_by(|a, b| compare_indices(a, b));
@@ -85,7 +57,6 @@ pub fn js_key_order(object: &JsonObject) -> Vec<&String> {
     indices
 }
 
-/// Formats a number as JavaScript's `String(n)` does.
 pub fn format_number(n: &serde_json::Number) -> String {
     if let Some(i) = n.as_i64() {
         return i.to_string();
@@ -98,8 +69,6 @@ pub fn format_number(n: &serde_json::Number) -> String {
     format_f64(n.as_f64().unwrap_or(0.0))
 }
 
-/// Formats a float as JavaScript's `String(n)` does. Non-finite values print as `null`, which is
-/// what `JSON.stringify` writes for them.
 pub fn format_f64(f: f64) -> String {
     if !f.is_finite() {
         return "null".to_owned();

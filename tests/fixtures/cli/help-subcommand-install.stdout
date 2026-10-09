@@ -11,6 +11,7 @@ Options:
       --accept-exec    accept hooks and stdio MCP servers not in ambit.lock
       --dry-run        print the plan without touching disk
       --project <dir>  project directory
+      --user           act on the user-level project in ~/.ambit
       --json           machine-readable output
       --offline        use only cached catalogs
   -h, --help           Print help

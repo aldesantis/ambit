@@ -1,10 +1,4 @@
-//! The `resolve --json` shape, pinned by golden files under `tests/golden/resolve/`, one per
-//! profile, so a change in what a `requires` list selects shows up as a reviewable diff rather than
-//! a rewritten assertion. Regenerate them with `UPDATE_GOLDEN=1 cargo test` and read the diff.
-//!
-//! Driven through the built binary with a cleared environment, so the bytes compared are exactly
-//! what a user's shell would receive.
-#![allow(clippy::disallowed_methods)] // std::fs reads the golden files; std::env reads PATH.
+#![allow(clippy::disallowed_methods)]
 
 mod support;
 
@@ -22,20 +16,10 @@ fn golden_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/resolve")
 }
 
-/// One `requires` entry as a single config line, qualified with the fixture catalog.
 fn entry(kind: &str, address: &str) -> String {
     format!("  - {{ {kind}: \"{CATALOG_NAME}/{address}\" }}")
 }
 
-/// The profile matrix: one `requires` list each, with a golden file.
-///
-/// `engineering` and `frontend` are two entries apart rather than one label and its subtree, and
-/// that is the grammar being honest rather than a wart: `function.engineering` and
-/// `function.engineering.*` are different patterns, and only the second reaches the nested
-/// `frontend` pack. A dot is a character, not a level, so a pattern says what it takes.
-///
-/// `core` is where the transitive half shows: the `function.engineering` pack requires the `core`
-/// pack, so the `engineering` profile ends up holding everything `core` holds without naming it.
 fn profiles() -> Vec<(&'static str, Vec<String>)> {
     vec![
         ("empty", vec![]),
@@ -63,7 +47,6 @@ fn profiles() -> Vec<(&'static str, Vec<String>)> {
     ]
 }
 
-/// Points the project at the fixture catalog and gives it a `requires` list.
 fn write_profile(project_dir: &Path, requires: &[String]) {
     let list = if requires.is_empty() {
         "[]".to_owned()
@@ -80,10 +63,6 @@ fn write_profile(project_dir: &Path, requires: &[String]) {
     .expect("write ambit.yml");
 }
 
-/// Compares against the golden file, or rewrites it when `UPDATE_GOLDEN` is set.
-///
-/// A missing file is a failure rather than an implicit accept: a golden file only means something
-/// if a human read it once.
 fn expect_golden(name: &str, actual: &str) {
     let file = golden_dir().join(format!("{name}.json"));
 

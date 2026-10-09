@@ -1,11 +1,4 @@
-//! The recorded help and usage-error surface, reproduced byte for byte by the built binary.
-//!
-//! Every case in `tests/fixtures/cli/cases.json` ends in help, the version, a usage error or a
-//! flag rule, so none reaches a handler. The binary runs with a cleared environment and piped
-//! stdout, so help wraps at the default 100 columns whatever terminal runs the suite.
-//!
-//! `UPDATE_GOLDEN=1 cargo test` rewrites the recorded output from the binary's.
-#![allow(clippy::disallowed_methods)] // std::fs reads the fixtures.
+#![allow(clippy::disallowed_methods)]
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -26,7 +19,6 @@ fn write(name: &str, contents: &[u8]) {
     fs::write(fixtures().join(name), contents).unwrap_or_else(|error| panic!("{name}: {error}"));
 }
 
-/// Case name to argv, in the order recorded.
 fn cases() -> Vec<(String, Vec<String>)> {
     let cases: Value = serde_json::from_str(&read("cases.json")).expect("cases.json is JSON");
 

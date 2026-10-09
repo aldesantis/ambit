@@ -1,23 +1,3 @@
-//! `ambit audit`, and the same scan `install` runs over the bundle it is about to write.
-//!
-//! A skill is a prompt, a hook runs a command, and a stdio MCP server spawns one, so the audit
-//! reads the text an agent or a shell will act on. Three questions, each with its own check:
-//!
-//! - Text a reviewer cannot see. Invisible characters, bidi controls and tag characters render as
-//!   nothing (or reorder what is around them) in a diff view, while a model reads them. These
-//!   fail: none has a use in a skill that is worth the risk, and `install` refuses them.
-//! - Names that look like other names. A name mixing Latin letters with Cyrillic or Greek ones can
-//!   pass for another item's name in a `requires` list. A warning, since the mix can be honest.
-//! - Command lines that reach outside the item. A path outside the catalog, or a download piped
-//!   into a shell, is something to look at rather than something to refuse.
-//!
-//! The scanning functions ([`scan_text`], [`mixed_scripts`], [`command_concerns`]) are pure.
-//! [`audit_items`] is the one place that reads files, so `audit` and `install` agree on what was
-//! read. Files that are not UTF-8 are skipped: they are not text an agent reads as instructions.
-//!
-//! The command-line heuristics are deliberately simple and miss things a determined author can
-//! write around. They exist to surface the common shapes, not to prove a command safe.
-
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
@@ -45,13 +25,6 @@ use crate::util::text::js_trim;
 mod tests;
 
 string_enum! {
-    /// What one finding is about.
-    ///
-    /// - `Invisible`: a character that renders as nothing.
-    /// - `Bidi`: a character that changes the direction text is displayed in.
-    /// - `Tag`: a character from the tag block, which renders as nothing and can spell out ASCII.
-    /// - `MixedScript`: a name mixing letters from scripts that look alike.
-    /// - `Command`: a command line that reaches outside the item.
     pub enum AuditCheck {
         Invisible => "invisible",
         Bidi => "bidi",
@@ -62,57 +35,41 @@ string_enum! {
 }
 
 string_enum! {
-    /// How much a finding matters.
-    ///
-    /// - `Fail`: `audit` exits 6 and `install` refuses.
-    /// - `Warn`: reported, and never an exit code.
     pub enum AuditSeverity {
         Fail => "fail",
         Warn => "warn",
     }
 }
 
-/// One thing found in one item.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuditFinding {
     pub kind: ItemKind,
     pub name: String,
-    /// The catalog the item came from, since two catalogs may ship the same name.
     pub catalog: String,
     pub check: AuditCheck,
     pub severity: AuditSeverity,
-    /// The file it was found in, relative to the item's directory for a skill or a hook and to the
-    /// catalog root for a pack or an MCP server. Absent for a finding about a name.
     pub file: Option<String>,
-    /// The 1-based line, for a finding about characters.
     pub line: Option<usize>,
-    /// One line saying what was found and where.
     pub message: String,
 }
 
-/// What one audit found.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AuditReport {
-    /// How many items were read.
     pub items: usize,
-    /// Every finding: by kind in [`ItemKind`] order, then by item name, then by position.
     pub findings: Vec<AuditFinding>,
 }
 
 impl AuditReport {
-    /// Whether nothing failed. Warnings alone pass.
     pub fn passed(&self) -> bool {
         self.failures().next().is_none()
     }
 
-    /// The findings that decide the exit code.
     pub fn failures(&self) -> impl Iterator<Item = &AuditFinding> {
         self.findings
             .iter()
             .filter(|finding| finding.severity == AuditSeverity::Fail)
     }
 
-    /// The findings that are reported and nothing more.
     pub fn warnings(&self) -> impl Iterator<Item = &AuditFinding> {
         self.findings
             .iter()
@@ -120,7 +77,6 @@ impl AuditReport {
     }
 }
 
-/// A finding before it is attached to an item.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ContentFinding {
     pub check: AuditCheck,
@@ -130,14 +86,11 @@ pub struct ContentFinding {
     pub message: String,
 }
 
-/// How one suspicious character is named in a finding.
 struct Suspect {
     check: AuditCheck,
     severity: AuditSeverity,
     singular: &'static str,
     plural: &'static str,
-    /// The code point as a finding prints it. One label for the whole tag block, whose characters
-    /// differ from each other by the ASCII they encode.
     code: String,
 }
 
@@ -157,12 +110,6 @@ fn suspect(
     }
 }
 
-/// What `c` is, if it is a character the audit reports.
-///
-/// U+FEFF is reported only past the start of a file: at the start it is a byte-order mark, which
-/// editors write and hide on purpose. The three directional marks (U+200E, U+200F, U+061C) only
-/// warn: right-to-left prose uses them legitimately, and unlike an override or an isolate they do
-/// not reorder a run of text on their own.
 fn classify(c: char, at_start: bool) -> Option<Suspect> {
     use AuditCheck::{Bidi, Invisible, Tag};
     use AuditSeverity::{Fail, Warn};
@@ -268,11 +215,6 @@ fn classify(c: char, at_start: bool) -> Option<Suspect> {
     Some(found)
 }
 
-/// Every suspicious character in `text`, one finding per kind of character per line.
-///
-/// Repeats on one line are counted into a single finding ("3 zero-width joiners"), since a run of
-/// them is one thing to look at. Findings are in line order, and within a line in the order each
-/// kind first appears. `file` is how the finding names where it was found.
 pub fn scan_text(text: &str, file: &str) -> Vec<ContentFinding> {
     let mut findings = Vec::new();
 
@@ -307,10 +249,6 @@ pub fn scan_text(text: &str, file: &str) -> Vec<ContentFinding> {
     findings
 }
 
-/// The script a letter belongs to, among the scripts whose letters pass for each other.
-///
-/// Only these are told apart. A name mixing Latin with Han or Arabic is unusual but not
-/// confusable, so letters of every other script count for nothing here.
 fn confusable_script(c: char) -> Option<&'static str> {
     match c {
         'A'..='Z'
@@ -334,12 +272,6 @@ fn confusable_script(c: char) -> Option<&'static str> {
     }
 }
 
-/// The confusable scripts `name` mixes, in the order they first appear, or nothing when it uses at
-/// most one.
-///
-/// A handful of block ranges rather than the Unicode script property: the scripts that matter are
-/// few, their blocks are stable, and a dependency carrying the full script tables would be the
-/// largest thing in the binary for one warning.
 pub fn mixed_scripts(name: &str) -> Option<Vec<&'static str>> {
     let mut scripts: Vec<&'static str> = Vec::new();
 
@@ -352,7 +284,6 @@ pub fn mixed_scripts(name: &str) -> Option<Vec<&'static str>> {
     (scripts.len() > 1).then_some(scripts)
 }
 
-/// `a`, `a and b`, `a, b and c`.
 fn spoken_list(items: &[&str]) -> String {
     match items {
         [] => String::new(),
@@ -361,7 +292,6 @@ fn spoken_list(items: &[&str]) -> String {
     }
 }
 
-/// A download piped into an interpreter: `curl … | sh`, `wget -O- … | sudo bash`.
 static PIPED_DOWNLOAD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?i)\b(curl|wget|fetch|iwr|irm|invoke-webrequest|invoke-restmethod)\b[^|]*\|\s*(sudo\s+)?(env\s+)?(sh|bash|zsh|dash|ksh|fish|python[0-9.]*|perl|ruby|node|iex|pwsh|powershell)\b",
@@ -369,7 +299,6 @@ static PIPED_DOWNLOAD: LazyLock<Regex> = LazyLock::new(|| {
     .expect("a valid pattern")
 });
 
-/// A download substituted into an interpreter: `bash <(curl …)`, `sh -c "$(wget …)"`.
 static SUBSTITUTED_DOWNLOAD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?i)\b(sh|bash|zsh|dash|ksh|fish|python[0-9.]*|perl|ruby|node)\b[^|;&]*(<\(|\$\(|`)\s*(curl|wget)\b",
@@ -377,18 +306,14 @@ static SUBSTITUTED_DOWNLOAD: LazyLock<Regex> = LazyLock::new(|| {
     .expect("a valid pattern")
 });
 
-/// Leading shell redirection on a word: `2>`, `>>`, `<`, `&>`.
 static REDIRECTION: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[0-9]*[<>&]+").expect("a valid pattern"));
 
-/// A Windows drive path: `C:\`, `c:/`.
 static DRIVE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[A-Za-z]:[\\/]").expect("a valid pattern"));
 
-/// Device files a command line names without reaching for anything.
 const HARMLESS_PATHS: &[&str] = &["/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr"];
 
-/// Why one word of a command line reaches outside the item, if it does.
 fn outside_reason(word: &str) -> Option<&'static str> {
     if word.is_empty() || word.contains("://") || HARMLESS_PATHS.contains(&word) {
         return None;
@@ -409,17 +334,6 @@ fn outside_reason(word: &str) -> Option<&'static str> {
     None
 }
 
-/// What looks risky about one command line, as one message per concern.
-///
-/// Two concerns, both heuristics over the text:
-///
-/// - A download piped or substituted into an interpreter (`curl … | sh`, `bash <(curl …)`).
-/// - A word naming a path outside the item: absolute, under `~` or `$HOME`, or climbing out with
-///   `..`. The line is split on whitespace and on `;|&()`, each word loses its quotes and any
-///   leading redirection, and a word with an `=` is judged by what follows it, so `--config=/etc/x`
-///   and `2>/tmp/log` both count. URLs and `/dev/null` and its siblings do not.
-///
-/// Variables other than `$HOME` are not expanded, so `$CLAUDE_PROJECT_DIR/x` passes.
 pub fn command_concerns(command: &str) -> Vec<String> {
     let mut concerns = Vec::new();
 
@@ -450,10 +364,6 @@ pub fn command_concerns(command: &str) -> Vec<String> {
     concerns
 }
 
-/// The items one audit reads.
-///
-/// Built from a merged catalog for `ambit audit`, which reads everything every catalog ships, or
-/// from a bundle for `install`, which reads only what it is about to write.
 #[derive(Clone, Copy, Debug)]
 pub struct AuditItems<'a> {
     pub packs: &'a [MergedPack],
@@ -482,8 +392,6 @@ impl<'a> AuditItems<'a> {
     }
 }
 
-/// Each catalog's root on disk, keyed by catalog name: where a pack's or a server's `file` is
-/// relative to.
 pub fn catalog_roots(catalogs: &[Catalog]) -> IndexMap<String, PathBuf> {
     catalogs
         .iter()
@@ -491,18 +399,14 @@ pub fn catalog_roots(catalogs: &[Catalog]) -> IndexMap<String, PathBuf> {
         .collect()
 }
 
-/// One item, with what the audit reads of it.
 struct Target<'a> {
     kind: ItemKind,
     name: &'a str,
     catalog: &'a str,
-    /// Each text file: how findings name it, and where it is.
     files: Vec<(String, PathBuf)>,
-    /// Each command line: the text, and the file it is declared in.
     commands: Vec<(String, String)>,
 }
 
-/// The error for an item file that cannot be read.
 fn unreadable(kind: ItemKind, name: &str, path: &Path, error: &std::io::Error) -> AmbitError {
     config_error(
         format!("cannot read the files of {kind} \"{name}\" to audit them"),
@@ -513,7 +417,6 @@ fn unreadable(kind: ItemKind, name: &str, path: &Path, error: &std::io::Error) -
     )
 }
 
-/// Every regular file under an item's directory, named relative to it.
 fn directory_files(kind: ItemKind, name: &str, dir: &Path) -> Result<Vec<(String, PathBuf)>> {
     let entries = walk_tree(dir).map_err(|error| unreadable(kind, name, dir, &error))?;
 
@@ -528,14 +431,12 @@ fn directory_files(kind: ItemKind, name: &str, dir: &Path) -> Result<Vec<(String
         .collect())
 }
 
-/// The root of the catalog an item came from.
 fn root_of<'r>(roots: &'r IndexMap<String, PathBuf>, catalog: &str) -> Result<&'r PathBuf> {
     roots.get(catalog).ok_or_else(|| {
         AmbitError::unexpected(format!("catalog \"{catalog}\" was not among those loaded"))
     })
 }
 
-/// Every item, as what the audit reads of it, by kind and then by name.
 fn targets<'a>(
     items: AuditItems<'a>,
     roots: &IndexMap<String, PathBuf>,
@@ -597,8 +498,6 @@ fn targets<'a>(
     }
 
     for hook in items.hooks {
-        // A script hook's program is a file its own directory ships, which parsing already holds
-        // to that directory, so only the arguments after it are a command line to judge.
         let command = match hook.r#type {
             HookType::Command => hook.command.clone(),
             HookType::Script => {
@@ -631,7 +530,6 @@ fn targets<'a>(
     Ok(all)
 }
 
-/// Everything wrong with one item.
 fn audit_target(target: &Target<'_>) -> Result<Vec<ContentFinding>> {
     let mut findings = Vec::new();
 
@@ -653,7 +551,6 @@ fn audit_target(target: &Target<'_>) -> Result<Vec<ContentFinding>> {
         let bytes = std::fs::read(path)
             .map_err(|error| unreadable(target.kind, target.name, path, &error))?;
 
-        // Not text: nothing an agent reads as instructions, and nothing to scan line by line.
         let Ok(text) = String::from_utf8(bytes) else {
             continue;
         };
@@ -676,13 +573,6 @@ fn audit_target(target: &Target<'_>) -> Result<Vec<ContentFinding>> {
     Ok(findings)
 }
 
-/// Reads every item and reports what it finds.
-///
-/// `roots` is each catalog's root, from [`catalog_roots`]; a skill and a hook carry their own.
-///
-/// # Errors
-///
-/// Exit 2 when an item's files cannot be listed or read.
 pub fn audit_items(
     items: AuditItems<'_>,
     roots: &IndexMap<String, PathBuf>,
@@ -709,15 +599,6 @@ pub fn audit_items(
     })
 }
 
-/// Audits every item in every catalog the project lists: `ambit audit`.
-///
-/// Loads catalogs the way `validate` does, so the audit covers what a catalog ships rather than
-/// only what this project selects.
-///
-/// # Errors
-///
-/// Exit 2 for a missing or malformed config, a catalog that does not parse, or a file that cannot
-/// be read; exit 4 if a fetch fails.
 pub fn audit_project(context: &SourceContext) -> Result<AuditReport> {
     let config = load_project_config(&context.project_dir)?;
     let catalogs = load_catalogs(&config, context, &mut CatalogLoadOptions::default())?;
@@ -726,16 +607,10 @@ pub fn audit_project(context: &SourceContext) -> Result<AuditReport> {
     audit_items(AuditItems::of_catalog(&merged), &catalog_roots(&catalogs))
 }
 
-/// How a finding names its item: `<kind> "<name>"`.
 pub fn item_label(finding: &AuditFinding) -> String {
     format!("{} \"{}\"", finding.kind, finding.name)
 }
 
-/// The refusal for an install whose bundle failed the audit, or `Ok` when it passed.
-///
-/// # Errors
-///
-/// Exit 6 when any finding is a failure, naming each one.
 pub fn refuse_failures(report: &AuditReport) -> Result<()> {
     let failures: Vec<&AuditFinding> = report.failures().collect();
 
@@ -762,7 +637,6 @@ pub fn refuse_failures(report: &AuditReport) -> Result<()> {
     ))
 }
 
-/// `1 thing`, `2 things`.
 pub fn count(n: usize, singular: &str, plural: &str) -> String {
     format!("{n} {}", if n == 1 { singular } else { plural })
 }

@@ -1,17 +1,3 @@
-//! More than one harness in one project.
-//!
-//! The single-harness path is covered exhaustively in `tests.rs`; what only a multi-harness install
-//! can show is what the shared skills directory implies. Two harnesses of the same family name the
-//! same skills link, and *every* harness names the same skill directories, so the interesting
-//! claims are about a target two adapters both want, and about each harness's own config file
-//! being written in its own format at the same time.
-//!
-//! The migration cases belong here for the same reason: the layout they migrate from is the one
-//! that existed before the skills directory was shared.
-//!
-//! Every case installs a real project (B1, B2, B3); the `status` and `doctor` cases need B5 and B2
-//! as well.
-
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
@@ -44,7 +30,6 @@ fn readlink(project: &Project, relative: &str) -> String {
     project.link_at(relative).expect("a symlink")
 }
 
-/// The default packs, for the given harnesses.
 fn write_harnesses(project: &Project, harnesses: &[&str]) {
     project.write(
         "ambit.yml",
@@ -78,12 +63,6 @@ fn server_names(project: &Project, relative: &str) -> Vec<String> {
         .collect()
 }
 
-// two harnesses of the same family
-//
-// Claude Code and Cursor both read `.claude/skills`, so exactly one link is planned, applied, owned
-// and ignored: not two, and not one applied twice, which would mean the second adapter unlinking
-// what the first had just created.
-
 #[test]
 fn plans_the_shared_link_and_the_shared_skill_directories_once_each() {
     let project = with_harnesses(&["claude", "cursor"]);
@@ -91,8 +70,6 @@ fn plans_the_shared_link_and_the_shared_skill_directories_once_each() {
         .expect("an install");
 
     assert_eq!(result.harnesses, ["claude", "cursor"]);
-    // One hook directory, shared like the skills, and a config file per harness, because the two
-    // read their hooks from files of their own even where they share a skills link.
     assert_eq!(
         result
             .artifacts
@@ -122,7 +99,6 @@ fn writes_both_config_files_and_one_skills_tree() {
     assert_eq!(server_names(&project, ".mcp.json"), [PACKED_MCP]);
     assert_eq!(server_names(&project, ".cursor/mcp.json"), [PACKED_MCP]);
     assert_eq!(skills_listed(&project), all_skills_sorted());
-    // One link, and it points at the shared directory rather than at a copy of it.
     assert_eq!(readlink(&project, CLAUDE_LINK), format!("../{SKILLS_DIR}"));
 }
 
@@ -172,11 +148,6 @@ fn changes_no_bytes_on_a_second_install() {
     assert_eq!(readlink(&project, CLAUDE_LINK), format!("../{SKILLS_DIR}"));
 }
 
-// two harnesses from different families
-//
-// The case that exercises two document formats in one run: `.mcp.json` through the JSON driver and
-// `.codex/config.toml` through the TOML one.
-
 #[test]
 fn writes_each_harnesss_config_in_that_harnesss_own_file_and_format() {
     let project = with_harnesses(&["claude", "codex"]);
@@ -210,7 +181,6 @@ fn materializes_the_skills_once_and_links_only_for_the_harness_that_needs_it() {
     project.cli(&["install"]);
 
     assert_eq!(skills_listed(&project), all_skills_sorted());
-    // Codex reads `.agents/skills` natively, so it gets no directory of its own.
     assert!(project.lexists(CLAUDE_LINK));
     assert!(!project.lexists(".codex/skills"));
 }
@@ -227,7 +197,6 @@ fn records_the_format_of_each_config_file_so_pruning_knows_how_to_edit_it() {
             .into_iter()
             .filter(|artifact| artifact.kind == ArtifactKind::HarnessConfig)
             .collect::<Vec<_>>(),
-        // In state's own order, which is by path, so a diff of two installs reads as a diff.
         [
             config(
                 ".claude/settings.json",
@@ -241,8 +210,6 @@ fn records_the_format_of_each_config_file_so_pruning_knows_how_to_edit_it() {
                 None,
                 vec![format!("mcp_servers.{PACKED_MCP}")],
             ),
-            // The same entry shape, and one string apart: Codex interpolates nothing, so its copy
-            // of the script-shipping hook carries the project-relative path.
             config(
                 ".codex/hooks.json",
                 DocumentFormat::Json,
@@ -264,7 +231,6 @@ fn prunes_the_stale_server_from_both_files_in_both_formats() {
     let project = with_harnesses(&["claude", "codex"]);
 
     project.cli(&["install"]);
-    // A profile with no servers, so the one both files hold is stale.
     project.write(
         "ambit.yml",
         &format!(
@@ -277,7 +243,6 @@ fn prunes_the_stale_server_from_both_files_in_both_formats() {
 
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
     assert_eq!(parsed(&project, ".mcp.json"), json!({ "mcpServers": {} }));
-    // The TOML file is co-owned like the JSON one, so it stays, holding nothing of ambit's.
     assert_eq!(project.read(".codex/config.toml"), "");
 }
 
@@ -294,8 +259,6 @@ fn leaves_a_codex_configs_own_settings_and_comments_exactly_as_they_were() {
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
     assert!(project.read(".codex/config.toml").starts_with(handwritten));
 }
-
-// every harness at once
 
 const ALL_HARNESSES: &[&str] = &[
     "claude", "codex", "copilot", "cursor", "devin", "gemini", "grok", "kiro", "opencode",
@@ -326,8 +289,6 @@ fn writes_one_skills_tree_and_every_harnesss_config_file() {
         assert!(project.lexists(file), "{file}");
     }
 
-    // Each skill is materialized once however many harnesses read it: one directory per skill,
-    // not one per skill per harness.
     assert_eq!(
         project
             .state_artifacts()
@@ -346,8 +307,6 @@ fn reports_no_drift_afterwards_in_all_three_document_formats_at_once() {
 
     let result = project.cli(&["status", "--check"]);
 
-    // The one case that compares a JSON, a JSONC and a TOML file in a single run, each through its
-    // own driver's notion of "already what install would write".
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
 }
 
@@ -356,8 +315,6 @@ fn passes_doctor_with_every_referenced_variable_set() {
     let mut project = with_harnesses(ALL_HARNESSES);
 
     project.cli(&["install"]);
-    // Every variable the bundle references, whichever entity declared it: `doctor` reads the
-    // environment rather than the files, so a reference in every format is still one question.
     project
         .env
         .insert(PACKED_KEY_VAR.to_owned(), "s3cret".to_owned());
@@ -370,13 +327,6 @@ fn passes_doctor_with_every_referenced_variable_set() {
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
 }
 
-// a variable referenced by a header and not declared in `env`
-//
-// The check is about the environment, so its answer must not depend on which harness's file the
-// reference landed in, and every harness spells a reference differently, including one (Codex)
-// that writes the bare variable name. A check that read the installed bytes would work for Claude
-// Code and quietly stop working for the rest.
-
 #[test]
 fn is_reported_for_every_harness() {
     for harness in ALL_HARNESSES {
@@ -386,8 +336,6 @@ fn is_reported_for_every_harness() {
             "mcps/undeclared.yml",
             "name: undeclared\n\ntransport:\n  http:\n    url: https://mcp.invalid/undeclared\n    headers:\n      Authorization: \"Bearer ${UNDECLARED_TOKEN}\"\n",
         );
-        // Beside the fixture's own `core` pack, rewritten so the profile's entry reaches this
-        // server too.
         project.write_catalog(
             "packs/core.yml",
             &[
@@ -426,13 +374,6 @@ fn is_reported_for_every_harness() {
     }
 }
 
-// migrating an old-layout .claude/skills
-//
-// The old layout put every skill in `.claude/skills/<name>/`, which is now the path of the link
-// itself. ambit adopts that directory implicitly, but only when it installed everything in it,
-// which is exactly when replacing it with a link loses nothing.
-
-/// A `.claude/skills` holding skill directories a prior install recorded as ambit's.
 fn write_old_layout(project: &Project, extra: Option<&str>) {
     let artifacts: Vec<serde_json::Value> = ALL_SKILLS
         .iter()
@@ -470,12 +411,7 @@ fn replaces_a_directory_of_ambits_own_skills_with_the_link_without_adopt() {
     let result = project.cli(&["install"]);
 
     assert_eq!(result.code, ExitCode::Success, "{}", result.stderr);
-    // ambit wrote everything that was in there, so turning the container into a link loses
-    // nothing, which is why this one adoption is implicit.
     assert_eq!(readlink(&project, CLAUDE_LINK), format!("../{SKILLS_DIR}"));
-    // And the skills survive the same run's pruning. Prior state owns `.claude/skills/<name>`,
-    // which the new link now resolves through, so a prune that followed it would delete the
-    // install it had just made.
     assert_eq!(skills_listed(&project), all_skills_sorted());
     assert!(
         project
@@ -503,7 +439,6 @@ fn refuses_when_one_hand_written_skill_sits_in_there_and_names_adopt() {
             .stderr
             .contains("run `ambit install --adopt` to take ownership")
     );
-    // And the person's skill is still there, which is the whole point of refusing.
     assert!(
         project
             .read(&format!("{CLAUDE_LINK}/hand-written/SKILL.md"))
@@ -525,8 +460,6 @@ fn takes_it_over_under_adopt_which_is_what_the_refusal_offered() {
 
 #[test]
 fn reports_a_dangling_symlink_as_unowned_rather_than_crashing() {
-    // What dotagents leaves behind, and the shape that used to surface as "this is a bug in ambit":
-    // `mkdir` on a path whose ancestor is a dangling link fails with ENOENT.
     let project = claude_project();
 
     fs::mkdir_p(&project.path(".claude")).expect("create .claude");
@@ -539,8 +472,6 @@ fn reports_a_dangling_symlink_as_unowned_rather_than_crashing() {
     assert!(!result.stderr.contains("this is a bug in ambit"));
 }
 
-/// A dangling link an artifact has to be created *under* is different from one *at* a planned
-/// path: `mkdir -p` cannot descend through it, so adopting the artifact would still fail.
 #[test]
 fn refuses_a_dangling_symlink_standing_where_a_parent_directory_belongs_and_says_what_to_move() {
     let project = claude_project();
@@ -564,8 +495,6 @@ fn refuses_a_dangling_symlink_standing_where_a_parent_directory_belongs_and_says
                 .stderr
                 .contains("move .agents aside, or point it at a directory that exists")
         );
-        // Never the internal-error wording, and `--adopt` is not offered, because it would not
-        // help.
         assert!(!result.stderr.contains("this is a bug in ambit"));
         assert!(!result.stderr.contains("--adopt` to take ownership"));
     }
@@ -590,8 +519,6 @@ fn refuses_a_plain_file_standing_where_a_parent_directory_belongs() {
 
 #[test]
 fn writes_through_a_parent_directory_that_is_a_link_to_a_real_directory() {
-    // A symlinked ancestor is only a problem when it dangles: one pointing at a directory is a
-    // directory as far as writing into it goes.
     let project = claude_project();
     let elsewhere = project.root.join("elsewhere");
 

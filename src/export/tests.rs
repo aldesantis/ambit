@@ -1,9 +1,4 @@
-//! `ambit export` end to end, against a catalog written into a temporary project.
-//!
-//! The end-to-end cases need the config and catalog loaders (B1) and resolution (B2); the lock case
-//! also needs the lock writer (B4). The unit cases at the bottom pin the file collection, layout and
-//! comparison this module owns, and run on their own.
-#![allow(clippy::disallowed_methods)] // std::fs::read_dir lists the output in the OS's order.
+#![allow(clippy::disallowed_methods)]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -64,7 +59,7 @@ impl Fixture {
         )
     }
 
-    #[allow(clippy::needless_pass_by_value)] // Callers build the options inline.
+    #[allow(clippy::needless_pass_by_value)]
     fn export(&self, options: ExportOptions) -> Result<ExportResult> {
         export_plugins(&self.context(), &options)
     }
@@ -889,8 +884,6 @@ fn exposes_check_and_force_through_the_cli_and_leaves_missing_output_untouched()
     assert_eq!(cli(&["--check", "--force"]), ExitCode::Config);
     assert_eq!(cli(&["--check", "--dry-run"]), ExitCode::Config);
 }
-
-// Units this module owns, runnable without the loaders.
 
 #[test]
 fn refuses_check_combined_with_force_or_dry_run_before_reading_anything() {

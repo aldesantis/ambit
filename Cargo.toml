@@ -15,20 +15,17 @@ indexmap = { version = "2.14.2", features = ["serde"] }
 ryu-js = "1.0.3"
 jsonc-parser = { version = "0.34.0", features = ["cst", "serde", "serde_json", "preserve_order"] }
 saphyr = "0.1.0"
-# The event stream, for the checks saphyr's loader does not make; see model::yaml::load.
 saphyr-parser = "0.1.0"
 regex = "1.13.1"
 sha2 = "0.11.0"
 ureq = "3.4.2"
 tar = "0.4.46"
 lzma-rust2 = { version = "0.21.0", default-features = false, features = ["std", "xz"] }
-# Decompression only: the `deflate` feature would also pull in the zopfli compressor.
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 tempfile = "3.27.0"
 terminal_size = "0.4.4"
 semver = "1.0.28"
 url = "2.5.8"
-# No `color`: usage text goes through ambit's own output, uncolored, the same everywhere.
 clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions", "wrap_help"] }
 # Pinned: later versions need Rust 1.89, and the version decides the bytes ambit writes.
 serde-saphyr = { version = "=1.1.0", default-features = false, features = ["serialize"] }
@@ -38,7 +35,6 @@ gray_matter = { version = "0.3.2", default-features = false }
 assert_cmd = "2.2.2"
 predicates = "3.1.4"
 pretty_assertions = "1.4.1"
-# The self-update suites build cargo-dist-shaped `.tar.xz` archives to serve from a fake GitHub.
 lzma-rust2 = { version = "0.21.0", default-features = false, features = ["std", "xz", "encoder"] }
 
 [lints.rust]
@@ -46,19 +42,14 @@ unsafe_code = "forbid"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
-# The plugin export steps, and one catalog test, run a long sequence best read in order.
 too_many_lines = "allow"
-# Option structs mirror CLI flags.
 struct_excessive_bools = "allow"
-# Pairs such as `args`/`argv` and `requirer`/`required` are the clearest names for what they hold.
 similar_names = "allow"
 
-# The profile that dist builds release binaries with
 [profile.dist]
 inherits = "release"
 lto = "thin"
 
-# `publish = false` keeps ambit off crates.io, which dist reads as "do not release" unless told
-# otherwise. Releases are built by dist; see dist-workspace.toml.
+# dist skips `publish = false` packages unless this is set.
 [package.metadata.dist]
 dist = true

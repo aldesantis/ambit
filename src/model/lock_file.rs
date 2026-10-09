@@ -1,22 +1,3 @@
-//! `ambit.lock` as a file ambit reads: where it lives, and the pins inside it.
-//!
-//! The writing half is `project/lock.rs`, which builds the document and renders its bytes.
-//! Rendering a lock needs a resolved bundle and its reasons (project-level knowledge); reading a
-//! pin back out is something catalog loading has to do, so it lives beside the loader that needs
-//! it.
-//!
-//! Why a lock is read at all: resolving a moving `ref:` from the machine-wide git cache alone would
-//! give a project whatever the shared clone happened to hold, which any other project on the
-//! machine could move under it. That would make `--frozen` unsatisfiable for a project using
-//! `ref: main`: a cold CI clone resolves `main` to today's commit and fails against a lock written
-//! last week.
-//!
-//! So the `catalogs` section is an input, resolved against rather than just recorded. The item
-//! sections stay a record: compared as bytes by `--frozen`, and read back by [`read_locked_items`]
-//! only so an install can check what it is about to write against what an earlier install
-//! recorded: the digests of its trees, and the execution each hook and MCP server carried. Nothing
-//! resolves against them.
-
 use std::path::{Path, PathBuf};
 
 use indexmap::IndexMap;
@@ -29,26 +10,14 @@ use crate::model::yaml::{YamlMapping, parse_yaml_mapping};
 use crate::util::fs::{io_message, read_text_opt};
 use crate::util::path::join;
 
-/// The lockfile's name, at the project root beside `ambit.yml`.
 pub const LOCK_FILENAME: &str = "ambit.lock";
 
-/// The only lock version this build reads or writes.
 pub const LOCK_VERSION: i64 = 1;
 
-/// Where the lock lives for a project.
 pub fn lock_file_path(project_dir: &Path) -> PathBuf {
     join(project_dir, LOCK_FILENAME)
 }
 
-/// Reads a project's lock as text, returning `None` when there is none.
-///
-/// Text, because that is what `--frozen` compares: a lock that would be rewritten is out of date,
-/// whatever the two documents mean.
-///
-/// # Errors
-///
-/// Exit 2 for a lock that exists but cannot be read: reported rather than treated as absent, since
-/// "there is no lock" and "your lock is unreadable" call for different fixes.
 pub fn read_lock_text(project_dir: &Path) -> Result<Option<String>> {
     let file = lock_file_path(project_dir);
 
@@ -66,18 +35,12 @@ pub fn read_lock_text(project_dir: &Path) -> Result<Option<String>> {
     })
 }
 
-/// One `catalogs` entry as the lock recorded it: what it was resolved from, and what it resolved
-/// to.
 struct RecordedCatalog {
-    /// The `source` as config wrote it when the commit was recorded.
     source: String,
-    /// The `ref` as config wrote it, absent when the entry named none.
     r#ref: Option<String>,
-    /// The commit the ref resolved to. Absent for a `path:` source, which has no revision.
     commit: Option<String>,
 }
 
-/// The error for a lock this build cannot read a pin out of.
 fn unsupported_version(found: i64) -> AmbitError {
     config_error(
         format!("{LOCK_FILENAME} is version {found}, which this build cannot read"),
@@ -90,11 +53,6 @@ fn unsupported_version(found: i64) -> AmbitError {
     )
 }
 
-/// The lock parsed as a mapping, with its version checked, or `None` when the project has none.
-///
-/// # Errors
-///
-/// Exit 2 for an unreadable lock, a malformed document, or a version this build cannot read.
 fn read_lock_root(project_dir: &Path) -> Result<Option<YamlMapping>> {
     let Some(text) = read_lock_text(project_dir)? else {
         return Ok(None);
@@ -110,36 +68,23 @@ fn read_lock_root(project_dir: &Path) -> Result<Option<YamlMapping>> {
     Ok(Some(root))
 }
 
-/// One `skills`, `mcps` or `hooks` entry as an earlier install recorded it.
-///
-/// Every field is optional, whatever the entry's kind requires when ambit writes it: a lock from an
-/// older build has no `digest`, and a hand-edited one may lack anything else. A reader decides what
-/// an absent field means for its own comparison.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LockedItem {
     pub catalog: Option<String>,
-    /// The item's directory within its catalog, `/`-separated.
     pub path: Option<String>,
-    /// The commit its bytes came from.
     pub commit: Option<String>,
-    /// The [`tree_digest`](crate::util::hash::tree_digest) of its directory at that commit.
     pub digest: Option<String>,
-    /// The digest of what it runs, on a hook or an MCP server. See `project/exec.rs`.
     pub exec: Option<String>,
 }
 
-/// The item sections of an earlier lock, keyed by item name.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LockedItems {
-    /// The commit each catalog was pinned to, keyed by catalog name. A catalog with no commit (a
-    /// `path:` source) is absent.
     pub catalog_commits: IndexMap<String, String>,
     pub skills: IndexMap<String, LockedItem>,
     pub mcps: IndexMap<String, LockedItem>,
     pub hooks: IndexMap<String, LockedItem>,
 }
 
-/// One item section, absent read as empty.
 fn locked_section(root: &YamlMapping, key: &str) -> Result<IndexMap<String, LockedItem>> {
     let Some(section) = root.optional_mapping(key)? else {
         return Ok(IndexMap::new());
@@ -165,10 +110,6 @@ fn locked_section(root: &YamlMapping, key: &str) -> Result<IndexMap<String, Lock
     Ok(items)
 }
 
-/// The `commit` of each `catalogs` entry that has one.
-///
-/// Not checked for being a full SHA, unlike [`read_catalog_pins`]: nothing resolves against these,
-/// they are only compared with the commits a fresh lock records.
 fn catalog_commits(root: &YamlMapping) -> Result<IndexMap<String, String>> {
     let Some(section) = root.optional_mapping("catalogs")? else {
         return Ok(IndexMap::new());
@@ -185,17 +126,6 @@ fn catalog_commits(root: &YamlMapping) -> Result<IndexMap<String, String>> {
     Ok(commits)
 }
 
-/// What the project's lock recorded about each skill, MCP server and hook, or `None` when it has
-/// no lock.
-///
-/// Read so an install can compare what it is about to write against what an earlier install wrote
-/// (see `verify_digests` in `project/lock.rs`, and `project/exec.rs`). As with the `catalogs` section, keys this build
-/// does not read are ignored, so a lock written by a later ambit still reads.
-///
-/// # Errors
-///
-/// Exit 2 for an unreadable lock, a version this build cannot read, a malformed document, or a
-/// field holding something other than a string.
 pub fn read_locked_items(project_dir: &Path) -> Result<Option<LockedItems>> {
     let Some(root) = read_lock_root(project_dir)? else {
         return Ok(None);
@@ -209,20 +139,7 @@ pub fn read_locked_items(project_dir: &Path) -> Result<Option<LockedItems>> {
     }))
 }
 
-/// Reads the `catalogs` section back.
-///
-/// Failures are fatal. A lock is an input, so a version this build does not know and a document
-/// that does not parse both mean ambit cannot tell what this project is pinned to. Resolving as
-/// though there were no lock would reintroduce the silent drift the pins exist to remove.
-///
-/// Unknown keys are deliberately not rejected, unlike everywhere else ambit parses YAML: only these
-/// three are read, and a lock written by a later ambit that records a fourth should still pin
-/// correctly rather than refuse to be read at all.
-///
-/// # Errors
-///
-/// Exit 2 for an unreadable lock, a version this build cannot read, a malformed document, or a
-/// `commit` that is not a full SHA.
+/// Unknown keys are deliberately not rejected, so a lock written by a later ambit still reads.
 fn read_recorded_catalogs(project_dir: &Path) -> Result<Option<IndexMap<String, RecordedCatalog>>> {
     let Some(root) = read_lock_root(project_dir)? else {
         return Ok(None);
@@ -239,8 +156,6 @@ fn read_recorded_catalogs(project_dir: &Path) -> Result<Option<IndexMap<String, 
         let commit = entry.optional_string("commit")?;
         let r#ref = entry.optional_string("ref")?;
 
-        // Refused here rather than left to git, so the message names the file the pin was
-        // hand-edited in.
         if let Some(commit) = &commit
             && !is_commit_sha(commit)
         {
@@ -271,19 +186,6 @@ fn read_recorded_catalogs(project_dir: &Path) -> Result<Option<IndexMap<String, 
     Ok(Some(recorded))
 }
 
-/// What a `source`/`ref` pair means, as one comparable string, or nothing if it means nothing here.
-///
-/// Parsed rather than compared as written, because the question a pin's validity turns on is
-/// whether this is still the same repository at the same revision, and one repository has several
-/// spellings: `acme/skills` and `https://github.com/acme/skills.git` are one source, as are a URL
-/// and its `git:` form, and `acme/skills@v1` says what a separate `ref: v1` says. Comparing the
-/// strings would void a good pin over a rewrite that changed nothing, sending the run to the
-/// network to rediscover a commit it already had.
-///
-/// A source that does not parse is not comparable, so its pin is void rather than honoured, as is a
-/// `path:` source, which has no revision to pin in the first place. Nothing is returned as an
-/// error here: the config's own source is about to be parsed properly by the load that follows, and
-/// a bad source in the lock is a pin to ignore rather than a project to stop.
 fn git_identity(source: &str, r#ref: Option<&str>) -> Option<String> {
     let request = SourceRequest {
         source: source.to_owned(),
@@ -297,25 +199,6 @@ fn git_identity(source: &str, r#ref: Option<&str>) -> Option<String> {
     }
 }
 
-/// The commit each configured catalog is pinned to, keyed by catalog name.
-///
-/// Empty for a project with no lock, since a project with nothing to reproduce should resolve
-/// against its remote rather than inherit a shared clone's idea of `main`.
-///
-/// An entry survives only when the lock's `source` and `ref` still name the same repository and
-/// revision `ambit.yml` does (see `git_identity`), and only when it has a commit at all. Three
-/// cases drop it:
-///
-/// - The config moved: `ref:` was edited, or `source:` repointed. The recorded commit answers a
-///   question the project has stopped asking, so it is dropped and the new `ref` is resolved.
-/// - The catalog is new: added since the lock was written, so it resolves against its remote
-///   exactly as a first install's catalogs do.
-/// - `path:`: no revision, so nothing to pin.
-///
-/// # Errors
-///
-/// Exit 2 for a lock that exists and cannot be read, a version this build cannot read, a malformed
-/// document, or a `commit` that is not a full SHA.
 pub fn read_catalog_pins(
     project_dir: &Path,
     config: &ProjectConfig,

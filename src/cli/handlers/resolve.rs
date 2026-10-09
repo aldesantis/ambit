@@ -1,16 +1,3 @@
-//! `ambit resolve`: compute the bundle and print it.
-//!
-//! `--json` is the golden-file surface: no absolute paths, every key emitted in sorted order. The
-//! shape mirrors `ambit.lock` minus the parts only a fetched catalog can supply, so the lock is
-//! later a serialization of this rather than a second, differently-shaped view.
-//!
-//! `--explain` adds one column and one key rather than a different report, so a reader comparing
-//! the two doesn't need to re-find their bearings. The reason is the short form; `ambit why` prints
-//! the whole chain.
-//!
-//! A bundle holds one item per name; a selection reaching two catalogs' copies of the same name is
-//! refused at resolve, not reported here, since both would be installed at one path.
-
 use serde_json::json;
 
 use crate::cli::commands::{CommandContext, json_requested, source_context_of};
@@ -24,7 +11,6 @@ use crate::resolution::resolve::{
 };
 use crate::util::json::{JsonObject, JsonValue, stringify_pretty};
 
-/// The reason column and key, present only under `--explain`.
 fn reason(bundle: &Bundle, kind: ItemKind, name: &str, explain: bool) -> Result<Option<String>> {
     if !explain {
         return Ok(None);
@@ -38,7 +24,6 @@ fn reason(bundle: &Bundle, kind: ItemKind, name: &str, explain: bool) -> Result<
     Ok(Some(format_reason(reason_of(bundle, &item)?)))
 }
 
-/// A record with `reason` appended when there is one.
 fn with_reason(mut record: JsonObject, why: Option<String>) -> JsonValue {
     if let Some(why) = why {
         record.insert("reason".to_owned(), JsonValue::String(why));
@@ -47,7 +32,6 @@ fn with_reason(mut record: JsonObject, why: Option<String>) -> JsonValue {
     JsonValue::Object(record)
 }
 
-/// [`keyed`], for a projection that can fail.
 fn try_keyed<T>(
     items: &[T],
     name: impl Fn(&T) -> String,
@@ -63,7 +47,6 @@ fn try_keyed<T>(
     ))
 }
 
-/// An object with the keys in the order given.
 fn object<const N: usize>(pairs: [(&str, &str); N]) -> JsonObject {
     pairs
         .into_iter()
@@ -98,8 +81,6 @@ fn to_json(bundle: &Bundle, explain: bool) -> Result<JsonValue> {
             Ok(with_reason(object([("catalog", &mcp.catalog)]), why))
         },
     )?;
-    // A pack materializes nothing, so this record carries no path and no bytes: it only says the
-    // project asked for it.
     let packs = try_keyed(
         &bundle.packs,
         |pack| pack.name.clone(),
@@ -133,7 +114,6 @@ fn to_json(bundle: &Bundle, explain: bool) -> Result<JsonValue> {
     Ok(JsonValue::Object(record))
 }
 
-/// A row with the reason appended, or the row unchanged when nothing was asked to explain it.
 fn row(mut cells: Vec<String>, why: Option<String>) -> Vec<String> {
     cells.extend(why);
     cells
@@ -184,8 +164,6 @@ fn to_text(bundle: &Bundle, explain: bool) -> Result<Vec<String>> {
             ))
         })
         .collect::<Result<Vec<_>>>()?;
-    // One row per precondition, kind in its own column, so `env` and `bin` entries are
-    // distinguishable at a glance.
     let expects: Vec<Vec<String>> = EXPECTATION_KINDS
         .iter()
         .flat_map(|&kind| {
@@ -197,8 +175,6 @@ fn to_text(bundle: &Bundle, explain: bool) -> Result<Vec<String>> {
         })
         .collect();
 
-    // Packs first: they are what a project usually wrote down; the sections below are what they
-    // expanded to.
     let mut lines = section("packs", &packs);
 
     lines.extend(section("skills", &skills));
@@ -209,10 +185,6 @@ fn to_text(bundle: &Bundle, explain: bool) -> Result<Vec<String>> {
     Ok(lines)
 }
 
-/// # Errors
-///
-/// Exit 2 for a missing or malformed config or catalog; exit 3 for a resolution error; exit 4 if a
-/// fetch fails.
 pub fn resolve_handler(ctx: &mut CommandContext<'_>) -> Result<ExitCode> {
     let explain = ctx.options.flag("explain");
 

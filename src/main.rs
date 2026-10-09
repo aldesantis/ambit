@@ -1,9 +1,3 @@
-//! The `ambit` binary: a deterministic dependency manager for AI-agent capabilities.
-//!
-//! `main` is the only place that touches process state: it snapshots the environment and the cwd,
-//! hands them to [`cli::run`], and turns the returned code into the exit status. Everything below
-//! takes them as arguments.
-
 mod cli;
 mod errors;
 mod export;
@@ -39,8 +33,6 @@ fn main() {
     let env = util::env::snapshot();
     let mut io = cli::StdIo;
 
-    // A panic is a bug in ambit. It is reported in the standard error shape below, so the default
-    // hook's message and backtrace hint are suppressed.
     panic::set_hook(Box::new(|_| {}));
 
     let cwd = match std::env::current_dir() {
@@ -60,8 +52,6 @@ fn main() {
         }
     };
 
-    // Only after a command that succeeded. Advice stacked on top of an error is noise at the moment
-    // a reader has something else to read, and the error already ends in a next step of its own.
     if code == ExitCode::Success
         && let Some(notice) = notice(&env, &argv)
     {
@@ -71,14 +61,7 @@ fn main() {
     std::process::exit(code.as_i32());
 }
 
-/// The update notice, if one is due.
-///
-/// It lives here rather than in [`cli::run`], for two reasons. `run` is what the suite drives, and
-/// a check that reached the network would make every test in the suite do so. And whether a person
-/// is watching is a property of the real process's stderr, which `run` is deliberately given no
-/// access to.
-///
-/// Never at the cost of the command that already worked: a panic is swallowed with the rest.
+// Kept out of `cli::run` so the test suite never reaches the network.
 fn notice(env: &Env, argv: &[String]) -> Option<String> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -99,7 +82,6 @@ fn notice(env: &Env, argv: &[String]) -> Option<String> {
         .flatten()
 }
 
-/// What a panic said: the message of `panic!`/`expect`, or a placeholder for a non-string payload.
 fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
     if let Some(message) = payload.downcast_ref::<&str>() {
         (*message).to_owned()

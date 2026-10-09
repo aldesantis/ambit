@@ -1,34 +1,3 @@
-//! `ambit.lock`: the resolution result, written so an install can be reproduced.
-//!
-//! This is the half that builds and writes the document. The half that reads it (where the file
-//! lives, and the pins catalog loading resolves against) is `model/lock_file.rs`; the shared
-//! constants live there and are re-exported here so a caller finds all of "the lock" in one place.
-//!
-//! The `catalogs` section is an input; every other section is a record. `--frozen` compares the
-//! lock as text, so a file that would be rewritten is out of date regardless of what the two
-//! documents mean. The one exception is `commit` under `catalogs`: `read_catalog_pins` reads it
-//! back and resolution goes to that commit, so it must be true, not just byte-equal.
-//!
-//! A commit pins content only against an honest remote and an untouched cache: a rewritten tag, a
-//! mirror serving other bytes, or an edited checkout all resolve without complaint. So every skill
-//! and script hook that has a commit also records a `digest` of the tree it materializes, and
-//! [`verify_digests`] refuses an install whose tree no longer hashes to what the lock recorded for
-//! the same commit. A `path:` source records none: its bytes are whatever the working directory
-//! holds, and a digest would only turn every local edit into a lock change.
-//!
-//! Every hook and MCP server also records an `exec` digest of what it runs, whatever its source, so
-//! an install can refuse execution the lock has not seen (`project/exec.rs`).
-//!
-//! A pin is void once the config it was resolved from changes. Each entry records the `source` and
-//! `ref` its commit came from, so a reader can tell a pin worth honoring from a stale one. Editing
-//! `ref:` invalidates the pin as it always did.
-//!
-//! Byte-stability is the contract for everything written here: emit through [`emit_yaml`], and
-//! hold nothing a second run could disagree about (no timestamps, no absolute paths, no cache
-//! locations, a commit only where a source actually has one). Every value is machine-independent so
-//! a committed lock stays shared across a team; a path into someone's local cache would make it
-//! per-machine and produce a diff on every developer's first install.
-
 use std::path::Path;
 
 use indexmap::IndexMap;
@@ -51,93 +20,48 @@ pub use crate::model::lock_file::{
     read_locked_items,
 };
 
-/// One configured catalog, pinned.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LockCatalog {
-    /// The `source` as config wrote it.
     pub source: String,
-    /// The `ref` as config wrote it, absent when the entry named none.
     pub r#ref: Option<String>,
-    /// The commit the ref resolved to. Absent for a `path:` source, which has no revision.
     pub commit: Option<String>,
 }
 
-/// One selected pack, explained.
-///
-/// No `path` and no `commit`: a pack materializes nothing and ships no bytes. It is recorded
-/// because the reason line on every skill, server, and hook it pulled in names it, and those
-/// reasons need something in the lock to resolve against.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LockPack {
-    /// The catalog it came from.
     pub catalog: String,
-    /// Why it is in the bundle, in `--explain`'s short form.
     pub reason: String,
 }
 
-/// One selected skill, pinned and explained.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LockSkill {
-    /// The catalog it came from.
     pub catalog: String,
-    /// Its directory within that source, `/`-separated.
     pub path: String,
-    /// The commit those bytes came from, when the source has one.
     pub commit: Option<String>,
-    /// The [`tree_digest`] of its directory at that commit. Present exactly when `commit` is.
     pub digest: Option<String>,
-    /// Why it is in the bundle, in `--explain`'s short form.
     pub reason: String,
 }
 
-/// One selected MCP server, explained.
-///
-/// No `commit`, deliberately: a server is a handful of config values rather than a tree of files,
-/// so the catalog entry's commit already says everything a reader could act on.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LockMcp {
-    /// The catalog it came from.
     pub catalog: String,
-    /// The [`mcp_exec`] digest of its transport.
     pub exec: String,
-    /// Why it is in the bundle, in `--explain`'s short form.
     pub reason: String,
 }
 
-/// One selected hook, explained, and pinned when it ships bytes.
-///
-/// A hook is config values rendered into a harness file, or, when its `command` names a script the
-/// hook's directory ships, also a tree of files to materialize. `path`, `commit` and `digest`
-/// appear only in the second case, the same reason [`LockSkill`] carries them and [`LockMcp`] does not. A hook
-/// whose command is a command line takes [`LockMcp`]'s shape instead.
-///
-/// `path` is the hook's directory within its source, like [`LockSkill::path`]. It is never the
-/// command ambit writes into a harness file, since that command is rewritten per harness and is not
-/// one value the lock could hold.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LockHook {
-    /// The catalog it came from.
     pub catalog: String,
-    /// Its directory within that source, `/`-separated. Present only when it ships a script.
     pub path: Option<String>,
-    /// The commit those bytes came from, when the source has one.
     pub commit: Option<String>,
-    /// The [`tree_digest`] of its directory at that commit. Present exactly when `commit` is.
     pub digest: Option<String>,
-    /// The [`hook_exec`] digest of what it runs.
     pub exec: String,
-    /// Why it is in the bundle, in `--explain`'s short form.
     pub reason: String,
 }
 
-/// A lock document.
-///
-/// The five sections are keyed maps, not lists: a name is the identity of everything in them, and
-/// a map makes a diff show one changed entry instead of a reordered list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Lock {
     pub version: i64,
-    /// Every configured catalog, not only those that contributed to the bundle.
     pub catalogs: IndexMap<String, LockCatalog>,
     pub packs: IndexMap<String, LockPack>,
     pub skills: IndexMap<String, LockSkill>,
@@ -145,7 +69,6 @@ pub struct Lock {
     pub hooks: IndexMap<String, LockHook>,
 }
 
-/// One bundle item's reason, in `--explain`'s short form.
 fn reason(bundle: &Bundle, kind: ItemKind, name: &str) -> Result<String> {
     let item = BundleItem {
         kind,
@@ -155,17 +78,12 @@ fn reason(bundle: &Bundle, kind: ItemKind, name: &str) -> Result<String> {
     Ok(format_reason(reason_of(bundle, &item)?))
 }
 
-/// The tree digests a lock records, keyed by item name.
-///
-/// Computed apart from [`build_lock`] by [`item_digests`], so building the lock stays pure and a
-/// test can hand it any digest it likes.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ItemDigests {
     pub skills: IndexMap<String, String>,
     pub hooks: IndexMap<String, String>,
 }
 
-/// The error for a catalog tree that cannot be hashed.
 fn unhashable(kind: ItemKind, name: &str, dir: &Path, error: &std::io::Error) -> AmbitError {
     config_error(
         format!("cannot read the files of {kind} \"{name}\""),
@@ -176,15 +94,6 @@ fn unhashable(kind: ItemKind, name: &str, dir: &Path, error: &std::io::Error) ->
     )
 }
 
-/// Hashes every tree the lock pins: each skill and each script hook whose source has a commit.
-///
-/// Reads the catalog checkout the bundle resolved to, not anything installed, so the digest says
-/// what the commit holds on this machine. Items from a `path:` source are skipped (see the module
-/// header), as are command hooks, which ship no bytes.
-///
-/// # Errors
-///
-/// Exit 2 when a tree cannot be read.
 pub fn item_digests(bundle: &Bundle) -> Result<ItemDigests> {
     let mut digests = ItemDigests::default();
 
@@ -211,22 +120,6 @@ pub fn item_digests(bundle: &Bundle) -> Result<ItemDigests> {
     Ok(digests)
 }
 
-/// Builds the lock for a resolved project.
-///
-/// Pure: what the lock says is a function of what resolution decided and the digests
-/// [`item_digests`] computed, so a test can compare two locks without touching disk.
-///
-/// Every configured catalog is listed, even one that contributed nothing to this bundle. The lock
-/// pins the inputs, and a catalog whose commit moves changes what a later resolve selects even
-/// though today's bundle never named it. `catalogs` is in config order.
-///
-/// A digest is recorded only beside a commit, whatever `digests` holds. A script hook's `exec`
-/// covers that same digest, so it too sees a tree only when the source has a commit.
-///
-/// # Errors
-///
-/// Exit 1 if the bundle cannot account for one of its own items: a bug, not anything a catalog can
-/// cause.
 pub fn build_lock(catalogs: &[Catalog], bundle: &Bundle, digests: &ItemDigests) -> Result<Lock> {
     let mut lock = Lock {
         version: LOCK_VERSION,
@@ -286,8 +179,6 @@ pub fn build_lock(catalogs: &[Catalog], bundle: &Bundle, digests: &ItemDigests) 
     }
 
     for hook in &bundle.hooks {
-        // A hook with no script has no bytes to pin, so it records neither path nor commit; see
-        // `LockHook`.
         let ships = hook.r#type == HookType::Script;
         let commit = if ships { hook.commit.clone() } else { None };
         let digest = commit
@@ -310,7 +201,6 @@ pub fn build_lock(catalogs: &[Catalog], bundle: &Bundle, digests: &ItemDigests) 
     Ok(lock)
 }
 
-/// One name-keyed section as a JSON object. Insertion order is irrelevant: emission sorts keys.
 fn section<T>(entries: &IndexMap<String, T>, value: impl Fn(&T) -> JsonObject) -> JsonValue {
     JsonValue::Object(
         entries
@@ -320,14 +210,12 @@ fn section<T>(entries: &IndexMap<String, T>, value: impl Fn(&T) -> JsonObject) -
     )
 }
 
-/// Inserts `key` only when there is a value for it, so an absent value leaves no key in the lock.
 fn insert_some(object: &mut JsonObject, key: &str, value: Option<&String>) {
     if let Some(value) = value {
         object.insert(key.to_owned(), json!(value));
     }
 }
 
-/// The lock as the JSON document [`emit_yaml`] renders.
 fn lock_document(lock: &Lock) -> JsonValue {
     json!({
         "version": lock.version,
@@ -378,33 +266,16 @@ fn lock_document(lock: &Lock) -> JsonValue {
     })
 }
 
-/// Renders a lock as the bytes written to disk.
-///
-/// Empty sections are emitted as empty maps, not omitted, so a project that loses its last MCP
-/// server shows `mcps: {}` in the diff instead of a vanished key.
 pub fn serialize_lock(lock: &Lock) -> String {
     emit_yaml(&lock_document(lock))
 }
 
-/// Writes a project's lock.
-///
-/// # Errors
-///
-/// Exit 1 when the file cannot be written, the catch-all code for an unanticipated failure.
 pub fn write_lock_text(project_dir: &Path, text: &str) -> Result<()> {
     fs::write_text(&lock_file_path(project_dir), text)?;
 
     Ok(())
 }
 
-/// Asserts that the lock on disk is exactly what resolution would write: the check `--frozen` is.
-///
-/// Called before anything is materialized, so a CI run that fails this leaves the project
-/// untouched. `expected` is the serialized lock resolution produced.
-///
-/// # Errors
-///
-/// Exit 5 when the project has no lock, or has one that differs.
 pub fn assert_lock_current(project_dir: &Path, expected: &str) -> Result<()> {
     let actual = read_lock_text(project_dir)?;
 
@@ -430,7 +301,6 @@ pub fn assert_lock_current(project_dir: &Path, expected: &str) -> Result<()> {
     ))
 }
 
-/// The pin one fresh lock entry and one earlier entry are compared on.
 struct Pinned<'a> {
     kind: ItemKind,
     name: &'a str,
@@ -439,7 +309,6 @@ struct Pinned<'a> {
     digest: Option<&'a String>,
 }
 
-/// The error for one tree that no longer hashes to what the lock recorded at the same commit.
 fn digest_mismatch(entry: &Pinned<'_>, recorded: &str, actual: &str) -> AmbitError {
     let at = match (entry.commit, entry.path) {
         (Some(commit), Some(path)) => format!(" for {path} at commit {commit}"),
@@ -461,20 +330,6 @@ fn digest_mismatch(entry: &Pinned<'_>, recorded: &str, actual: &str) -> AmbitErr
     )
 }
 
-/// Refuses a fresh lock whose trees no longer match what the project's lock recorded for the same
-/// commit.
-///
-/// Each skill and script hook in `lock` is compared with the entry of the same name in `previous`.
-/// A mismatch is a digest that differs while `commit` and `path` are both recorded and both equal:
-/// the commit says these are the bytes installed before, and they are not. Everything else passes.
-/// A moved commit or path is a new pin and brings its own digest, and an earlier entry with no
-/// digest (written before digests were recorded, or hand-edited) has nothing to compare against.
-///
-/// Pure, so the caller decides when to read `previous` and runs this before writing anything.
-///
-/// # Errors
-///
-/// Exit 5 for the first mismatch, skills before hooks, each in name order.
 pub fn verify_digests(previous: &LockedItems, lock: &Lock) -> Result<()> {
     let skills = lock.skills.iter().map(|(name, skill)| {
         (
